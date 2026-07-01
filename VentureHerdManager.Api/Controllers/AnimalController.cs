@@ -41,4 +41,17 @@ public IActionResult SearchAnimals(string searchText)
 
         return CreatedAtAction(nameof(GetAllAnimals), new { id = createdAnimal.AnimalId }, createdAnimal);
     }
+
+    [HttpPut("{animalId}")]
+public IActionResult UpdateAnimal(int animalId, Animal updatedAnimal)
+{
+    var animal = _animalService.UpdateAnimal(animalId, updatedAnimal);
+
+    if (animal == null)
+    {
+        return NotFound("Animal not found.");
+    }
+
+    return Ok(animal);
+}
 }

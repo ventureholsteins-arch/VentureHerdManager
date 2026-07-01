@@ -1,0 +1,44 @@
+using Microsoft.AspNetCore.Mvc;
+using VentureHerdManager.Api.Models;
+using VentureHerdManager.Api.Services;
+
+namespace VentureHerdManager.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class AnimalsController : ControllerBase
+{
+    private readonly AnimalService _animalService;
+
+    public AnimalsController(AnimalService animalService)
+    {
+        _animalService = animalService;
+    }
+
+    [HttpGet]
+    public IActionResult GetAllAnimals()
+    {
+        return Ok(_animalService.GetAllAnimals());
+    }
+
+[HttpGet("search")]
+public IActionResult SearchAnimals(string searchText)
+{
+    var animals = _animalService.SearchAnimals(searchText);
+
+    if (!animals.Any())
+    {
+        return NotFound("No animals found.");
+    }
+
+    return Ok(animals);
+}
+
+    [HttpPost]
+    public IActionResult CreateAnimal(Animal animal)
+    {
+        var createdAnimal = _animalService.CreateAnimal(animal);
+
+        return CreatedAtAction(nameof(GetAllAnimals), new { id = createdAnimal.AnimalId }, createdAnimal);
+    }
+}

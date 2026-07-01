@@ -2,6 +2,7 @@ namespace VentureHerdManager.Api.Models;
 
 public class Animal
 {
+    public AnimalStatus AnimalStatus { get; set; } = AnimalStatus.Active;
     public int AnimalId { get; set; }
 
     public string? BarnName { get; set; }
@@ -43,6 +44,13 @@ public enum AnimalStage
     Heifer,
     Cow,
     DryCow,
+    Sold,
+    Deceased
+}
+
+public enum AnimalStatus
+{
+    Active,
     Sold,
     Deceased
 }

@@ -41,6 +41,11 @@ So that I can begin building a complete digital herd management system.
 - [x] Create Animals Controller
 - [x] Build GET /api/animals
 - [x] Build POST /api/animals
+- [x] Build animal search
+- [x] Add AnimalStatus
+- [x] Document animal deletion policy
+- [x] Add .gitignore
+- [x] Remove build outputs from Git tracking
 
 ---
 
@@ -74,6 +79,11 @@ Memory (Temporary)
 - [ ] Validation
 - [ ] Azure SQL Database
 - [ ] Entity Framework Core
+- [ ] Edit animals
+- [ ] Design database
+- [ ] Save animals to SQL database
+- [ ] Build animal details page
+- [ ] Record heat events
 
 ---
 

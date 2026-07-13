@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VentureHerdManager.Api.Data;
 
@@ -11,9 +12,11 @@ using VentureHerdManager.Api.Data;
 namespace VentureHerdManager.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260713061744_AddCalvingEvents")]
+    partial class AddCalvingEvents
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -72,32 +75,6 @@ namespace VentureHerdManager.Api.Migrations
                     b.HasKey("AnimalId");
 
                     b.ToTable("Animals");
-                });
-
-            modelBuilder.Entity("VentureHerdManager.Api.Models.AnimalNote", b =>
-                {
-                    b.Property<int>("AnimalNoteId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AnimalNoteId"));
-
-                    b.Property<int>("AnimalId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("NoteDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("NoteText")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("AnimalNoteId");
-
-                    b.ToTable("AnimalNotes");
                 });
 
             modelBuilder.Entity("VentureHerdManager.Api.Models.BreedingEvent", b =>
@@ -182,34 +159,6 @@ namespace VentureHerdManager.Api.Migrations
                     b.HasKey("CalvingEventId");
 
                     b.ToTable("CalvingEvents");
-                });
-
-            modelBuilder.Entity("VentureHerdManager.Api.Models.DryOffEvent", b =>
-                {
-                    b.Property<int>("DryOffEventId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DryOffEventId"));
-
-                    b.Property<int>("AnimalId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("DryOffDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Reason")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("DryOffEventId");
-
-                    b.ToTable("DryOffEvents");
                 });
 
             modelBuilder.Entity("VentureHerdManager.Api.Models.HeatEvent", b =>

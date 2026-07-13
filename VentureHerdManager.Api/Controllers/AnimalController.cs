@@ -20,6 +20,19 @@ public class AnimalsController : ControllerBase
     {
         return Ok(_animalService.GetAllAnimals());
     }
+[HttpGet("{animalId}")]
+public IActionResult GetAnimalById(int animalId)
+{
+    var animal = _animalService.GetAnimalById(animalId);
+
+    if (animal == null)
+    {
+        return NotFound("Animal not found.");
+    }
+
+    return Ok(animal);
+}
+
 
 [HttpGet("search")]
 public IActionResult SearchAnimals(string searchText)

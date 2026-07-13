@@ -1,32 +1,36 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using VentureHerdManager.Api.Data;
 using VentureHerdManager.Api.Models;
-using VentureHerdManager.Api.Services;
-using VentureHerdManager.Api.DTOs;
 
 namespace VentureHerdManager.Api.Controllers;
 
 [ApiController]
-[Route("api/animals/{animalId}/heats")]
-public class HeatController : ControllerBase
+[Route("api/[controller]")]
+public class HeatEventsController : ControllerBase
 {
-    private readonly HeatService _heatService;
+    private readonly ApplicationDbContext _context;
 
-    public HeatController(HeatService heatService)
+    public HeatEventsController(ApplicationDbContext context)
     {
-        _heatService = heatService;
+        _context = context;
+    }
+
+    [HttpGet("animal/{animalId}")]
+    public async Task<ActionResult<List<HeatEvent>>> GetByAnimal(int animalId)
+    {
+        return await _context.HeatEvents
+            .Where(h => h.AnimalId == animalId)
+            .OrderByDescending(h => h.HeatDateTime)
+            .ToListAsync();
     }
 
     [HttpPost]
-    public IActionResult RecordHeat(int animalId, RecordHeatRequest request)
-{
-    var createdHeat = _heatService.RecordHeat(animalId, request);
-
-    return Ok(createdHeat);
-}
-
-    [HttpGet]
-    public IActionResult GetHeatsForAnimal(int animalId)
+    public async Task<ActionResult<HeatEvent>> Create(HeatEvent heatEvent)
     {
-        return Ok(_heatService.GetHeatsForAnimal(animalId));
+        _context.HeatEvents.Add(heatEvent);
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetByAnimal), new { animalId = heatEvent.AnimalId }, heatEvent);
     }
 }

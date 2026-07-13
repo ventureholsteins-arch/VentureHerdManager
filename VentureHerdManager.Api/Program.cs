@@ -1,40 +1,54 @@
 using Microsoft.EntityFrameworkCore;
 using VentureHerdManager.Api.Data;
+using VentureHerdManager.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services
+// Controllers
 builder.Services.AddControllers();
+
+// Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddScoped<VentureHerdManager.Api.Services.AnimalService>();
-builder.Services.AddScoped<VentureHerdManager.Api.Services.HeatService>();
-builder.Services.AddScoped<VentureHerdManager.Api.Services.DashboardService>();
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    ));
+
+// Services
+builder.Services.AddScoped<AnimalService>();
+builder.Services.AddScoped<HeatService>();
+builder.Services.AddScoped<DashboardService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// CORS
+var allowedOrigins =
+    builder.Configuration
+        .GetSection("AllowedOrigins")
+        .Get<string[]>()
+    ?? ["http://localhost:5173"];
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowVueDevServer", policy =>
+    options.AddPolicy("Frontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
 var app = builder.Build();
-app.UseCors("AllowVueDevServer");
+
+app.UseCors("Frontend");
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-//app.UseHttpsRedirection();
 
 app.MapControllers();
 

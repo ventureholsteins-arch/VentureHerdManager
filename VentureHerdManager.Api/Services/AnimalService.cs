@@ -35,6 +35,11 @@ public class AnimalService
 
         return animal;
     }
+
+public Animal? GetAnimalById(int animalId)
+{
+    return _context.Animals.FirstOrDefault(a => a.AnimalId == animalId);
+}
 public Animal? UpdateAnimal(int animalId, Animal updatedAnimal)
 {
     var existingAnimal = _context.Animals.FirstOrDefault(a => a.AnimalId == animalId);

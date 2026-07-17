@@ -111,7 +111,7 @@ function openPregCheckForm() {
     selectedBreedingId.value === null
   ) {
     selectedBreedingId.value =
-      breedingEvents.value[0].breedingEventId
+      breedingEvents.value[0]!.breedingEventId
   }
 }
 

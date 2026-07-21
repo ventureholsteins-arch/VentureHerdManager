@@ -6,7 +6,7 @@ import { getCalendarEvents } from '../api/calendar'
 import type {
   CalendarEvent,
   CalendarEventType
-} from '../models/CalendarEvent'
+} from '../Models/CalendarEvent'
 
 interface CalendarDay {
   key: string

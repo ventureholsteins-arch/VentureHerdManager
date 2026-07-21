@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { getAnimal } from '../api/animals'
-import type { Animal } from '../models/Animal'
+import type { Animal } from '../Models/Animal'
 
 import {
   getAnimalNotes,

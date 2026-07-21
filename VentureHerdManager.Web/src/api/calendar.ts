@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../models/CalendarEvent'
+import type { CalendarEvent } from '../Models/CalendarEvent'
 
 function getApiUrl(): string {
   const apiUrl = import.meta.env.VITE_API_URL

@@ -17,6 +17,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<AnimalService>();
 builder.Services.AddScoped<HeatService>();
 builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<CalendarService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();

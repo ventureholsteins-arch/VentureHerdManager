@@ -1,4 +1,4 @@
-import type { Animal } from '../Models/Animal'
+import type { Animal } from '../models/Animal'
 
 const API_BASE = import.meta.env.VITE_API_URL
 

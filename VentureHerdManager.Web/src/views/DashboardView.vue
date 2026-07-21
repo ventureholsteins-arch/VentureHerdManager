@@ -7,7 +7,7 @@ import QuickActions from '../components/QuickActions.vue'
 import AnimalCard from '../components/AnimalCard.vue'
 
 import { getAnimals } from '../api/animals'
-import type { Animal } from '../Models/Animal'
+import type { Animal } from '../models/Animal'
 
 const router = useRouter()
 

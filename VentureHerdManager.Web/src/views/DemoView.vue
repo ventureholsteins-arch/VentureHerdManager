@@ -29,7 +29,7 @@ async function launchDemo() {
       <p class="demo-tag">DEMO</p>
       <h1>Venture Herd Manager</h1>
       <p class="subtitle">
-        See the real app in action with a pre-loaded herd of demo animals — Aurora, Nova, Ember, Daisy, Clover, and Titan.
+        See the real app in action with a pre-loaded herd of demo animals.
         All data is reset fresh each time.
       </p>
 

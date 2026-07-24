@@ -609,18 +609,6 @@ onMounted(() => {
   box-shadow: 0 18px 48px rgba(14, 24, 16, 0.18);
 }
 
-.hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: url('/80217A5B-5BBB-488C-BEDE-941DDEA9E910.jpg');
-  background-size: cover;
-  background-position: center;
-  opacity: 0.12;
-  pointer-events: none;
-  z-index: 0;
-}
-
 .hero-overlay {
   position: absolute;
   inset: 0;

@@ -293,13 +293,6 @@ onMounted(() => {
     >
       <div class="hero-overlay" />
 
-      <img
-        :src="appearance?.logoUrl || '/farm-logo.png'"
-        class="hero-farm-watermark"
-        alt=""
-        aria-hidden="true"
-      >
-
       <div class="hero-inner">
         <div class="hero-main">
           <div class="hero-brand">
@@ -606,9 +599,9 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: stretch;
-  min-height: 154px;
+  min-height: 132px;
   margin-bottom: 10px;
-  padding: 12px;
+  padding: 10px;
   border-radius: 22px;
   overflow: hidden;
   background-size: 110% auto;
@@ -637,17 +630,6 @@ onMounted(() => {
   z-index: 1;
 }
 
-.hero-farm-watermark {
-  position: absolute;
-  inset: auto 24px 14px auto;
-  width: min(280px, 28vw);
-  max-width: 300px;
-  opacity: 0.24;
-  filter: saturate(0.75);
-  pointer-events: none;
-  z-index: 2;
-}
-
 .hero-inner {
   position: relative;
   z-index: 3;
@@ -673,7 +655,7 @@ onMounted(() => {
 
 .hero-app-logo {
   display: block;
-  width: min(360px, 100%);
+  width: min(420px, 100%);
   max-width: 100%;
   height: auto;
   margin: 0 auto;
@@ -835,8 +817,8 @@ onMounted(() => {
 
 @media (max-width: 640px) {
   .hero {
-    min-height: 122px;
-    padding: 10px;
+    min-height: 106px;
+    padding: 8px;
     background-size: cover;
     background-position: center center;
   }
@@ -883,14 +865,7 @@ onMounted(() => {
   }
 
   .hero-app-logo {
-    width: min(340px, 96vw);
-  }
-
-  .hero-farm-watermark {
-    inset: 8px auto auto 50%;
-    width: min(220px, 62vw);
-    transform: translateX(-50%);
-    opacity: 0.19;
+    width: min(380px, 98vw);
   }
 }
 .herd-section {

@@ -4,8 +4,13 @@ import { computed, onMounted, ref } from 'vue'
 import { getAppearance, type AppearanceSetting } from './api/appearance'
 
 const appearance = ref<AppearanceSetting | null>(null)
+const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
 
 onMounted(async () => {
+  if (isDemoOnly) {
+    return
+  }
+
   try {
     appearance.value = await getAppearance()
   } catch (error) {

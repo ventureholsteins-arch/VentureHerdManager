@@ -2,6 +2,12 @@ import type { Animal } from '../models/Animal'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
+interface LatestClassificationResponse {
+  animalId: number
+  score?: number
+  baa?: number
+}
+
 export async function getAnimals(): Promise<Animal[]> {
   const response = await fetch(`${API_BASE}/Animals`)
 
@@ -21,9 +27,9 @@ export async function getAnimals(): Promise<Animal[]> {
     })
     
     if (classificationsResponse.ok) {
-      const classifications = await classificationsResponse.json()
+      const classifications: LatestClassificationResponse[] = await classificationsResponse.json()
       const classificationMap = new Map(
-        classifications.map((c: any) => [c.animalId, c])
+        classifications.map((c) => [c.animalId, c])
       )
       
       // Attach classifications to animals

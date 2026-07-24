@@ -212,7 +212,7 @@ const handleSubmit = async () => {
       await addClassification({
         animalId: props.animal.animalId,
         score: formData.value.scoreValue,
-        baa: formData.value.baa,
+        baa: formData.value.baa ?? undefined,
         classificationDate: new Date().toISOString(),
         notes: formData.value.classificationNotes || undefined
       })

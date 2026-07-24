@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'VentureHerdManager.Api/**'
+      - '.github/workflows/feature-dashboard-ui_ventureherdmanager-api.yml'
   workflow_dispatch:
 
 jobs:

@@ -820,6 +820,27 @@ onMounted(() => {
     min-height: 160px;
     padding: 14px;
     background-size: cover;
+    background-position: center center;
+  }
+
+  .hero-inner {
+    gap: 16px;
+  }
+
+  .hero-main,
+  .hero-side,
+  .hero-brand {
+    align-items: center;
+    text-align: center;
+  }
+
+  .hero-actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero-updated {
+    text-align: center;
   }
 
   .hero-stats {

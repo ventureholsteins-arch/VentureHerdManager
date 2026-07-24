@@ -8,8 +8,6 @@ interface LatestClassificationResponse {
   baa?: number
 }
 
-let latestForAnimalsEndpointAvailable: boolean | null = null
-
 export async function getAnimals(): Promise<Animal[]> {
   const response = await fetch(`${API_BASE}/Animals`)
 
@@ -21,10 +19,6 @@ export async function getAnimals(): Promise<Animal[]> {
   
   // Load latest classifications for all animals
   try {
-    if (latestForAnimalsEndpointAvailable === false) {
-      return animals
-    }
-
     const animalIds = animals.map(a => a.animalId)
     const classificationsResponse = await fetch(`${API_BASE}/ClassificationRecords/latest-for-animals`, {
       method: 'POST',
@@ -33,7 +27,6 @@ export async function getAnimals(): Promise<Animal[]> {
     })
     
     if (classificationsResponse.ok) {
-      latestForAnimalsEndpointAvailable = true
       const classifications: LatestClassificationResponse[] = await classificationsResponse.json()
       const classificationMap = new Map(
         classifications.map((c) => [c.animalId, c])
@@ -47,8 +40,6 @@ export async function getAnimals(): Promise<Animal[]> {
           animal.latestBaa = classification.baa
         }
       })
-    } else if (classificationsResponse.status === 404) {
-      latestForAnimalsEndpointAvailable = false
     }
   } catch (error) {
     console.warn('Failed to load classifications:', error)

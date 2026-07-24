@@ -37,28 +37,60 @@ namespace VentureHerdManager.Api.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("BarnName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateOnly?>("BirthDate")
                         .HasColumnType("date");
 
                     b.Property<string>("Breed")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("CurrentLactation")
+                        .HasColumnType("int");
 
                     b.Property<int?>("DamId")
                         .HasColumnType("int");
 
                     b.Property<string>("DamName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("DeceasedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeceasedNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsFavorite")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("ProfilePictureUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("RegisteredName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("RegistrationNumber")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("Sex")
                         .HasColumnType("int");
@@ -67,9 +99,44 @@ namespace VentureHerdManager.Api.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("SireName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("SoldDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SoldNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("AnimalId");
+
+                    b.HasIndex("AnimalStage");
+
+                    b.HasIndex("AnimalStatus");
+
+                    b.HasIndex("BarnName");
+
+                    b.HasIndex("DamId");
+
+                    b.HasIndex("IsFavorite");
+
+                    b.HasIndex("RegisteredName");
+
+                    b.HasIndex("RegistrationNumber")
+                        .IsUnique()
+                        .HasFilter("[RegistrationNumber] IS NOT NULL");
+
+                    b.HasIndex("SireId");
 
                     b.ToTable("Animals");
                 });
@@ -85,19 +152,149 @@ namespace VentureHerdManager.Api.Migrations
                     b.Property<int>("AnimalId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime>("NoteDate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("NoteText")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<int>("NoteType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
 
                     b.HasKey("AnimalNoteId");
 
+                    b.HasIndex("AnimalId");
+
+                    b.HasIndex("NoteDate");
+
+                    b.HasIndex("AnimalId", "NoteDate");
+
                     b.ToTable("AnimalNotes");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.AnimalPhoto", b =>
+                {
+                    b.Property<int>("AnimalPhotoId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AnimalPhotoId"));
+
+                    b.Property<int>("AnimalId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Caption")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("PhotoDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PhotoType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PhotoUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("RelatedEventId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RelatedEventType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("AnimalPhotoId");
+
+                    b.HasIndex("AnimalId");
+
+                    b.HasIndex("PhotoDate");
+
+                    b.HasIndex("PhotoType");
+
+                    b.HasIndex("AnimalId", "PhotoDate");
+
+                    b.ToTable("AnimalPhotos");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.AppearanceSetting", b =>
+                {
+                    b.Property<int>("AppearanceSettingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AppearanceSettingId"));
+
+                    b.Property<string>("AccentColor")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("BackgroundImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal>("BackgroundOpacity")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("decimal(4,2)");
+
+                    b.Property<string>("FarmName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<decimal>("OverlayOpacity")
+                        .HasPrecision(4, 2)
+                        .HasColumnType("decimal(4,2)");
+
+                    b.Property<string>("Theme")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("AppearanceSettingId");
+
+                    b.ToTable("AppearanceSettings");
                 });
 
             modelBuilder.Entity("VentureHerdManager.Api.Models.BreedingEvent", b =>
@@ -117,26 +314,72 @@ namespace VentureHerdManager.Api.Migrations
                     b.Property<int>("BreedingType")
                         .HasColumnType("int");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateTime?>("CloseUpDate")
+                        .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("ExpectedDueDate")
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ExpectedDueDate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
-                    b.Property<DateTime>("PregnancyCheckDueDate")
+                    b.Property<DateTime?>("PregnancyCheckDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("PregnancyCheckDueDate")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("PregnancyStatus")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("RecommendedDryOffDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("SireUsed")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Technician")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("BreedingEventId");
+
+                    b.HasIndex("AnimalId");
+
+                    b.HasIndex("BreedingDate");
+
+                    b.HasIndex("CloseUpDate");
+
+                    b.HasIndex("ExpectedDueDate");
+
+                    b.HasIndex("PregnancyCheckDueDate");
+
+                    b.HasIndex("PregnancyStatus");
+
+                    b.HasIndex("RecommendedDryOffDate");
+
+                    b.HasIndex("AnimalId", "BreedingDate");
 
                     b.ToTable("BreedingEvents");
                 });
@@ -152,11 +395,24 @@ namespace VentureHerdManager.Api.Migrations
                     b.Property<int>("AnimalId")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("BirthWeight")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("decimal(6,2)");
+
+                    b.Property<int?>("CalfAnimalId")
+                        .HasColumnType("int");
+
                     b.Property<string>("CalfBarnName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("CalfRegisteredName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CalfRegistrationNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("CalfSex")
                         .HasColumnType("int");
@@ -167,11 +423,25 @@ namespace VentureHerdManager.Api.Migrations
                     b.Property<int>("CalvingEase")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("NumberOfCalves")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PictureUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<bool>("Stillborn")
                         .HasColumnType("bit");
@@ -179,9 +449,93 @@ namespace VentureHerdManager.Api.Migrations
                     b.Property<bool>("Twins")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.HasKey("CalvingEventId");
 
+                    b.HasIndex("AnimalId");
+
+                    b.HasIndex("CalfAnimalId");
+
+                    b.HasIndex("CalvingDate");
+
+                    b.HasIndex("AnimalId", "CalvingDate");
+
                     b.ToTable("CalvingEvents");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.ClassificationRecord", b =>
+                {
+                    b.Property<int>("ClassificationRecordId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ClassificationRecordId"));
+
+                    b.Property<int?>("AgeInMonthsAtScoring")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AnimalId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("Baa")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("decimal(7,2)");
+
+                    b.Property<DateTime?>("ClassificationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClassificationLabel")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsOfficial")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<decimal>("Score")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("ClassificationRecordId");
+
+                    b.HasIndex("AnimalId");
+
+                    b.HasIndex("Baa");
+
+                    b.HasIndex("ClassificationDate");
+
+                    b.HasIndex("AnimalId", "ClassificationDate");
+
+                    b.ToTable("ClassificationRecords");
                 });
 
             modelBuilder.Entity("VentureHerdManager.Api.Models.DryOffEvent", b =>
@@ -195,19 +549,42 @@ namespace VentureHerdManager.Api.Migrations
                     b.Property<int>("AnimalId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime>("DryOffDate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("Reason")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("DryOffEventId");
+
+                    b.HasIndex("AnimalId");
+
+                    b.HasIndex("DryOffDate");
+
+                    b.HasIndex("AnimalId", "DryOffDate");
 
                     b.ToTable("DryOffEvents");
                 });
@@ -223,21 +600,271 @@ namespace VentureHerdManager.Api.Migrations
                     b.Property<int>("AnimalId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("EmbryoImplantDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpectedNextHeatEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpectedNextHeatStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("HasEmbryoTransfer")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime>("HeatDateTime")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("HeatStrength")
+                        .HasColumnType("int");
+
                     b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("PictureUrl")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("StandingHeat")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.HasKey("HeatEventId");
 
+                    b.HasIndex("AnimalId");
+
+                    b.HasIndex("EmbryoImplantDate");
+
+                    b.HasIndex("ExpectedNextHeatEnd");
+
+                    b.HasIndex("ExpectedNextHeatStart");
+
+                    b.HasIndex("HasEmbryoTransfer");
+
+                    b.HasIndex("HeatDateTime");
+
+                    b.HasIndex("AnimalId", "HeatDateTime");
+
                     b.ToTable("HeatEvents");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.LutalyseEvent", b =>
+                {
+                    b.Property<int>("LutalyseEventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("LutalyseEventId"));
+
+                    b.Property<DateTime>("AdministrationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("AnimalId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("ExpectedHeatWatchEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpectedHeatWatchStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("HeatObserved")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("HeatObservedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("ResultingHeatEventId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("LutalyseEventId");
+
+                    b.HasIndex("AdministrationDate");
+
+                    b.HasIndex("AnimalId");
+
+                    b.HasIndex("ExpectedHeatWatchEnd");
+
+                    b.HasIndex("ExpectedHeatWatchStart");
+
+                    b.HasIndex("AnimalId", "AdministrationDate");
+
+                    b.ToTable("LutalyseEvents");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.Animal", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Dam")
+                        .WithMany("OffspringAsDam")
+                        .HasForeignKey("DamId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Sire")
+                        .WithMany("OffspringAsSire")
+                        .HasForeignKey("SireId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Dam");
+
+                    b.Navigation("Sire");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.AnimalNote", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Animal")
+                        .WithMany("AnimalNotes")
+                        .HasForeignKey("AnimalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Animal");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.AnimalPhoto", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Animal")
+                        .WithMany("Photos")
+                        .HasForeignKey("AnimalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Animal");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.BreedingEvent", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Animal")
+                        .WithMany("BreedingEvents")
+                        .HasForeignKey("AnimalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Animal");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.CalvingEvent", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Animal")
+                        .WithMany("CalvingEvents")
+                        .HasForeignKey("AnimalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "CalfAnimal")
+                        .WithMany()
+                        .HasForeignKey("CalfAnimalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Animal");
+
+                    b.Navigation("CalfAnimal");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.ClassificationRecord", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Animal")
+                        .WithMany("ClassificationRecords")
+                        .HasForeignKey("AnimalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Animal");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.DryOffEvent", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Animal")
+                        .WithMany("DryOffEvents")
+                        .HasForeignKey("AnimalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Animal");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.HeatEvent", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Animal")
+                        .WithMany("HeatEvents")
+                        .HasForeignKey("AnimalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Animal");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.LutalyseEvent", b =>
+                {
+                    b.HasOne("VentureHerdManager.Api.Models.Animal", "Animal")
+                        .WithMany("LutalyseEvents")
+                        .HasForeignKey("AnimalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Animal");
+                });
+
+            modelBuilder.Entity("VentureHerdManager.Api.Models.Animal", b =>
+                {
+                    b.Navigation("AnimalNotes");
+
+                    b.Navigation("BreedingEvents");
+
+                    b.Navigation("CalvingEvents");
+
+                    b.Navigation("ClassificationRecords");
+
+                    b.Navigation("DryOffEvents");
+
+                    b.Navigation("HeatEvents");
+
+                    b.Navigation("LutalyseEvents");
+
+                    b.Navigation("OffspringAsDam");
+
+                    b.Navigation("OffspringAsSire");
+
+                    b.Navigation("Photos");
                 });
 #pragma warning restore 612, 618
         }

@@ -6,6 +6,7 @@ export interface Animal {
   birthDate: string | null
   sex: number
   animalStage: number
+  currentLactation?: number | null
   breed: string | null
   sireId: number | null
   sireName: string | null
@@ -13,4 +14,10 @@ export interface Animal {
   damName: string | null
   notes: string | null
   animalStatus?: number
+  latestScore?: number | null
+  latestBaa?: number | null
+  scoreLabel?: string
+  baaLabel?: string
+  isFavorite?: boolean
+  profilePictureUrl?: string | null
 }

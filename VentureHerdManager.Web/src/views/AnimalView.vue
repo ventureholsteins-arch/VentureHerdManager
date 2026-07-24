@@ -3,7 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { getAnimal } from '../api/animals'
+import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
+import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
 
 import {
   getAnimalNotes,
@@ -40,17 +42,21 @@ const route = useRoute()
 const router = useRouter()
 
 const animal = ref<Animal | null>(null)
+const snapshot = ref<AnimalSnapshot | null>(null)
 
 const heatEvents = ref<HeatEvent[]>([])
 const breedingEvents = ref<BreedingEvent[]>([])
 const calvingEvents = ref<CalvingEvent[]>([])
 const dryOffEvents = ref<DryOffEvent[]>([])
 const animalNotes = ref<AnimalNote[]>([])
+const timelineEntries = ref<AnimalTimelineEntry[]>([])
 
 const loading = ref(true)
 
 const showHeatForm = ref(false)
 const heatNotes = ref('')
+const heatPictureUrl = ref('')
+const hasEmbryoTransfer = ref(false)
 
 const showBreedingForm = ref(false)
 const sireUsed = ref('')
@@ -65,6 +71,7 @@ const showCalvingForm = ref(false)
 const calfSex = ref(0)
 const calfBarnName = ref('')
 const calfRegisteredName = ref('')
+const calvingPictureUrl = ref('')
 const calvingEase = ref(0)
 const twins = ref(false)
 const stillborn = ref(false)
@@ -90,6 +97,7 @@ function closeAllForms() {
   showCalvingForm.value = false
   showDryOffForm.value = false
   showNoteForm.value = false
+  hasEmbryoTransfer.value = false
 }
 
 function openHeatForm() {
@@ -142,12 +150,26 @@ function openPendingAction() {
     openBreedingForm()
   }
 
+  if (pendingAction === 'calving') {
+    openCalvingForm()
+  }
+
+  if (pendingAction === 'note') {
+    openNoteForm()
+  }
+
   sessionStorage.removeItem('pendingAnimalAction')
 }
 
 onMounted(async () => {
   try {
-    animal.value = await getAnimal(animalId.value)
+    const animalSnapshot = await getAnimalSnapshot(
+      animalId.value
+    )
+
+    snapshot.value = animalSnapshot
+    animal.value = animalSnapshot.animal
+    timelineEntries.value = animalSnapshot.timeline
 
     heatEvents.value = await getHeatEvents(
       animalId.value
@@ -183,10 +205,14 @@ async function saveHeat() {
   try {
     await recordHeat(
       animal.value.animalId,
-      heatNotes.value
+      heatNotes.value,
+      heatPictureUrl.value.trim() || null,
+      hasEmbryoTransfer.value
     )
 
     heatNotes.value = ''
+    heatPictureUrl.value = ''
+    hasEmbryoTransfer.value = false
     showHeatForm.value = false
 
     heatEvents.value = await getHeatEvents(
@@ -201,12 +227,14 @@ async function saveBreeding() {
   if (!animal.value || !sireUsed.value.trim()) return
 
   try {
-    await recordBreeding(
-      animal.value.animalId,
-      sireUsed.value.trim(),
-      breedingType.value,
-      breedingNotes.value
-    )
+    await recordBreeding({
+      animalId: animal.value.animalId,
+      breedingDate: new Date().toISOString(),
+      sireUsed: sireUsed.value.trim(),
+      breedingType: breedingType.value,
+      pregnancyStatus: 0,
+      notes: breedingNotes.value
+    })
 
     sireUsed.value = ''
     breedingType.value = 0
@@ -255,12 +283,14 @@ async function saveCalving() {
       calvingEase.value,
       twins.value,
       stillborn.value,
-      calvingNotes.value
+      calvingNotes.value,
+      calvingPictureUrl.value.trim() || null
     )
 
     calfSex.value = 0
     calfBarnName.value = ''
     calfRegisteredName.value = ''
+    calvingPictureUrl.value = ''
     calvingEase.value = 0
     twins.value = false
     stillborn.value = false
@@ -445,6 +475,13 @@ const sexLabel = computed(() => {
         </div>
 
         <div class="info-card">
+          <span>Current Lactation</span>
+          <strong>
+            {{ animal.currentLactation ?? 'Not set' }}
+          </strong>
+        </div>
+
+        <div class="info-card">
           <span>Birth Date</span>
           <strong>{{ animal.birthDate || 'Unknown' }}</strong>
         </div>
@@ -513,6 +550,21 @@ const sexLabel = computed(() => {
             v-model="heatNotes"
             placeholder="Standing heat, activity, mucus, etc."
           />
+
+          <label>Photo URL</label>
+
+          <input
+            v-model="heatPictureUrl"
+            placeholder="Optional image URL"
+          >
+
+          <label class="checkbox-label">
+            <input
+              v-model="hasEmbryoTransfer"
+              type="checkbox"
+            >
+            <span>Plan embryo transfer on day 7</span>
+          </label>
 
           <div class="form-actions">
             <button
@@ -653,6 +705,13 @@ const sexLabel = computed(() => {
             placeholder="Optional"
           >
 
+          <label>Photo URL</label>
+
+          <input
+            v-model="calvingPictureUrl"
+            placeholder="Optional image URL"
+          >
+
           <label>Calving Ease</label>
 
           <select v-model.number="calvingEase">
@@ -773,39 +832,46 @@ const sexLabel = computed(() => {
       </section>
 
       <section class="panel">
-        <h2>Notes</h2>
+        <h2>Unified Timeline</h2>
 
         <div
-          v-if="animalNotes.length === 0"
+          v-if="timelineEntries.length === 0"
           class="timeline-card"
         >
-          <strong>No notes</strong>
+          <strong>No timeline activity yet</strong>
 
           <small>
-            Use the Notes button above.
+            Use the quick actions above to begin tracking the animal.
           </small>
         </div>
 
         <div
-          v-for="note in animalNotes"
-          :key="note.animalNoteId"
+          v-for="entry in timelineEntries"
+          :key="`${entry.eventType}-${entry.eventId}`"
           class="timeline-card"
         >
           <strong>
-            📝 Note
+            {{ entry.title }}
           </strong>
 
           <small>
-            {{
-              new Date(
-                note.noteDate
-              ).toLocaleString()
-            }}
+            {{ new Date(entry.eventDate).toLocaleString() }}
           </small>
 
           <p>
-            {{ note.noteText }}
+            {{ entry.summary }}
           </p>
+
+          <p v-if="entry.notes">
+            {{ entry.notes }}
+          </p>
+
+          <img
+            v-if="entry.photoUrl"
+            :src="entry.photoUrl"
+            class="timeline-photo"
+            alt="Timeline photo"
+          >
         </div>
       </section>
 
@@ -1022,11 +1088,21 @@ const sexLabel = computed(() => {
 
 .back {
   margin-bottom: 20px;
-  border: none;
+  padding: 12px 16px;
+  border: 1px solid #31572c;
+  border-radius: 6px;
   background: none;
   color: #31572c;
+  font-size: 1.1rem;
   font-weight: 700;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back:hover {
+  background: rgba(49, 87, 44, 0.05);
+  border-color: #254520;
+  color: #254520;
 }
 
 .hero {
@@ -1219,6 +1295,39 @@ const sexLabel = computed(() => {
 
 .timeline-card p {
   margin-bottom: 0;
+}
+
+.timeline-photo {
+  display: block;
+  max-width: 100%;
+  margin-top: 12px;
+  border-radius: 12px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px !important;
+  margin-bottom: 0 !important;
+  padding: 12px;
+  border: 1px solid #dbe2df;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.checkbox-label input {
+  width: auto;
+  min-height: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.checkbox-label span {
+  flex: 1;
 }
 
 @media (max-width: 700px) {

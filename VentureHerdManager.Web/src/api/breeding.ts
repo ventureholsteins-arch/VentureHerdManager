@@ -23,23 +23,26 @@ export async function getBreedings(animalId: number): Promise<BreedingEvent[]> {
   return await response.json()
 }
 
-export async function recordBreeding(
-  animalId: number,
-  sireUsed: string,
-  breedingType: number,
-  notes: string
-): Promise<void> {
+export async function recordBreeding(breedingData: {
+  animalId: number
+  breedingDate: string
+  sireUsed: string
+  breedingType: number
+  pregnancyStatus: number
+  notes?: string
+}): Promise<void> {
   const response = await fetch(`${API_BASE}/BreedingEvents`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      animalId,
-      breedingDate: new Date().toISOString(),
-      sireUsed,
-      breedingType,
-      notes,
+      animalId: breedingData.animalId,
+      breedingDate: breedingData.breedingDate,
+      sireUsed: breedingData.sireUsed,
+      breedingType: breedingData.breedingType,
+      pregnancyStatus: breedingData.pregnancyStatus,
+      notes: breedingData.notes,
       createdBy: 'Austin'
     })
   })

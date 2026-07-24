@@ -638,16 +638,20 @@ onMounted(async () => {
 
 .back-button {
   margin: 0 0 18px;
-  padding: 0;
-  border: none;
+  padding: 12px 16px;
+  border: 1px solid #486b45;
+  border-radius: 6px;
   background: transparent;
   color: #486b45;
-  font: inherit;
+  font-size: 1.1rem;
   font-weight: 800;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .back-button:hover {
+  background: rgba(72, 107, 69, 0.05);
+  border-color: #254520;
   color: #254520;
 }
 

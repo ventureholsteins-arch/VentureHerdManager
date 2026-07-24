@@ -7,6 +7,8 @@ import DashboardView from '../views/DashboardView.vue'
 import AnimalView from '../views/AnimalView.vue'
 import CalendarView from '../views/CalendarView.vue'
 
+import SettingsView from '../views/SettingsView.vue'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
 
@@ -20,6 +22,11 @@ const router = createRouter({
       path: '/calendar',
       name: 'calendar',
       component: CalendarView
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: SettingsView
     },
     {
       path: '/animals/:animalId',

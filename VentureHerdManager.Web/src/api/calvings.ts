@@ -32,7 +32,8 @@ export async function recordCalving(
   calvingEase: number,
   twins: boolean,
   stillborn: boolean,
-  notes: string
+  notes: string,
+  pictureUrl?: string | null
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/CalvingEvents`, {
     method: 'POST',
@@ -49,6 +50,7 @@ export async function recordCalving(
       twins,
       stillborn,
       notes,
+      pictureUrl: pictureUrl ?? null,
       createdBy: 'Austin'
     })
   })

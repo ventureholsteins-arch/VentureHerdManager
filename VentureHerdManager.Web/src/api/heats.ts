@@ -6,6 +6,8 @@ export interface HeatEvent {
   heatDateTime: string
   notes?: string | null
   pictureUrl?: string | null
+  hasEmbryoTransfer?: boolean
+  embryoImplantDate?: string | null
   createdBy?: string | null
 }
 
@@ -19,7 +21,16 @@ export async function getHeatEvents(animalId: number): Promise<HeatEvent[]> {
   return await response.json()
 }
 
-export async function recordHeat(animalId: number, notes: string): Promise<void> {
+export async function recordHeat(
+  animalId: number,
+  notes: string,
+  pictureUrl?: string | null,
+  hasEmbryoTransfer?: boolean
+): Promise<void> {
+  const embryoImplantDate = hasEmbryoTransfer
+    ? new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    : null
+
   const response = await fetch(`${API_BASE}/HeatEvents`, {
     method: 'POST',
     headers: {
@@ -29,7 +40,9 @@ export async function recordHeat(animalId: number, notes: string): Promise<void>
       animalId,
       heatDateTime: new Date().toISOString(),
       notes,
-      pictureUrl: null,
+      pictureUrl: pictureUrl ?? null,
+      hasEmbryoTransfer: hasEmbryoTransfer ?? false,
+      embryoImplantDate,
       createdBy: 'Austin'
     })
   })

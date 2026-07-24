@@ -3,13 +3,19 @@ import { ref } from 'vue'
 
 const selectedMessage = ref('')
 
-function chooseAnimalFor(action: 'heat' | 'breeding') {
+function chooseAnimalFor(
+  action: 'heat' | 'breeding' | 'calving' | 'note'
+) {
   sessionStorage.setItem('pendingAnimalAction', action)
 
   selectedMessage.value =
     action === 'heat'
       ? 'Select an animal below to record a heat.'
-      : 'Select an animal below to record a breeding.'
+      : action === 'breeding'
+        ? 'Select an animal below to record a breeding.'
+        : action === 'calving'
+          ? 'Select an animal below to record a calving.'
+          : 'Select an animal below to add a note.'
 
   const herdSection = document.querySelector('.herd-section')
   herdSection?.scrollIntoView({
@@ -55,21 +61,21 @@ function chooseAnimalFor(action: 'heat' | 'breeding') {
         </div>
       </button>
 
-      <button class="disabled-action" disabled>
+      <button @click="chooseAnimalFor('note')">
         <span>📝</span>
 
         <div>
           <strong>Add Note</strong>
-          <small>Coming next</small>
+          <small>Select an animal</small>
         </div>
       </button>
 
-      <button class="disabled-action" disabled>
+      <button @click="chooseAnimalFor('calving')">
         <span>🐄</span>
 
         <div>
           <strong>Calved</strong>
-          <small>Coming next</small>
+          <small>Select an animal</small>
         </div>
       </button>
     </div>

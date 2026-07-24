@@ -19,6 +19,27 @@ export interface DashboardDueSoon {
   daysUntilDue: number
 }
 
+export interface DashboardLutTracking {
+  lutalyseEventId: number
+  animalId: number
+  animalName: string
+  administrationDate: string
+  expectedHeatWatchEnd: string
+  heatObserved: boolean
+  daysTracked: number
+  daysRemaining: number
+}
+
+export interface DashboardEmbryoImplant {
+  heatEventId: number
+  animalId: number
+  animalName: string
+  heatDateTime: string
+  embryoImplantDate?: string | null
+  daysTracked: number
+  daysUntilImplant: number
+}
+
 export interface DashboardHeat {
   heatEventId: number
   animalId: number
@@ -49,9 +70,19 @@ export interface DashboardSummary {
 
   pregChecksDueCount: number
   dueSoonCount: number
+  lutTrackingCount: number
+  embryoImplantsCount: number
+
+  herdScoreAverage?: number | null
+  herdBaaAverage?: number | null
+  animalsWithScore?: number
+  animalsWithBaa?: number
+  percentExcellent2ndLactationOrHigher?: number | null
 
   pregChecksDue: DashboardPregCheck[]
   dueSoon: DashboardDueSoon[]
+  lutTracking: DashboardLutTracking[]
+  embryoImplants: DashboardEmbryoImplant[]
   recentHeats: DashboardHeat[]
   recentBreedings: DashboardBreeding[]
 }

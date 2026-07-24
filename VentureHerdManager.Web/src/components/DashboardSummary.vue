@@ -28,12 +28,28 @@ function openAnimal(animalId: number) {
   router.push(`/animals/${animalId}`)
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString()
+function formatDate(value?: string | null) {
+  if (!value) {
+    return '—'
+  }
+
+  const parsed = new Date(value)
+
+  return Number.isNaN(parsed.getTime())
+    ? '—'
+    : parsed.toLocaleDateString()
 }
 
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString()
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return '—'
+  }
+
+  const parsed = new Date(value)
+
+  return Number.isNaN(parsed.getTime())
+    ? '—'
+    : parsed.toLocaleString()
 }
 
 function pregnancyStatusLabel(status: number) {
@@ -64,6 +80,21 @@ function pregnancyStatusLabel(status: number) {
         <div>
           <p class="eyebrow">HERD OVERVIEW</p>
           <h2>Today at a glance</h2>
+        </div>
+      </div>
+
+      <div class="herd-metrics-row">
+        <div class="metric-mini">
+          <small>Avg Score</small>
+          <span class="metric-value">{{ dashboard.herdScoreAverage ? dashboard.herdScoreAverage.toFixed(1) : '—' }}</span>
+        </div>
+        <div class="metric-mini">
+          <small>EX (2nd+ Lac)</small>
+          <span class="metric-value">{{ dashboard.percentExcellent2ndLactationOrHigher ? dashboard.percentExcellent2ndLactationOrHigher.toFixed(0) : '—' }}%</span>
+        </div>
+        <div class="metric-mini">
+          <small>Avg BAA</small>
+          <span class="metric-value">{{ dashboard.herdBaaAverage ? dashboard.herdBaaAverage.toFixed(1) : '—' }}</span>
         </div>
       </div>
 
@@ -132,7 +163,10 @@ function pregnancyStatusLabel(status: number) {
         </div>
       </div>
 
-      <section class="dashboard-panel">
+      <section
+        v-if="dashboard.pregChecksDue.length > 0"
+        class="dashboard-panel"
+      >
         <div class="panel-heading">
           <div>
             <p class="eyebrow">NEEDS ATTENTION</p>
@@ -142,14 +176,6 @@ function pregnancyStatusLabel(status: number) {
           <span class="count-badge">
             {{ dashboard.pregChecksDueCount }}
           </span>
-        </div>
-
-        <div
-          v-if="dashboard.pregChecksDue.length === 0"
-          class="empty-state"
-        >
-          <strong>No preg checks due</strong>
-          <p>Everything is caught up.</p>
         </div>
 
         <button
@@ -177,7 +203,10 @@ function pregnancyStatusLabel(status: number) {
         </button>
       </section>
 
-      <section class="dashboard-panel">
+      <section
+        v-if="dashboard.dueSoon.length > 0"
+        class="dashboard-panel"
+      >
         <div class="panel-heading">
           <div>
             <p class="eyebrow">UPCOMING</p>
@@ -187,14 +216,6 @@ function pregnancyStatusLabel(status: number) {
           <span class="count-badge">
             {{ dashboard.dueSoonCount }}
           </span>
-        </div>
-
-        <div
-          v-if="dashboard.dueSoon.length === 0"
-          class="empty-state"
-        >
-          <strong>No animals due soon</strong>
-          <p>There are no confirmed due dates in the next 30 days.</p>
         </div>
 
         <button
@@ -222,19 +243,95 @@ function pregnancyStatusLabel(status: number) {
         </button>
       </section>
 
-      <section class="dashboard-panel">
+      <section
+        v-if="dashboard.lutTracking.length > 0"
+        class="dashboard-panel"
+      >
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">NEEDS ATTENTION</p>
+            <h3>LUT tracking</h3>
+          </div>
+
+          <span class="count-badge">
+            {{ dashboard.lutTrackingCount }}
+          </span>
+        </div>
+
+        <button
+          v-for="item in dashboard.lutTracking"
+          :key="item.lutalyseEventId"
+          class="event-row"
+          @click="openAnimal(item.animalId)"
+        >
+          <span class="event-icon">💉</span>
+
+          <div class="event-content">
+            <strong>{{ item.animalName }}</strong>
+
+            <small>
+              LUT on {{ formatDate(item.administrationDate) }}
+            </small>
+
+            <p>
+              Heat watch through {{ formatDate(item.expectedHeatWatchEnd) }}
+              · {{ item.daysRemaining }} days remaining
+            </p>
+          </div>
+
+          <span class="arrow">›</span>
+        </button>
+      </section>
+
+      <section
+        v-if="dashboard.embryoImplants.length > 0"
+        class="dashboard-panel"
+      >
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">NEEDS ATTENTION</p>
+            <h3>Embryo implants</h3>
+          </div>
+
+          <span class="count-badge">
+            {{ dashboard.embryoImplantsCount }}
+          </span>
+        </div>
+
+        <button
+          v-for="item in dashboard.embryoImplants"
+          :key="item.heatEventId"
+          class="event-row"
+          @click="openAnimal(item.animalId)"
+        >
+          <span class="event-icon">🧬</span>
+
+          <div class="event-content">
+            <strong>{{ item.animalName }}</strong>
+
+            <small>
+              Heat on {{ formatDate(item.heatDateTime) }}
+            </small>
+
+            <p>
+              Implant day {{ 7 - item.daysTracked }} of 7
+              · {{ item.daysUntilImplant }} days to implant
+            </p>
+          </div>
+
+          <span class="arrow">›</span>
+        </button>
+      </section>
+
+      <section
+        v-if="dashboard.recentHeats.length > 0"
+        class="dashboard-panel"
+      >
         <div class="panel-heading">
           <div>
             <p class="eyebrow">RECENT ACTIVITY</p>
             <h3>Recent heats</h3>
           </div>
-        </div>
-
-        <div
-          v-if="dashboard.recentHeats.length === 0"
-          class="empty-state"
-        >
-          <strong>No heats recorded</strong>
         </div>
 
         <button
@@ -306,124 +403,217 @@ function pregnancyStatusLabel(status: number) {
 
 <style scoped>
 .dashboard-summary {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
-  margin-bottom: 24px;
 }
 
-.section-heading,
-.panel-heading {
+.message,
+.error-message {
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8e2;
+  color: #1f2d23;
+  font-size: 0.95rem;
+}
+
+.error-message {
+  color: #b42318;
+  border-color: #f5c2c2;
+  background: #fef7f7;
+}
+
+.section-heading {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #4f7a53;
+  font-size: 0.80rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  display: block;
 }
 
 .section-heading h2,
 .panel-heading h3 {
   margin: 0;
-  color: #142033;
-}
-
-.eyebrow {
-  margin: 0 0 4px;
-  color: #31572c;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  color: #0f1f16;
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: -0.015em;
 }
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
 }
 
 .summary-card {
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 88px;
-  padding: 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  background: white;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+  padding: 18px 16px;
+  border: 1.5px solid #d8dfd9;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(13, 30, 18, 0.07);
+  transition: all 0.2s ease;
+}
+
+.summary-card:hover {
+  border-color: #b9d9bf;
+  box-shadow: 0 10px 28px rgba(13, 30, 18, 0.1);
 }
 
 .summary-card.important {
-  border-color: #d9e7d6;
-  background: #f6faf5;
+  border-color: #a0d2a5;
+  background: #f8fef9;
+  box-shadow: 0 8px 24px rgba(63, 102, 71, 0.09);
 }
 
 .icon,
 .event-icon {
-  display: grid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #f0f7f1;
+  font-size: 1.25rem;
   flex-shrink: 0;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 15px;
-  background: #eef4ef;
-  font-size: 23px;
 }
 
 .summary-card strong {
   display: block;
-  color: #142033;
-  font-size: 28px;
-  line-height: 1;
+  color: #0f1f16;
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1.1;
 }
 
 .summary-card small {
   display: block;
-  margin-top: 6px;
-  color: #64748b;
-  font-size: 14px;
+  margin-top: 3px;
+  color: #5d6f63;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.herd-metrics-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: #f8fef9;
+  border-radius: 12px;
+  border: 1px solid #e8f0e9;
+}
+
+.metric-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+
+.metric-mini small {
+  font-size: 0.7rem;
+  color: #7a8d7f;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f1f16;
 }
 
 .dashboard-panel {
-  padding: 18px;
-  border: 1px solid #e2e8f0;
-  border-radius: 22px;
-  background: white;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+  padding: 20px;
+  border: 1.5px solid #d8dfd9;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(13, 30, 18, 0.06);
 }
 
 .panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f7f1;
+}
+
+.panel-heading h3 {
+  font-size: 1.3rem;
 }
 
 .count-badge {
-  min-width: 34px;
-  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 12px;
   border-radius: 999px;
-  background: #31572c;
-  color: white;
-  text-align: center;
-  font-weight: 800;
+  background: #e0f2e3;
+  color: #1a5e35;
+  font-weight: 900;
+  font-size: 1.05rem;
+}
+
+.empty-state {
+  padding: 16px 0 8px;
+  color: #5d6f63;
+}
+
+.empty-state strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #163022;
+  font-size: 0.95rem;
 }
 
 .event-row {
   display: flex;
   align-items: center;
+  gap: 14px;
   width: 100%;
-  gap: 13px;
-  padding: 14px 4px;
-  border: none;
-  border-top: 1px solid #edf0f2;
+  padding: 14px 0;
+  border: 0;
   background: transparent;
-  color: inherit;
   text-align: left;
   cursor: pointer;
-}
-
-.event-row:first-of-type {
-  border-top: none;
+  transition: background 0.15s ease;
+  border-radius: 8px;
+  padding-left: 8px;
+  padding-right: 8px;
+  margin-left: -8px;
+  margin-right: -8px;
 }
 
 .event-row:hover {
-  background: #f8faf8;
+  background: #f8fef9;
+}
+
+.event-row + .event-row {
+  border-top: 1px solid #ede8ed;
+  padding-top: 14px;
+  margin-top: 0;
 }
 
 .event-content {
@@ -433,58 +623,88 @@ function pregnancyStatusLabel(status: number) {
 
 .event-content strong {
   display: block;
-  color: #142033;
-  font-size: 16px;
+  color: #0f1f16;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
-.event-content small {
+.event-content small,
+.event-content p {
   display: block;
-  margin-top: 3px;
-  color: #64748b;
+  margin-top: 4px;
+  color: #5d6f63;
+  font-size: 0.9rem;
 }
 
 .event-content p {
-  margin: 5px 0 0;
-  color: #475569;
-  font-size: 14px;
+  margin-bottom: 0;
 }
 
 .arrow {
-  color: #94a3b8;
-  font-size: 28px;
+  color: #75a17b;
+  font-size: 1.3rem;
+  font-weight: 800;
+  flex-shrink: 0;
 }
 
-.empty-state {
-  padding: 18px;
-  border-radius: 16px;
-  background: #f8fafc;
-  color: #64748b;
-}
-
-.empty-state strong {
-  display: block;
-  color: #334155;
-}
-
-.empty-state p {
-  margin: 5px 0 0;
-  font-size: 14px;
-}
-
-.message,
-.error-message {
-  padding: 18px;
-  border-radius: 16px;
-  background: white;
-}
-
-.error-message {
-  color: #b42318;
-}
-
-@media (min-width: 700px) {
+@media (max-width: 700px) {
   .summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .summary-card {
+    padding: 16px 14px;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .summary-card strong {
+    font-size: 1.2rem;
+  }
+
+  .summary-card small {
+    font-size: 0.8rem;
+  }
+
+  .dashboard-panel {
+    padding: 16px;
+  }
+
+  .panel-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .panel-heading h3 {
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .section-heading h2,
+  .panel-heading h3 {
+    font-size: 1.2rem;
+  }
+
+  .eyebrow {
+    font-size: 0.75rem;
+  }
+
+  .icon,
+  .event-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .event-row {
+    padding: 12px 0;
   }
 }
 </style>

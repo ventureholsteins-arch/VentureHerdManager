@@ -378,16 +378,7 @@ public class DemoController : ControllerBase
         {
             return BadRequest(new DemoSeedResult
             {
-                Message = "DemoMode is disabled. Set DemoMode:Enabled=true in app settings."
-            });
-        }
-
-        var requiredKey = _configuration["DemoMode:SeedKey"];
-        if (!string.IsNullOrWhiteSpace(requiredKey) && requiredKey != providedKey)
-        {
-            return Unauthorized(new DemoSeedResult
-            {
-                Message = "Missing or invalid X-Demo-Key header."
+                Message = "DemoMode is disabled."
             });
         }
 

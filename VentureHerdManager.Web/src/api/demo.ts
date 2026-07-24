@@ -12,7 +12,7 @@ export interface DemoSeedResult {
 export async function resetDemo(): Promise<DemoSeedResult> {
   const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
 
-  const response = await fetch(`${API_BASE}/api/demo/reset`, {
+  const response = await fetch(`${API_BASE}/demo/reset`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

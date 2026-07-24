@@ -613,9 +613,26 @@ onMounted(async () => {
 
 <style scoped>
 .calendar-page {
+  position: relative;
+  isolation: isolate;
   width: min(100%, 1280px);
   margin: 0 auto;
   padding: 28px 24px 60px;
+}
+
+.calendar-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  background-image:
+    linear-gradient(145deg, rgba(246, 251, 247, 0.92), rgba(249, 253, 250, 0.94)),
+    url('/candid 1.jpg');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.26;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .calendar-hero {

@@ -616,12 +616,25 @@ onMounted(() => {
   box-shadow: 0 18px 48px rgba(14, 24, 16, 0.18);
 }
 
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/80217A5B-5BBB-488C-BEDE-941DDEA9E910.jpg');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.12;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .hero-overlay {
   position: absolute;
   inset: 0;
   background:
     linear-gradient(120deg, rgba(5, 12, 9, 0.70), rgba(7, 14, 11, 0.38));
   pointer-events: none;
+  z-index: 1;
 }
 
 .hero-farm-watermark {
@@ -632,11 +645,12 @@ onMounted(() => {
   opacity: 0.24;
   filter: saturate(0.75);
   pointer-events: none;
+  z-index: 2;
 }
 
 .hero-inner {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
   gap: 16px;
@@ -870,6 +884,13 @@ onMounted(() => {
 
   .hero-app-logo {
     width: min(340px, 96vw);
+  }
+
+  .hero-farm-watermark {
+    inset: 8px auto auto 50%;
+    width: min(220px, 62vw);
+    transform: translateX(-50%);
+    opacity: 0.19;
   }
 }
 .herd-section {

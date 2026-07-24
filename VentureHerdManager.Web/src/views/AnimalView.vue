@@ -1081,9 +1081,26 @@ const sexLabel = computed(() => {
 
 <style scoped>
 .page {
+  position: relative;
+  isolation: isolate;
   max-width: 900px;
   margin: auto;
   padding: 24px;
+}
+
+.page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  background-image:
+    linear-gradient(160deg, rgba(246, 251, 247, 0.94), rgba(255, 255, 255, 0.94)),
+    url('/1AB7A903-3FCE-49A4-8BA5-A4502EA70BE1.jpg');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.24;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .back {

@@ -1,6 +1,18 @@
 @VentureHerdManager.Api_HostAddress = http://localhost:5051
+@DemoSeedKey = change-me
 
 GET {{VentureHerdManager.Api_HostAddress}}/weatherforecast/
 Accept: application/json
+
+###
+
+GET {{VentureHerdManager.Api_HostAddress}}/api/Demo/status
+Accept: application/json
+
+###
+
+POST {{VentureHerdManager.Api_HostAddress}}/api/Demo/reset
+Accept: application/json
+X-Demo-Key: {{DemoSeedKey}}
 
 ###

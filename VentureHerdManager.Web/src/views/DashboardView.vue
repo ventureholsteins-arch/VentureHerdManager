@@ -659,12 +659,12 @@ onMounted(() => {
 
 .hero-app-logo {
   display: block;
-  width: min(300px, 100%);
+  width: min(360px, 100%);
   max-width: 100%;
   height: auto;
   margin: 0 auto;
   margin-bottom: 0;
-  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.38));
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.26));
 }
 
 .hero-stats {
@@ -869,7 +869,7 @@ onMounted(() => {
   }
 
   .hero-app-logo {
-    width: min(280px, 92vw);
+    width: min(340px, 96vw);
   }
 }
 .herd-section {

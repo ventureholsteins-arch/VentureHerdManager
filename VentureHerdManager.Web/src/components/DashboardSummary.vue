@@ -164,7 +164,7 @@ function pregnancyStatusLabel(status: number) {
       </div>
 
       <section
-        v-if="dashboard.pregChecksDue.length > 0"
+        v-if="(dashboard.pregChecksDue?.length ?? 0) > 0"
         class="dashboard-panel"
       >
         <div class="panel-heading">
@@ -204,7 +204,7 @@ function pregnancyStatusLabel(status: number) {
       </section>
 
       <section
-        v-if="dashboard.dueSoon.length > 0"
+        v-if="(dashboard.dueSoon?.length ?? 0) > 0"
         class="dashboard-panel"
       >
         <div class="panel-heading">
@@ -244,7 +244,7 @@ function pregnancyStatusLabel(status: number) {
       </section>
 
       <section
-        v-if="dashboard.lutTracking.length > 0"
+        v-if="(dashboard.lutTracking?.length ?? 0) > 0"
         class="dashboard-panel"
       >
         <div class="panel-heading">
@@ -284,7 +284,7 @@ function pregnancyStatusLabel(status: number) {
       </section>
 
       <section
-        v-if="dashboard.embryoImplants.length > 0"
+        v-if="(dashboard.embryoImplants?.length ?? 0) > 0"
         class="dashboard-panel"
       >
         <div class="panel-heading">
@@ -324,7 +324,7 @@ function pregnancyStatusLabel(status: number) {
       </section>
 
       <section
-        v-if="dashboard.recentHeats.length > 0"
+        v-if="(dashboard.recentHeats?.length ?? 0) > 0"
         class="dashboard-panel"
       >
         <div class="panel-heading">
@@ -365,7 +365,7 @@ function pregnancyStatusLabel(status: number) {
         </div>
 
         <div
-          v-if="dashboard.recentBreedings.length === 0"
+          v-if="(dashboard.recentBreedings?.length ?? 0) === 0"
           class="empty-state"
         >
           <strong>No breedings recorded</strong>

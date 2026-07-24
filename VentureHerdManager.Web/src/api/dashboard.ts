@@ -87,6 +87,48 @@ export interface DashboardSummary {
   recentBreedings: DashboardBreeding[]
 }
 
+function defaultDashboardSummary(): DashboardSummary {
+  return {
+    totalAnimals: 0,
+    milking: 0,
+    dry: 0,
+    heifers: 0,
+    calves: 0,
+    bulls: 0,
+    pregChecksDueCount: 0,
+    dueSoonCount: 0,
+    lutTrackingCount: 0,
+    embryoImplantsCount: 0,
+    herdScoreAverage: null,
+    herdBaaAverage: null,
+    animalsWithScore: 0,
+    animalsWithBaa: 0,
+    percentExcellent2ndLactationOrHigher: null,
+    pregChecksDue: [],
+    dueSoon: [],
+    lutTracking: [],
+    embryoImplants: [],
+    recentHeats: [],
+    recentBreedings: []
+  }
+}
+
+function normalizeDashboardSummary(value: unknown): DashboardSummary {
+  const base = defaultDashboardSummary()
+  const data = (value && typeof value === 'object') ? (value as Record<string, unknown>) : {}
+
+  return {
+    ...base,
+    ...data,
+    pregChecksDue: Array.isArray(data.pregChecksDue) ? data.pregChecksDue as DashboardPregCheck[] : [],
+    dueSoon: Array.isArray(data.dueSoon) ? data.dueSoon as DashboardDueSoon[] : [],
+    lutTracking: Array.isArray(data.lutTracking) ? data.lutTracking as DashboardLutTracking[] : [],
+    embryoImplants: Array.isArray(data.embryoImplants) ? data.embryoImplants as DashboardEmbryoImplant[] : [],
+    recentHeats: Array.isArray(data.recentHeats) ? data.recentHeats as DashboardHeat[] : [],
+    recentBreedings: Array.isArray(data.recentBreedings) ? data.recentBreedings as DashboardBreeding[] : []
+  }
+}
+
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   const response = await fetch(`${API_BASE}/Dashboard`)
 
@@ -94,5 +136,6 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     throw new Error('Failed to load dashboard')
   }
 
-  return await response.json()
+  const payload = await response.json()
+  return normalizeDashboardSummary(payload)
 }

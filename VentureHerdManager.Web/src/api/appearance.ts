@@ -1,5 +1,17 @@
 const API_BASE = import.meta.env.VITE_API_URL
 
+const defaultAppearance: AppearanceSetting = {
+  appearanceSettingId: 0,
+  farmName: 'Venture Herd Manager',
+  logoUrl: '/farm-logo.png',
+  backgroundImageUrl: '/herd-manager-bg.jpg',
+  backgroundOpacity: 0.15,
+  overlayOpacity: 0.85,
+  theme: 'light',
+  accentColor: '#31572c',
+  updatedAt: new Date(0).toISOString()
+}
+
 export interface AppearanceSetting {
   appearanceSettingId: number
   farmName: string
@@ -13,15 +25,25 @@ export interface AppearanceSetting {
 }
 
 export async function getAppearance(): Promise<AppearanceSetting> {
-  const response = await fetch(`${API_BASE}/Appearance`)
+  try {
+    const response = await fetch(`${API_BASE}/Appearance`)
 
-  if (!response.ok) {
-    throw new Error(
-      `Appearance request failed with status ${response.status}`
-    )
+    if (!response.ok) {
+      // Older API deployments may not expose this endpoint yet.
+      if (response.status === 404) {
+        return defaultAppearance
+      }
+
+      throw new Error(
+        `Appearance request failed with status ${response.status}`
+      )
+    }
+
+    return response.json()
+  } catch {
+    // Keep the UI functional when the API is unavailable.
+    return defaultAppearance
   }
-
-  return response.json()
 }
 
 export async function updateAppearance(

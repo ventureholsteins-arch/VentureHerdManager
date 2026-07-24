@@ -17,6 +17,8 @@ export async function recordCalving(calvingData: {
   pictureUrl?: string
   calfBarnName: string
   calfRegisteredName?: string
+  calfSireName?: string
+  calfDamName?: string
   calfSex: number
   birthWeight?: number
   calvingEase: number
@@ -35,7 +37,9 @@ export async function recordCalving(calvingData: {
       pictureUrl: calvingData.pictureUrl,
       calfBarnName: calvingData.calfBarnName,
       calfRegisteredName: calvingData.calfRegisteredName,
-      calvingSex: calvingData.calfSex,
+      calfSireName: calvingData.calfSireName,
+      calfDamName: calvingData.calfDamName,
+      calfSex: calvingData.calfSex,
       birthWeight: calvingData.birthWeight,
       calvingEase: calvingData.calvingEase,
       twins: calvingData.twins,

@@ -17,8 +17,20 @@
         </div>
 
         <div class="form-group">
-          <label>Picture URL:</label>
-          <input v-model="pictureUrl" type="text" class="form-input" placeholder="https://..." />
+          <label>Upload Calf Photo:</label>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            class="form-input"
+            @change="onCalfPhotoSelected"
+          >
+          <small v-if="calfPhotoFile" class="upload-hint">
+            Selected: {{ calfPhotoFile.name }}
+          </small>
+          <small v-if="isUploadingPhoto" class="upload-hint">
+            Uploading photo...
+          </small>
         </div>
 
         <div class="form-group">
@@ -29,6 +41,16 @@
         <div class="form-group">
           <label>Calf Registered Name:</label>
           <input v-model="calfRegisteredName" type="text" class="form-input" placeholder="Full registered name" />
+        </div>
+
+        <div class="form-group">
+          <label>Calf Sire Name:</label>
+          <input v-model="calfSireName" type="text" class="form-input" placeholder="e.g., Master" />
+        </div>
+
+        <div class="form-group">
+          <label>Calf Dam Name:</label>
+          <input v-model="calfDamName" type="text" class="form-input" placeholder="Defaults to selected cow" />
         </div>
 
         <div class="form-group">
@@ -86,20 +108,24 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { uploadPhoto } from '../api/photos'
 
 const isOpen = ref(false)
 const animalId = ref<number | null>(null)
 const animalName = ref('')
 const calvingDate = ref(new Date().toISOString().split('T')[0])
-const pictureUrl = ref('')
 const calfBarnName = ref('')
 const calfRegisteredName = ref('')
+const calfSireName = ref('')
+const calfDamName = ref('')
 const calfSex = ref('1')
 const birthWeight = ref('')
 const calvingEase = ref('0')
 const twins = ref(false)
 const stillborn = ref(false)
 const notes = ref('')
+const calfPhotoFile = ref<File | null>(null)
+const isUploadingPhoto = ref(false)
 
 const emit = defineEmits<{
   close: []
@@ -110,15 +136,18 @@ const openModal = (id: number, name: string) => {
   animalId.value = id
   animalName.value = name
   calvingDate.value = new Date().toISOString().split('T')[0]
-  pictureUrl.value = ''
   calfBarnName.value = ''
   calfRegisteredName.value = ''
+  calfSireName.value = ''
+  calfDamName.value = name
   calfSex.value = '1'
   birthWeight.value = ''
   calvingEase.value = '0'
   twins.value = false
   stillborn.value = false
   notes.value = ''
+  calfPhotoFile.value = null
+  isUploadingPhoto.value = false
   isOpen.value = true
 }
 
@@ -127,18 +156,40 @@ const closeModal = () => {
   emit('close')
 }
 
+const onCalfPhotoSelected = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  calfPhotoFile.value = input.files?.[0] ?? null
+}
+
 const recordCalving = async () => {
   if (!animalId.value || !calvingDate.value) {
     alert('Please fill in required fields')
     return
   }
 
+  let pictureUrl: string | null = null
+
+  if (calfPhotoFile.value) {
+    try {
+      isUploadingPhoto.value = true
+      pictureUrl = await uploadPhoto(calfPhotoFile.value, 'calving-events')
+    } catch (error) {
+      alert(`Error uploading photo: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      isUploadingPhoto.value = false
+      return
+    } finally {
+      isUploadingPhoto.value = false
+    }
+  }
+
   emit('recordCalving', {
     animalId: animalId.value,
     calvingDate: calvingDate.value,
-    pictureUrl: pictureUrl.value || null,
+    pictureUrl,
     calfBarnName: calfBarnName.value || null,
     calfRegisteredName: calfRegisteredName.value || null,
+    calfSireName: calfSireName.value || null,
+    calfDamName: calfDamName.value || null,
     calfSex: parseInt(calfSex.value),
     birthWeight: birthWeight.value ? parseFloat(birthWeight.value) : null,
     calvingEase: parseInt(calvingEase.value),
@@ -259,5 +310,12 @@ textarea.form-input {
 
 .btn-primary:hover {
   background: #254520;
+}
+
+.upload-hint {
+  display: block;
+  margin-top: 6px;
+  color: #475569;
+  font-size: 0.85rem;
 }
 </style>

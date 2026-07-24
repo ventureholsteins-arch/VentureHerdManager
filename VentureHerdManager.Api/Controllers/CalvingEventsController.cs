@@ -26,8 +26,25 @@ public class CalvingEventsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<CalvingEvent>> Create(CalvingEvent calving)
+    public async Task<ActionResult<CalvingEvent>> Create(
+        [FromBody] CreateCalvingEventRequest request)
     {
+        var calving = new CalvingEvent
+        {
+            AnimalId = request.AnimalId,
+            CalvingDate = request.CalvingDate,
+            CalfSex = request.CalfSex,
+            CalfBarnName = request.CalfBarnName,
+            CalfRegisteredName = request.CalfRegisteredName,
+            CalvingEase = request.CalvingEase,
+            Twins = request.Twins,
+            Stillborn = request.Stillborn,
+            BirthWeight = request.BirthWeight,
+            Notes = request.Notes,
+            PictureUrl = request.PictureUrl,
+            CreatedBy = request.CreatedBy
+        };
+
         var animal = await _context.Animals
             .FirstOrDefaultAsync(a => a.AnimalId == calving.AnimalId);
 
@@ -40,7 +57,9 @@ public class CalvingEventsController : ControllerBase
             !calving.Stillborn &&
             calving.CalfAnimalId == null &&
             (!string.IsNullOrWhiteSpace(calving.CalfBarnName)
-             || !string.IsNullOrWhiteSpace(calving.CalfRegisteredName)))
+             || !string.IsNullOrWhiteSpace(calving.CalfRegisteredName)
+             || !string.IsNullOrWhiteSpace(request.CalfSireName)
+             || !string.IsNullOrWhiteSpace(request.CalfDamName)))
         {
             var calf = new Animal
             {
@@ -55,8 +74,11 @@ public class CalvingEventsController : ControllerBase
                 },
                 AnimalStage = AnimalStage.Calf,
                 AnimalStatus = AnimalStatus.Active,
+                SireName = request.CalfSireName,
                 DamId = animal.AnimalId,
-                DamName = animal.RegisteredName ?? animal.BarnName,
+                DamName = !string.IsNullOrWhiteSpace(request.CalfDamName)
+                    ? request.CalfDamName
+                    : animal.RegisteredName ?? animal.BarnName,
                 Breed = animal.Breed,
                 CreatedBy = calving.CreatedBy,
                 UpdatedBy = calving.CreatedBy
@@ -165,6 +187,37 @@ public class CalvingEventsController : ControllerBase
 
         return NoContent();
     }
+}
+
+public class CreateCalvingEventRequest
+{
+    public int AnimalId { get; set; }
+
+    public DateTime CalvingDate { get; set; } = DateTime.UtcNow;
+
+    public CalfSex CalfSex { get; set; } = CalfSex.Unknown;
+
+    public string? CalfBarnName { get; set; }
+
+    public string? CalfRegisteredName { get; set; }
+
+    public string? CalfSireName { get; set; }
+
+    public string? CalfDamName { get; set; }
+
+    public CalvingEase CalvingEase { get; set; } = CalvingEase.Unassisted;
+
+    public bool Twins { get; set; }
+
+    public bool Stillborn { get; set; }
+
+    public decimal? BirthWeight { get; set; }
+
+    public string? PictureUrl { get; set; }
+
+    public string? Notes { get; set; }
+
+    public string? CreatedBy { get; set; }
 }
 
 public class UpdateCalvingEventRequest

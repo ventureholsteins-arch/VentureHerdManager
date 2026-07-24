@@ -207,6 +207,8 @@ const onRecordCalving = async (data: any) => {
       pictureUrl: data.pictureUrl,
       calfBarnName: data.calfBarnName,
       calfRegisteredName: data.calfRegisteredName,
+      calfSireName: data.calfSireName,
+      calfDamName: data.calfDamName,
       calfSex: data.calfSex,
       birthWeight: data.birthWeight,
       calvingEase: data.calvingEase,

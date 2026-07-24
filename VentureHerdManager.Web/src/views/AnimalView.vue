@@ -93,6 +93,8 @@ const showCalvingForm = ref(false)
 const calfSex = ref(0)
 const calfBarnName = ref('')
 const calfRegisteredName = ref('')
+const calfSireName = ref('')
+const calfDamName = ref('')
 const calvingPhotoFile = ref<File | null>(null)
 const calvingEase = ref(0)
 const twins = ref(false)
@@ -149,6 +151,7 @@ function openPregCheckForm() {
 
 function openCalvingForm() {
   closeAllForms()
+  calfDamName.value = animal.value?.barnName || animal.value?.registeredName || ''
   showCalvingForm.value = true
 }
 
@@ -325,6 +328,8 @@ async function saveCalving() {
       calfSex.value,
       calfBarnName.value.trim(),
       calfRegisteredName.value.trim(),
+      calfSireName.value.trim(),
+      calfDamName.value.trim(),
       calvingEase.value,
       twins.value,
       stillborn.value,
@@ -335,6 +340,8 @@ async function saveCalving() {
     calfSex.value = 0
     calfBarnName.value = ''
     calfRegisteredName.value = ''
+    calfSireName.value = ''
+    calfDamName.value = ''
     calvingPhotoFile.value = null
     calvingEase.value = 0
     twins.value = false
@@ -962,6 +969,20 @@ const sexLabel = computed(() => {
 
           <input
             v-model="calfRegisteredName"
+            placeholder="Optional"
+          >
+
+          <label>Calf Sire Name</label>
+
+          <input
+            v-model="calfSireName"
+            placeholder="Optional"
+          >
+
+          <label>Calf Dam Name</label>
+
+          <input
+            v-model="calfDamName"
             placeholder="Optional"
           >
 

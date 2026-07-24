@@ -3,6 +3,7 @@ using VentureHerdManager.Api.Data;
 using VentureHerdManager.Api.Models;
 using VentureHerdManager.Api.Services;
 
+// Force redeploy with updated CORS config
 var builder = WebApplication.CreateBuilder(args);
 
 // Controllers

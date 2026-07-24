@@ -651,6 +651,9 @@ onMounted(() => {
 }
 
 .hero-brand {
+  display: flex;
+  justify-content: center;
+  width: 100%;
   max-width: 620px;
 }
 
@@ -659,6 +662,7 @@ onMounted(() => {
   width: min(300px, 100%);
   max-width: 100%;
   height: auto;
+  margin: 0 auto;
   margin-bottom: 0;
   filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.38));
 }
@@ -834,6 +838,11 @@ onMounted(() => {
     text-align: center;
   }
 
+  .hero-main,
+  .hero-side {
+    width: 100%;
+  }
+
   .hero-actions {
     width: 100%;
     justify-content: center;
@@ -844,7 +853,9 @@ onMounted(() => {
   }
 
   .hero-stats {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    width: 100%;
+    max-width: 420px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
@@ -858,7 +869,7 @@ onMounted(() => {
   }
 
   .hero-app-logo {
-    width: min(240px, 100%);
+    width: min(280px, 92vw);
   }
 }
 .herd-section {

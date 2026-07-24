@@ -100,56 +100,38 @@ function pregnancyStatusLabel(status: number) {
 
       <div class="summary-grid">
         <div class="summary-card">
-          <span class="icon">🐄</span>
+          <span class="icon">🤰</span>
 
           <div>
-            <strong>{{ dashboard.totalAnimals }}</strong>
-            <small>Total animals</small>
+            <strong>{{ dashboard.pregChecksDueCount }}</strong>
+            <small>Preg checks due</small>
           </div>
         </div>
 
         <div class="summary-card">
-          <span class="icon">🥛</span>
-
-          <div>
-            <strong>{{ dashboard.milking }}</strong>
-            <small>Milking</small>
-          </div>
-        </div>
-
-        <div class="summary-card">
-          <span class="icon">🌾</span>
-
-          <div>
-            <strong>{{ dashboard.dry }}</strong>
-            <small>Dry cows</small>
-          </div>
-        </div>
-
-        <div class="summary-card">
-          <span class="icon">🐮</span>
-
-          <div>
-            <strong>{{ dashboard.heifers }}</strong>
-            <small>Heifers</small>
-          </div>
-        </div>
-
-        <div class="summary-card">
-          <span class="icon">🍼</span>
-
-          <div>
-            <strong>{{ dashboard.calves }}</strong>
-            <small>Calves</small>
-          </div>
-        </div>
-
-        <div class="summary-card important">
           <span class="icon">📅</span>
 
           <div>
             <strong>{{ dashboard.dueSoonCount }}</strong>
             <small>Due within 30 days</small>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <span class="icon">💉</span>
+
+          <div>
+            <strong>{{ dashboard.lutTrackingCount }}</strong>
+            <small>LUT tracking</small>
+          </div>
+        </div>
+
+        <div class="summary-card important">
+          <span class="icon">🧬</span>
+
+          <div>
+            <strong>{{ dashboard.embryoImplantsCount }}</strong>
+            <small>Embryo implants</small>
           </div>
         </div>
       </div>
@@ -443,7 +425,7 @@ function pregnancyStatusLabel(status: number) {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -640,7 +622,7 @@ function pregnancyStatusLabel(status: number) {
 
 @media (max-width: 700px) {
   .summary-grid {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 

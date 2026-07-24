@@ -39,7 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
 
     steps:
@@ -48,30 +47,12 @@ jobs:
         with:
           name: .net-app
 
-      - name: Deploy to Azure Web App (Publish Profile)
-        if: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE != '' || secrets.AZUREAPPSERVICE_PUBLISHPROFILE_0596ABFD33F54FBDA9A58CAF20900832 != '' }}
-        id: deploy-with-publish-profile
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'ventureherdmanager-api'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE != '' && secrets.AZURE_WEBAPP_PUBLISH_PROFILE || secrets.AZUREAPPSERVICE_PUBLISHPROFILE_0596ABFD33F54FBDA9A58CAF20900832 }}
-          package: .
-      
-      - name: Login to Azure
-        if: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE == '' && secrets.AZUREAPPSERVICE_PUBLISHPROFILE_0596ABFD33F54FBDA9A58CAF20900832 == '' }}
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_0596ABFD33F54FBDA9A58CAF20900832 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D78FB7DACD0946FEA8F017DF05374B9B }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_63D653580DE349A1B7620A3C63379341 }}
-
-      - name: Deploy to Azure Web App (OIDC Fallback)
-        if: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE == '' && secrets.AZUREAPPSERVICE_PUBLISHPROFILE_0596ABFD33F54FBDA9A58CAF20900832 == '' }}
-        id: deploy-to-webapp-oidc
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'ventureherdmanager-api'
-          slot-name: 'Production'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: .
           

@@ -59,4 +59,64 @@ public class BreedingEventsController : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPut("{breedingEventId}")]
+    public async Task<IActionResult> Update(
+        int breedingEventId,
+        [FromBody] UpdateBreedingEventRequest request)
+    {
+        var breeding = await _context.BreedingEvents
+            .FirstOrDefaultAsync(b => b.BreedingEventId == breedingEventId);
+
+        if (breeding == null)
+        {
+            return NotFound();
+        }
+
+        breeding.BreedingDate = request.BreedingDate;
+        breeding.SireUsed = request.SireUsed;
+        breeding.BreedingType = request.BreedingType;
+        breeding.PregnancyStatus = request.PregnancyStatus;
+        breeding.Notes = request.Notes;
+        breeding.ExpectedDueDate = request.BreedingDate.AddDays(280);
+        breeding.PregnancyCheckDueDate = request.BreedingDate.AddDays(30);
+        breeding.UpdatedBy = request.UpdatedBy;
+        breeding.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [HttpDelete("{breedingEventId}")]
+    public async Task<IActionResult> Delete(int breedingEventId)
+    {
+        var breeding = await _context.BreedingEvents
+            .FirstOrDefaultAsync(b => b.BreedingEventId == breedingEventId);
+
+        if (breeding == null)
+        {
+            return NotFound();
+        }
+
+        _context.BreedingEvents.Remove(breeding);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+}
+
+public class UpdateBreedingEventRequest
+{
+    public DateTime BreedingDate { get; set; }
+
+    public string SireUsed { get; set; } = string.Empty;
+
+    public BreedingType BreedingType { get; set; }
+
+    public PregnancyStatus PregnancyStatus { get; set; }
+
+    public string? Notes { get; set; }
+
+    public string? UpdatedBy { get; set; }
 }

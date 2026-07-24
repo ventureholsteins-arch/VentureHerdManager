@@ -35,8 +35,27 @@ import {
 import {
   getCalvings,
   recordCalving,
+  deleteCalvingEvent,
+  updateCalvingEvent,
   type CalvingEvent
 } from '../api/calvings'
+
+import {
+  deleteLutEvent,
+  getLutEvents,
+  updateLutEvent,
+  type LutalyseEvent
+} from '../api/lut'
+
+import {
+  deleteBreedingEvent,
+  updateBreedingEvent
+} from '../api/breeding'
+
+import {
+  deleteHeatEvent,
+  updateHeatEvent
+} from '../api/heats'
 
 const route = useRoute()
 const router = useRouter()
@@ -48,6 +67,7 @@ const heatEvents = ref<HeatEvent[]>([])
 const breedingEvents = ref<BreedingEvent[]>([])
 const calvingEvents = ref<CalvingEvent[]>([])
 const dryOffEvents = ref<DryOffEvent[]>([])
+const lutEvents = ref<LutalyseEvent[]>([])
 const animalNotes = ref<AnimalNote[]>([])
 const timelineEntries = ref<AnimalTimelineEntry[]>([])
 
@@ -184,6 +204,10 @@ onMounted(async () => {
     )
 
     dryOffEvents.value = await getDryOffEvents(
+      animalId.value
+    )
+
+    lutEvents.value = await getLutEvents(
       animalId.value
     )
 
@@ -396,6 +420,192 @@ function calvingEaseLabel(ease: number) {
   }
 
   return easeLabels[ease] ?? 'Unknown'
+}
+
+function toLocalDateTimeInput(value: string | Date): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const offsetMs = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
+}
+
+function toIsoFromInput(value: string): string | null {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
+}
+
+async function editHeat(heat: HeatEvent) {
+  const nextDate = window.prompt(
+    'Edit heat date/time (YYYY-MM-DDTHH:mm)',
+    toLocalDateTimeInput(heat.heatDateTime)
+  )
+  if (!nextDate) return
+
+  const nextIso = toIsoFromInput(nextDate)
+  if (!nextIso) {
+    alert('Invalid heat date/time format.')
+    return
+  }
+
+  try {
+    await updateHeatEvent(heat.heatEventId, {
+      heatDateTime: nextIso,
+      notes: heat.notes ?? null,
+      pictureUrl: heat.pictureUrl ?? null
+    })
+    heatEvents.value = await getHeatEvents(animalId.value)
+  } catch (error) {
+    console.error('Failed to edit heat:', error)
+    alert('Failed to edit heat event.')
+  }
+}
+
+async function deleteHeat(heat: HeatEvent) {
+  const confirmed = window.confirm('Are you sure you want to delete this heat event?')
+  if (!confirmed) return
+
+  try {
+    await deleteHeatEvent(heat.heatEventId)
+    heatEvents.value = await getHeatEvents(animalId.value)
+  } catch (error) {
+    console.error('Failed to delete heat:', error)
+    alert('Failed to delete heat event.')
+  }
+}
+
+async function editBreeding(breeding: BreedingEvent) {
+  const nextDate = window.prompt(
+    'Edit breeding date/time (YYYY-MM-DDTHH:mm)',
+    toLocalDateTimeInput(breeding.breedingDate)
+  )
+  if (!nextDate) return
+
+  const nextIso = toIsoFromInput(nextDate)
+  if (!nextIso) {
+    alert('Invalid breeding date/time format.')
+    return
+  }
+
+  try {
+    await updateBreedingEvent(breeding.breedingEventId, {
+      breedingDate: nextIso,
+      sireUsed: breeding.sireUsed,
+      breedingType: breeding.breedingType,
+      pregnancyStatus: breeding.pregnancyStatus,
+      notes: breeding.notes ?? null
+    })
+    breedingEvents.value = await getBreedings(animalId.value)
+  } catch (error) {
+    console.error('Failed to edit breeding:', error)
+    alert('Failed to edit breeding event.')
+  }
+}
+
+async function deleteBreeding(breeding: BreedingEvent) {
+  const confirmed = window.confirm('Are you sure you want to delete this breeding event?')
+  if (!confirmed) return
+
+  try {
+    await deleteBreedingEvent(breeding.breedingEventId)
+    breedingEvents.value = await getBreedings(animalId.value)
+  } catch (error) {
+    console.error('Failed to delete breeding:', error)
+    alert('Failed to delete breeding event.')
+  }
+}
+
+async function editCalving(calving: CalvingEvent) {
+  const nextDate = window.prompt(
+    'Edit calving date/time (YYYY-MM-DDTHH:mm)',
+    toLocalDateTimeInput(calving.calvingDate)
+  )
+  if (!nextDate) return
+
+  const nextIso = toIsoFromInput(nextDate)
+  if (!nextIso) {
+    alert('Invalid calving date/time format.')
+    return
+  }
+
+  try {
+    await updateCalvingEvent(calving.calvingEventId, {
+      calvingDate: nextIso,
+      calfSex: calving.calfSex,
+      calfBarnName: calving.calfBarnName ?? null,
+      calfRegisteredName: calving.calfRegisteredName ?? null,
+      calvingEase: calving.calvingEase,
+      twins: calving.twins,
+      stillborn: calving.stillborn,
+      notes: calving.notes ?? null
+    })
+    calvingEvents.value = await getCalvings(animalId.value)
+  } catch (error) {
+    console.error('Failed to edit calving:', error)
+    alert('Failed to edit calving event.')
+  }
+}
+
+async function deleteCalving(calving: CalvingEvent) {
+  const confirmed = window.confirm('Are you sure you want to delete this calving event?')
+  if (!confirmed) return
+
+  try {
+    await deleteCalvingEvent(calving.calvingEventId)
+    calvingEvents.value = await getCalvings(animalId.value)
+  } catch (error) {
+    console.error('Failed to delete calving:', error)
+    alert('Failed to delete calving event.')
+  }
+}
+
+async function editLut(lut: LutalyseEvent) {
+  const nextDate = window.prompt(
+    'Edit LUT administration date/time (YYYY-MM-DDTHH:mm)',
+    toLocalDateTimeInput(lut.administrationDate)
+  )
+  if (!nextDate) return
+
+  const nextIso = toIsoFromInput(nextDate)
+  if (!nextIso) {
+    alert('Invalid LUT date/time format.')
+    return
+  }
+
+  const startIso = toIsoFromInput(toLocalDateTimeInput(lut.expectedHeatWatchStart))
+  const endIso = toIsoFromInput(toLocalDateTimeInput(lut.expectedHeatWatchEnd))
+
+  if (!startIso || !endIso) {
+    alert('Unable to parse LUT heat-watch dates.')
+    return
+  }
+
+  try {
+    await updateLutEvent(lut.lutalyseEventId, {
+      administrationDate: nextIso,
+      expectedHeatWatchStart: startIso,
+      expectedHeatWatchEnd: endIso,
+      heatObserved: lut.heatObserved ?? false,
+      notes: lut.notes ?? null
+    })
+    lutEvents.value = await getLutEvents(animalId.value)
+  } catch (error) {
+    console.error('Failed to edit LUT event:', error)
+    alert('Failed to edit LUT event.')
+  }
+}
+
+async function deleteLut(lut: LutalyseEvent) {
+  const confirmed = window.confirm('Are you sure you want to delete this LUT event?')
+  if (!confirmed) return
+
+  try {
+    await deleteLutEvent(lut.lutalyseEventId)
+    lutEvents.value = await getLutEvents(animalId.value)
+  } catch (error) {
+    console.error('Failed to delete LUT event:', error)
+    alert('Failed to delete LUT event.')
+  }
 }
 
 const stageLabel = computed(() => {
@@ -894,6 +1104,15 @@ const sexLabel = computed(() => {
           :key="calving.calvingEventId"
           class="timeline-card"
         >
+          <div class="timeline-actions">
+            <button class="mini-btn" @click="editCalving(calving)">
+              Edit
+            </button>
+            <button class="mini-btn danger" @click="deleteCalving(calving)">
+              Delete
+            </button>
+          </div>
+
           <strong>
             🐄 Calved · {{ calfSexLabel(calving.calfSex) }}
           </strong>
@@ -995,6 +1214,15 @@ const sexLabel = computed(() => {
           :key="breeding.breedingEventId"
           class="timeline-card"
         >
+          <div class="timeline-actions">
+            <button class="mini-btn" @click="editBreeding(breeding)">
+              Edit
+            </button>
+            <button class="mini-btn danger" @click="deleteBreeding(breeding)">
+              Delete
+            </button>
+          </div>
+
           <strong>
             🧬 Bred to {{ breeding.sireUsed }}
           </strong>
@@ -1040,6 +1268,55 @@ const sexLabel = computed(() => {
       </section>
 
       <section class="panel">
+        <h2>LUT History</h2>
+
+        <div
+          v-if="lutEvents.length === 0"
+          class="timeline-card"
+        >
+          <strong>No LUT events recorded</strong>
+
+          <small>
+            Use LUT injection from dashboard quick actions to add one.
+          </small>
+        </div>
+
+        <div
+          v-for="lut in lutEvents"
+          :key="lut.lutalyseEventId"
+          class="timeline-card"
+        >
+          <div class="timeline-actions">
+            <button class="mini-btn" @click="editLut(lut)">
+              Edit
+            </button>
+            <button class="mini-btn danger" @click="deleteLut(lut)">
+              Delete
+            </button>
+          </div>
+
+          <strong>
+            💉 LUT Injection
+          </strong>
+
+          <small>
+            {{ new Date(lut.administrationDate).toLocaleString() }}
+          </small>
+
+          <p>
+            Watch window:
+            {{ new Date(lut.expectedHeatWatchStart).toLocaleDateString() }}
+            -
+            {{ new Date(lut.expectedHeatWatchEnd).toLocaleDateString() }}
+          </p>
+
+          <p v-if="lut.notes">
+            {{ lut.notes }}
+          </p>
+        </div>
+      </section>
+
+      <section class="panel">
         <h2>Heat History</h2>
 
         <div
@@ -1058,6 +1335,15 @@ const sexLabel = computed(() => {
           :key="heat.heatEventId"
           class="timeline-card"
         >
+          <div class="timeline-actions">
+            <button class="mini-btn" @click="editHeat(heat)">
+              Edit
+            </button>
+            <button class="mini-btn danger" @click="deleteHeat(heat)">
+              Delete
+            </button>
+          </div>
+
           <strong>
             ❤️ Heat
           </strong>
@@ -1294,11 +1580,44 @@ const sexLabel = computed(() => {
 }
 
 .timeline-card {
+  position: relative;
   margin-bottom: 12px;
   padding: 18px;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   background: #f8fafc;
+}
+
+.timeline-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.mini-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.mini-btn:hover {
+  background: #f1f5f9;
+}
+
+.mini-btn.danger {
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+.mini-btn.danger:hover {
+  background: #fef2f2;
 }
 
 .timeline-card strong {

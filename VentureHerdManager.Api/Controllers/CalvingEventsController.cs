@@ -47,4 +47,74 @@ public class CalvingEventsController : ControllerBase
             new { animalId = calving.AnimalId },
             calving);
     }
+
+    [HttpPut("{calvingEventId}")]
+    public async Task<IActionResult> Update(
+        int calvingEventId,
+        [FromBody] UpdateCalvingEventRequest request)
+    {
+        var calving = await _context.CalvingEvents
+            .FirstOrDefaultAsync(c => c.CalvingEventId == calvingEventId);
+
+        if (calving == null)
+        {
+            return NotFound();
+        }
+
+        calving.CalvingDate = request.CalvingDate;
+        calving.CalfSex = request.CalfSex;
+        calving.CalfBarnName = request.CalfBarnName;
+        calving.CalfRegisteredName = request.CalfRegisteredName;
+        calving.CalvingEase = request.CalvingEase;
+        calving.Twins = request.Twins;
+        calving.Stillborn = request.Stillborn;
+        calving.Notes = request.Notes;
+        calving.PictureUrl = request.PictureUrl;
+        calving.UpdatedBy = request.UpdatedBy;
+        calving.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [HttpDelete("{calvingEventId}")]
+    public async Task<IActionResult> Delete(int calvingEventId)
+    {
+        var calving = await _context.CalvingEvents
+            .FirstOrDefaultAsync(c => c.CalvingEventId == calvingEventId);
+
+        if (calving == null)
+        {
+            return NotFound();
+        }
+
+        _context.CalvingEvents.Remove(calving);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+}
+
+public class UpdateCalvingEventRequest
+{
+    public DateTime CalvingDate { get; set; }
+
+    public CalfSex CalfSex { get; set; }
+
+    public string? CalfBarnName { get; set; }
+
+    public string? CalfRegisteredName { get; set; }
+
+    public CalvingEase CalvingEase { get; set; }
+
+    public bool Twins { get; set; }
+
+    public bool Stillborn { get; set; }
+
+    public string? Notes { get; set; }
+
+    public string? PictureUrl { get; set; }
+
+    public string? UpdatedBy { get; set; }
 }

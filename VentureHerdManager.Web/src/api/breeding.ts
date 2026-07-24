@@ -71,3 +71,45 @@ export async function updatePregnancyStatus(
     throw new Error('Failed to update pregnancy status')
   }
 }
+
+export async function updateBreedingEvent(
+  breedingEventId: number,
+  data: {
+    breedingDate: string
+    sireUsed: string
+    breedingType: number
+    pregnancyStatus: number
+    notes?: string | null
+  }
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/BreedingEvents/${breedingEventId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      breedingDate: data.breedingDate,
+      sireUsed: data.sireUsed,
+      breedingType: data.breedingType,
+      pregnancyStatus: data.pregnancyStatus,
+      notes: data.notes ?? null,
+      updatedBy: 'Austin'
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to update breeding')
+  }
+}
+
+export async function deleteBreedingEvent(
+  breedingEventId: number
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/BreedingEvents/${breedingEventId}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to delete breeding')
+  }
+}

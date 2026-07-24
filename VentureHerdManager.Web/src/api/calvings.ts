@@ -59,3 +59,51 @@ export async function recordCalving(
     throw new Error('Failed to record calving')
   }
 }
+
+export async function updateCalvingEvent(
+  calvingEventId: number,
+  data: {
+    calvingDate: string
+    calfSex: number
+    calfBarnName?: string | null
+    calfRegisteredName?: string | null
+    calvingEase: number
+    twins: boolean
+    stillborn: boolean
+    notes?: string | null
+    pictureUrl?: string | null
+  }
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/CalvingEvents/${calvingEventId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      calvingDate: data.calvingDate,
+      calfSex: data.calfSex,
+      calfBarnName: data.calfBarnName ?? null,
+      calfRegisteredName: data.calfRegisteredName ?? null,
+      calvingEase: data.calvingEase,
+      twins: data.twins,
+      stillborn: data.stillborn,
+      notes: data.notes ?? null,
+      pictureUrl: data.pictureUrl ?? null,
+      updatedBy: 'Austin'
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to update calving')
+  }
+}
+
+export async function deleteCalvingEvent(calvingEventId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/CalvingEvents/${calvingEventId}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to delete calving')
+  }
+}

@@ -51,3 +51,39 @@ export async function recordHeat(
     throw new Error('Failed to record heat')
   }
 }
+
+export async function updateHeatEvent(
+  heatEventId: number,
+  data: {
+    heatDateTime: string
+    notes?: string | null
+    pictureUrl?: string | null
+  }
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/HeatEvents/${heatEventId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      heatDateTime: data.heatDateTime,
+      notes: data.notes ?? null,
+      pictureUrl: data.pictureUrl ?? null,
+      updatedBy: 'Austin'
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to update heat')
+  }
+}
+
+export async function deleteHeatEvent(heatEventId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/HeatEvents/${heatEventId}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to delete heat')
+  }
+}

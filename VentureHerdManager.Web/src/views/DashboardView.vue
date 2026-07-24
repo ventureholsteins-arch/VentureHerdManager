@@ -1408,7 +1408,8 @@ onMounted(() => {
 }
 
 .card-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 12px 18px;
   background: #f8fbfa;
@@ -1445,5 +1446,24 @@ onMounted(() => {
   padding: 48px 24px;
   color: #5d6f63;
   font-size: 1.1rem;
+}
+
+@media (max-width: 720px) {
+  .card-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 10px 12px;
+    gap: 6px;
+  }
+
+  .action-btn {
+    font-size: 0.92rem;
+    padding: 8px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .card-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

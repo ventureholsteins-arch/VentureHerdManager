@@ -430,9 +430,9 @@ async function openReportSection(section: ReportSection) {
 .message,
 .error-message {
   padding: 18px 20px;
-  border-radius: 16px;
+  border-radius: 10px;
   background: #ffffff;
-  border: 1px solid #e2e8e2;
+  border: 1px solid #d6ddd7;
   color: #1f2d23;
   font-size: 0.95rem;
 }
@@ -466,6 +466,7 @@ async function openReportSection(section: ReportSection) {
   color: #0f1f16;
   font-size: 1.45rem;
   font-weight: 900;
+  font-family: 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
   letter-spacing: -0.015em;
 }
 
@@ -480,10 +481,11 @@ async function openReportSection(section: ReportSection) {
   align-items: center;
   gap: 14px;
   padding: 14px 12px;
-  border: 1.5px solid #d8dfd9;
-  border-radius: 16px;
+  border: 1px solid #cfd7d0;
+  border-bottom: 3px solid #2f5d38;
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 6px 20px rgba(13, 30, 18, 0.07);
+  box-shadow: 0 5px 14px rgba(13, 30, 18, 0.08);
   transition: all 0.2s ease;
 }
 
@@ -499,14 +501,15 @@ async function openReportSection(section: ReportSection) {
 }
 
 .summary-card:hover {
-  border-color: #b9d9bf;
-  box-shadow: 0 10px 28px rgba(13, 30, 18, 0.1);
+  border-color: #7aa484;
+  box-shadow: 0 10px 22px rgba(13, 30, 18, 0.12);
 }
 
 .summary-card.important {
-  border-color: #a0d2a5;
-  background: #f8fef9;
-  box-shadow: 0 8px 24px rgba(63, 102, 71, 0.09);
+  border-color: #87b590;
+  border-bottom-color: #20502c;
+  background: #f7fcf8;
+  box-shadow: 0 8px 20px rgba(35, 73, 42, 0.11);
 }
 
 .icon,
@@ -516,8 +519,9 @@ async function openReportSection(section: ReportSection) {
   justify-content: center;
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  background: #f0f7f1;
+  border-radius: 8px;
+  border: 1px solid #dbe4dc;
+  background: linear-gradient(180deg, #f7faf8, #edf3ee);
   font-size: 1.25rem;
   flex-shrink: 0;
 }
@@ -543,9 +547,10 @@ async function openReportSection(section: ReportSection) {
   gap: 12px;
   margin-top: 6px;
   padding: 10px 12px;
-  background: #f8fef9;
-  border-radius: 12px;
-  border: 1px solid #e8f0e9;
+  background: linear-gradient(180deg, #fbfdfb, #f4f9f5);
+  border-radius: 8px;
+  border: 1px solid #dbe5dd;
+  border-top: 3px solid #2d5a35;
 }
 
 .metric-mini {
@@ -573,10 +578,11 @@ async function openReportSection(section: ReportSection) {
 
 .dashboard-panel {
   padding: 16px;
-  border: 1.5px solid #d8dfd9;
-  border-radius: 18px;
+  border: 1px solid #d2dad3;
+  border-left: 4px solid #2f5d38;
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 8px 24px rgba(13, 30, 18, 0.06);
+  box-shadow: 0 8px 18px rgba(13, 30, 18, 0.07);
 }
 
 .panel-heading {
@@ -599,7 +605,7 @@ async function openReportSection(section: ReportSection) {
   min-width: 38px;
   height: 38px;
   padding: 0 12px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #e0f2e3;
   color: #1a5e35;
   font-weight: 900;
@@ -629,7 +635,7 @@ async function openReportSection(section: ReportSection) {
   text-align: left;
   cursor: pointer;
   transition: background 0.15s ease;
-  border-radius: 8px;
+  border-radius: 6px;
   padding-left: 8px;
   padding-right: 8px;
   margin-left: -8px;
@@ -637,7 +643,8 @@ async function openReportSection(section: ReportSection) {
 }
 
 .event-row:hover {
-  background: #f8fef9;
+  background: #f5fbf6;
+  transform: translateX(2px);
 }
 
 .event-row + .event-row {
@@ -671,7 +678,7 @@ async function openReportSection(section: ReportSection) {
 }
 
 .arrow {
-  color: #75a17b;
+  color: #3e6e47;
   font-size: 1.3rem;
   font-weight: 800;
   flex-shrink: 0;

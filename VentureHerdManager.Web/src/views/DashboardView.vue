@@ -586,7 +586,7 @@ onMounted(() => {
 
 <style scoped>
 :global(body) {
-  font-family: 'Inter', 'Segoe UI', 'Arial', sans-serif;
+  font-family: 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
 }
 
 .page {
@@ -602,7 +602,7 @@ onMounted(() => {
   min-height: 118px;
   margin-bottom: 10px;
   padding: 8px;
-  border-radius: 22px;
+  border-radius: 12px;
   overflow: hidden;
   background-size: 110% auto;
   background-position: center;
@@ -660,8 +660,8 @@ onMounted(() => {
 
 .hero-stat {
   padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 8px;
   background: rgba(7, 14, 11, 0.38);
   backdrop-filter: blur(8px);
   color: #fff;
@@ -745,13 +745,14 @@ onMounted(() => {
   gap: 10px;
   padding: 14px 18px;
   border: 1px solid rgba(0, 0, 0, 0.22);
-  border-radius: 16px;
+  border-radius: 8px;
   background: linear-gradient(180deg, rgba(16, 28, 20, 0.96), rgba(9, 15, 11, 0.94));
   color: #fff;
   font-weight: 900;
   font-size: 1rem;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(6, 10, 8, 0.28);
+  letter-spacing: 0.02em;
 }
 
 .calendar-button {
@@ -780,7 +781,7 @@ onMounted(() => {
 .card {
   padding: 16px 18px;
   border: 1px solid rgba(16, 40, 24, 0.08);
-  border-radius: 18px;
+  border-radius: 10px;
   background: #fff;
   box-shadow: 0 8px 24px rgba(17, 33, 20, 0.05);
 }
@@ -859,7 +860,8 @@ onMounted(() => {
 .herd-section {
   margin-top: 14px;
   padding: 20px;
-  border-radius: 22px;
+  border-radius: 10px;
+  border: 1px solid #d8e0db;
   background: white;
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
@@ -1161,21 +1163,24 @@ onMounted(() => {
   gap: 8px;
   margin: 4px 0 8px;
   padding: 10px;
-  background: linear-gradient(135deg, #f0f8f3, #f8fbfa);
-  border-radius: 12px;
-  border: 2px solid #d0e8d8;
+  background: linear-gradient(165deg, #f6faf7, #eef5f0);
+  border-radius: 8px;
+  border: 1px solid #d2ddd5;
+  border-top: 3px solid #244f2f;
   flex-wrap: wrap;
 }
 
 .quick-btn {
   flex: 1 1 180px;
   padding: 10px 14px;
-  border: 2px solid #31572c;
-  border-radius: 8px;
+  border: 1px solid #31572c;
+  border-bottom: 3px solid #244f2f;
+  border-radius: 6px;
   background: white;
   color: #31572c;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.92rem;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1228,8 +1233,8 @@ onMounted(() => {
 .search-input-large {
   width: 100%;
   padding: 18px 24px;
-  border: 2px solid #d8dfd9;
-  border-radius: 12px;
+  border: 1px solid #c8d4cb;
+  border-radius: 8px;
   font-size: 1.1rem;
   font-weight: 500;
   color: #0f1f16;
@@ -1258,8 +1263,8 @@ onMounted(() => {
 
 .filter-btn {
   padding: 10px 16px;
-  border: 2px solid #d8dfd9;
-  border-radius: 8px;
+  border: 1px solid #d0dbd2;
+  border-radius: 6px;
   background: white;
   color: #0f1f16;
   font-size: 0.95rem;
@@ -1291,7 +1296,7 @@ onMounted(() => {
 
 .animal-card-enhanced {
   border: 2px solid #e5ebe8;
-  border-radius: 12px;
+  border-radius: 8px;
   background: white;
   overflow: hidden;
   transition: all 0.3s ease;
@@ -1372,7 +1377,7 @@ onMounted(() => {
   gap: 8px;
   padding: 12px;
   background: #f8fbfa;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 0.9rem;
 }
 
@@ -1412,7 +1417,7 @@ onMounted(() => {
   flex: 1;
   padding: 10px;
   border: 2px solid #e5ebe8;
-  border-radius: 8px;
+  border-radius: 6px;
   background: white;
   font-size: 1.2rem;
   cursor: pointer;

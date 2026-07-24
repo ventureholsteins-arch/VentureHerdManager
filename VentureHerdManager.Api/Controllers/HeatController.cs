@@ -31,6 +31,22 @@ public class HeatEventsController : ControllerBase
         _context.HeatEvents.Add(heatEvent);
         await _context.SaveChangesAsync();
 
+        if (!string.IsNullOrWhiteSpace(heatEvent.PictureUrl))
+        {
+            _context.AnimalPhotos.Add(new AnimalPhoto
+            {
+                AnimalId = heatEvent.AnimalId,
+                PhotoUrl = heatEvent.PictureUrl,
+                PhotoType = AnimalPhotoType.Heat,
+                RelatedEventId = heatEvent.HeatEventId,
+                RelatedEventType = nameof(HeatEvent),
+                Caption = "Heat event photo",
+                CreatedBy = heatEvent.CreatedBy
+            });
+
+            await _context.SaveChangesAsync();
+        }
+
         return CreatedAtAction(nameof(GetByAnimal), new { animalId = heatEvent.AnimalId }, heatEvent);
     }
 

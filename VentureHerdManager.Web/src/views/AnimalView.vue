@@ -57,6 +57,8 @@ import {
   updateHeatEvent
 } from '../api/heats'
 
+import { uploadPhoto } from '../api/photos'
+
 const route = useRoute()
 const router = useRouter()
 
@@ -76,6 +78,7 @@ const loading = ref(true)
 const showHeatForm = ref(false)
 const heatNotes = ref('')
 const heatPictureUrl = ref('')
+const heatPhotoFile = ref<File | null>(null)
 const hasEmbryoTransfer = ref(false)
 
 const showBreedingForm = ref(false)
@@ -92,10 +95,13 @@ const calfSex = ref(0)
 const calfBarnName = ref('')
 const calfRegisteredName = ref('')
 const calvingPictureUrl = ref('')
+const calvingPhotoFile = ref<File | null>(null)
 const calvingEase = ref(0)
 const twins = ref(false)
 const stillborn = ref(false)
 const calvingNotes = ref('')
+const isUploadingHeatPhoto = ref(false)
+const isUploadingCalvingPhoto = ref(false)
 
 const showDryOffForm = ref(false)
 const dryReason = ref('')
@@ -227,15 +233,23 @@ async function saveHeat() {
   if (!animal.value) return
 
   try {
+    let pictureUrl = heatPictureUrl.value.trim() || null
+
+    if (heatPhotoFile.value) {
+      isUploadingHeatPhoto.value = true
+      pictureUrl = await uploadPhoto(heatPhotoFile.value, 'heat-events')
+    }
+
     await recordHeat(
       animal.value.animalId,
       heatNotes.value,
-      heatPictureUrl.value.trim() || null,
+      pictureUrl,
       hasEmbryoTransfer.value
     )
 
     heatNotes.value = ''
     heatPictureUrl.value = ''
+    heatPhotoFile.value = null
     hasEmbryoTransfer.value = false
     showHeatForm.value = false
 
@@ -244,6 +258,9 @@ async function saveHeat() {
     )
   } catch (error) {
     console.error('Failed to save heat:', error)
+    alert('Failed to save heat event.')
+  } finally {
+    isUploadingHeatPhoto.value = false
   }
 }
 
@@ -299,6 +316,13 @@ async function saveCalving() {
   if (!animal.value) return
 
   try {
+    let pictureUrl = calvingPictureUrl.value.trim() || null
+
+    if (calvingPhotoFile.value) {
+      isUploadingCalvingPhoto.value = true
+      pictureUrl = await uploadPhoto(calvingPhotoFile.value, 'calving-events')
+    }
+
     await recordCalving(
       animal.value.animalId,
       calfSex.value,
@@ -308,13 +332,14 @@ async function saveCalving() {
       twins.value,
       stillborn.value,
       calvingNotes.value,
-      calvingPictureUrl.value.trim() || null
+      pictureUrl
     )
 
     calfSex.value = 0
     calfBarnName.value = ''
     calfRegisteredName.value = ''
     calvingPictureUrl.value = ''
+    calvingPhotoFile.value = null
     calvingEase.value = 0
     twins.value = false
     stillborn.value = false
@@ -330,7 +355,20 @@ async function saveCalving() {
     )
   } catch (error) {
     console.error('Failed to save calving:', error)
+    alert('Failed to save calving event.')
+  } finally {
+    isUploadingCalvingPhoto.value = false
   }
+}
+
+function onHeatPhotoSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  heatPhotoFile.value = input.files?.[0] ?? null
+}
+
+function onCalvingPhotoSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  calvingPhotoFile.value = input.files?.[0] ?? null
 }
 
 async function saveDryOff() {
@@ -768,6 +806,29 @@ const sexLabel = computed(() => {
             placeholder="Optional image URL"
           >
 
+          <label>Upload Heat Photo</label>
+
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            @change="onHeatPhotoSelected"
+          >
+
+          <small
+            v-if="heatPhotoFile"
+            class="upload-hint"
+          >
+            Selected: {{ heatPhotoFile.name }}
+          </small>
+
+          <small
+            v-if="isUploadingHeatPhoto"
+            class="upload-hint"
+          >
+            Uploading photo...
+          </small>
+
           <label class="checkbox-label">
             <input
               v-model="hasEmbryoTransfer"
@@ -921,6 +982,29 @@ const sexLabel = computed(() => {
             v-model="calvingPictureUrl"
             placeholder="Optional image URL"
           >
+
+          <label>Upload Calving Photo</label>
+
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            @change="onCalvingPhotoSelected"
+          >
+
+          <small
+            v-if="calvingPhotoFile"
+            class="upload-hint"
+          >
+            Selected: {{ calvingPhotoFile.name }}
+          </small>
+
+          <small
+            v-if="isUploadingCalvingPhoto"
+            class="upload-hint"
+          >
+            Uploading photo...
+          </small>
 
           <label>Calving Ease</label>
 
@@ -1642,7 +1726,7 @@ const sexLabel = computed(() => {
 
 .checkbox-label {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   margin-top: 16px !important;
   margin-bottom: 0 !important;
@@ -1664,6 +1748,15 @@ const sexLabel = computed(() => {
 
 .checkbox-label span {
   flex: 1;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.upload-hint {
+  display: block;
+  margin-top: 8px;
+  color: #475569;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 700px) {
@@ -1672,6 +1765,11 @@ const sexLabel = computed(() => {
   .actions,
   .checkbox-grid {
     grid-template-columns: 1fr;
+  }
+
+  .checkbox-label {
+    font-size: 14px;
+    padding: 10px;
   }
 
   .hero h1 {

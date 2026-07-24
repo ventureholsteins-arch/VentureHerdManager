@@ -28,6 +28,8 @@ builder.Services.AddScoped<HeatService>();
 builder.Services.AddScoped<ClassificationService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<CalendarService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -54,6 +56,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors("Frontend");
+app.UseStaticFiles();
 
 app.UseSwagger();
 app.UseSwaggerUI();

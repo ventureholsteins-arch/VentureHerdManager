@@ -36,11 +36,82 @@ public class CalvingEventsController : ControllerBase
             return NotFound($"Animal {calving.AnimalId} was not found.");
         }
 
+        if (
+            !calving.Stillborn &&
+            calving.CalfAnimalId == null &&
+            (!string.IsNullOrWhiteSpace(calving.CalfBarnName)
+             || !string.IsNullOrWhiteSpace(calving.CalfRegisteredName)))
+        {
+            var calf = new Animal
+            {
+                BarnName = calving.CalfBarnName,
+                RegisteredName = calving.CalfRegisteredName,
+                BirthDate = DateOnly.FromDateTime(calving.CalvingDate),
+                Sex = calving.CalfSex switch
+                {
+                    CalfSex.Bull => AnimalSex.Male,
+                    CalfSex.Heifer => AnimalSex.Female,
+                    _ => AnimalSex.Unknown
+                },
+                AnimalStage = AnimalStage.Calf,
+                AnimalStatus = AnimalStatus.Active,
+                DamId = animal.AnimalId,
+                DamName = animal.RegisteredName ?? animal.BarnName,
+                Breed = animal.Breed,
+                CreatedBy = calving.CreatedBy,
+                UpdatedBy = calving.CreatedBy
+            };
+
+            _context.Animals.Add(calf);
+            await _context.SaveChangesAsync();
+            calving.CalfAnimalId = calf.AnimalId;
+        }
+
         _context.CalvingEvents.Add(calving);
 
         animal.AnimalStage = AnimalStage.Milking;
 
         await _context.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(calving.PictureUrl))
+        {
+            _context.AnimalPhotos.Add(new AnimalPhoto
+            {
+                AnimalId = calving.AnimalId,
+                PhotoUrl = calving.PictureUrl,
+                PhotoType = AnimalPhotoType.Calving,
+                RelatedEventId = calving.CalvingEventId,
+                RelatedEventType = nameof(CalvingEvent),
+                Caption = "Calving event photo",
+                CreatedBy = calving.CreatedBy
+            });
+
+            if (calving.CalfAnimalId is int calfAnimalId)
+            {
+                _context.AnimalPhotos.Add(new AnimalPhoto
+                {
+                    AnimalId = calfAnimalId,
+                    PhotoUrl = calving.PictureUrl,
+                    PhotoType = AnimalPhotoType.Calf,
+                    RelatedEventId = calving.CalvingEventId,
+                    RelatedEventType = nameof(CalvingEvent),
+                    Caption = "Birth photo",
+                    CreatedBy = calving.CreatedBy
+                });
+
+                var calfAnimal = await _context.Animals
+                    .FirstOrDefaultAsync(a => a.AnimalId == calfAnimalId);
+
+                if (calfAnimal != null && string.IsNullOrWhiteSpace(calfAnimal.ProfilePictureUrl))
+                {
+                    calfAnimal.ProfilePictureUrl = calving.PictureUrl;
+                    calfAnimal.UpdatedAt = DateTime.UtcNow;
+                    calfAnimal.UpdatedBy = calving.CreatedBy;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+        }
 
         return CreatedAtAction(
             nameof(GetByAnimal),

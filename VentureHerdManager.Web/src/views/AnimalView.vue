@@ -77,7 +77,6 @@ const loading = ref(true)
 
 const showHeatForm = ref(false)
 const heatNotes = ref('')
-const heatPictureUrl = ref('')
 const heatPhotoFile = ref<File | null>(null)
 const hasEmbryoTransfer = ref(false)
 
@@ -94,7 +93,6 @@ const showCalvingForm = ref(false)
 const calfSex = ref(0)
 const calfBarnName = ref('')
 const calfRegisteredName = ref('')
-const calvingPictureUrl = ref('')
 const calvingPhotoFile = ref<File | null>(null)
 const calvingEase = ref(0)
 const twins = ref(false)
@@ -233,7 +231,7 @@ async function saveHeat() {
   if (!animal.value) return
 
   try {
-    let pictureUrl = heatPictureUrl.value.trim() || null
+    let pictureUrl: string | null = null
 
     if (heatPhotoFile.value) {
       isUploadingHeatPhoto.value = true
@@ -248,7 +246,6 @@ async function saveHeat() {
     )
 
     heatNotes.value = ''
-    heatPictureUrl.value = ''
     heatPhotoFile.value = null
     hasEmbryoTransfer.value = false
     showHeatForm.value = false
@@ -316,7 +313,7 @@ async function saveCalving() {
   if (!animal.value) return
 
   try {
-    let pictureUrl = calvingPictureUrl.value.trim() || null
+    let pictureUrl: string | null = null
 
     if (calvingPhotoFile.value) {
       isUploadingCalvingPhoto.value = true
@@ -338,7 +335,6 @@ async function saveCalving() {
     calfSex.value = 0
     calfBarnName.value = ''
     calfRegisteredName.value = ''
-    calvingPictureUrl.value = ''
     calvingPhotoFile.value = null
     calvingEase.value = 0
     twins.value = false
@@ -799,13 +795,6 @@ const sexLabel = computed(() => {
             placeholder="Standing heat, activity, mucus, etc."
           />
 
-          <label>Photo URL</label>
-
-          <input
-            v-model="heatPictureUrl"
-            placeholder="Optional image URL"
-          >
-
           <label>Upload Heat Photo</label>
 
           <input
@@ -834,7 +823,7 @@ const sexLabel = computed(() => {
               v-model="hasEmbryoTransfer"
               type="checkbox"
             >
-            <span>Plan embryo transfer on day 7</span>
+            <span class="day7-label">Plan embryo transfer<br>on day 7</span>
           </label>
 
           <div class="form-actions">
@@ -974,13 +963,6 @@ const sexLabel = computed(() => {
           <input
             v-model="calfRegisteredName"
             placeholder="Optional"
-          >
-
-          <label>Photo URL</label>
-
-          <input
-            v-model="calvingPictureUrl"
-            placeholder="Optional image URL"
           >
 
           <label>Upload Calving Photo</label>
@@ -1477,7 +1459,7 @@ const sexLabel = computed(() => {
   margin-bottom: 20px;
   padding: 12px 16px;
   border: 1px solid #31572c;
-  border-radius: 6px;
+  border-radius: 4px;
   background: none;
   color: #31572c;
   font-size: 1.1rem;
@@ -1505,8 +1487,9 @@ const sexLabel = computed(() => {
   justify-content: center;
   width: 90px;
   height: 90px;
-  border-radius: 24px;
-  background: #eef4ef;
+  border-radius: 8px;
+  border: 1px solid #c4d3c4;
+  background: linear-gradient(160deg, #f4f8f4, #e7efe7);
   font-size: 42px;
 }
 
@@ -1536,9 +1519,10 @@ const sexLabel = computed(() => {
 .info-card,
 .panel {
   padding: 20px;
-  border-radius: 18px;
-  background: white;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  border: 1px solid #d7dee8;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.07);
 }
 
 .info-card span,
@@ -1577,21 +1561,22 @@ const sexLabel = computed(() => {
 
 .actions button {
   padding: 18px;
-  border: none;
-  border-radius: 18px;
-  background: #1f2937;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: linear-gradient(170deg, #232f41, #111827);
   color: white;
   font-size: 16px;
   font-weight: 700;
+  letter-spacing: 0.02em;
   cursor: pointer;
 }
 
 .form-card {
   margin-top: 18px;
   padding: 18px;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  background: #f8fafc;
+  border: 1px solid #ced7e3;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fafc, #f3f7fb);
 }
 
 .form-card label {
@@ -1608,7 +1593,8 @@ const sexLabel = computed(() => {
   min-height: 44px;
   padding: 12px;
   border: 1px solid #cbd5e1;
-  border-radius: 14px;
+  border-radius: 6px;
+  background: #ffffff;
   font-size: 15px;
 }
 
@@ -1630,7 +1616,7 @@ const sexLabel = computed(() => {
   margin: 0 !important;
   padding: 12px;
   border: 1px solid #dbe2df;
-  border-radius: 14px;
+  border-radius: 6px;
   background: white;
 }
 
@@ -1648,7 +1634,7 @@ const sexLabel = computed(() => {
 .form-actions button {
   padding: 12px 16px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1667,9 +1653,10 @@ const sexLabel = computed(() => {
   position: relative;
   margin-bottom: 12px;
   padding: 18px;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  background: #f8fafc;
+  border: 1px solid #d7dde8;
+  border-left: 4px solid #31572c;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
 }
 
 .timeline-actions {
@@ -1682,7 +1669,7 @@ const sexLabel = computed(() => {
 
 .mini-btn {
   border: 1px solid #cbd5e1;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #ffffff;
   color: #1f2937;
   font-size: 0.8rem;
@@ -1721,7 +1708,7 @@ const sexLabel = computed(() => {
   display: block;
   max-width: 100%;
   margin-top: 12px;
-  border-radius: 12px;
+  border-radius: 6px;
 }
 
 .checkbox-label {
@@ -1732,7 +1719,7 @@ const sexLabel = computed(() => {
   margin-bottom: 0 !important;
   padding: 12px;
   border: 1px solid #dbe2df;
-  border-radius: 12px;
+  border-radius: 6px;
   background: white;
   cursor: pointer;
   font-weight: 600;
@@ -1750,6 +1737,11 @@ const sexLabel = computed(() => {
   flex: 1;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.day7-label {
+  display: inline-block;
+  line-height: 1.2;
 }
 
 .upload-hint {

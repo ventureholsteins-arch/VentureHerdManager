@@ -1,39 +1,28 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { resetDemo } from '../api/demo'
 
-interface DemoAnimal {
-  id: number
-  barnName: string
-  stage: 'Milking' | 'Dry' | 'Heifer' | 'Calf'
-  sireName: string
-  damName: string
-  lastHeatDate?: string
-  dueDate?: string
-  notes: string[]
-  photoUrl?: string
+const router = useRouter()
+const loading = ref(false)
+const error = ref<string | null>(null)
+
+async function launchDemo() {
+  loading.value = true
+  error.value = null
+
+  try {
+    await resetDemo()
+    sessionStorage.setItem('demo-launched', 'true')
+    await router.push('/')
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to load demo data.'
+  } finally {
+    loading.value = false
+  }
 }
 
-interface DemoState {
-  animals: DemoAnimal[]
-  activity: string[]
-}
 
-const STORAGE_KEY = 'venture-demo-state-v1'
-
-function initialDemoState(): DemoState {
-  return {
-    animals: [
-      {
-        id: 1,
-        barnName: 'Demo Aurora',
-        stage: 'Milking',
-        sireName: 'Master',
-        damName: 'Evergreen',
-        lastHeatDate: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-        dueDate: new Date(Date.now() + 24 * 24 * 60 * 60 * 1000).toISOString(),
-        notes: ['Strong appetite', 'Clean gait'],
-        photoUrl: 'https://picsum.photos/seed/demo-aurora/600/400'
-      },
       {
         id: 2,
         barnName: 'Demo Nova',

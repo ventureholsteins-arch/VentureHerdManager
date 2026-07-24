@@ -25,7 +25,8 @@ jobs:
         uses: Azure/static-web-apps-deploy@v1
         env:
           VITE_DEMO_ONLY: ${{ github.ref_name == 'demo' && 'true' || 'false' }}
-          VITE_API_URL: ${{ github.ref_name == 'demo' && '' || vars.VITE_API_URL_PROD }}
+          VITE_API_URL: ${{ vars.VITE_API_URL_PROD }}
+          VITE_DEMO_KEY: ${{ secrets.DEMO_SEED_KEY }}
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ASHY_SAND_0956E200F }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)

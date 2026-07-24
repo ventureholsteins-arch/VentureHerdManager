@@ -599,9 +599,9 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: stretch;
-  min-height: 132px;
+  min-height: 118px;
   margin-bottom: 10px;
-  padding: 10px;
+  padding: 8px;
   border-radius: 22px;
   overflow: hidden;
   background-size: 110% auto;
@@ -623,7 +623,7 @@ onMounted(() => {
   z-index: 3;
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
-  gap: 16px;
+  gap: 10px;
   width: 100%;
 }
 
@@ -654,18 +654,18 @@ onMounted(() => {
 .hero-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .hero-stat {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 18px;
   background: rgba(7, 14, 11, 0.38);
   backdrop-filter: blur(8px);
   color: #fff;
-  min-height: 84px;
+  min-height: 74px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -805,14 +805,14 @@ onMounted(() => {
 
 @media (max-width: 640px) {
   .hero {
-    min-height: 106px;
-    padding: 8px;
+    min-height: 94px;
+    padding: 6px;
     background-size: cover;
     background-position: center center;
   }
 
   .hero-inner {
-    gap: 12px;
+    gap: 8px;
   }
 
   .hero-main,
@@ -840,16 +840,16 @@ onMounted(() => {
     width: 100%;
     max-width: 420px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 6px;
   }
 
   .hero-stat {
-    padding: 10px 8px;
-    min-height: 66px;
+    padding: 8px 7px;
+    min-height: 58px;
   }
 
   .hero-stat-value {
-    font-size: 1.55rem;
+    font-size: 1.42rem;
   }
 
   .hero-app-logo {

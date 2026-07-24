@@ -435,13 +435,13 @@ onMounted(() => {
     </section>
 
     <template v-else>
-      <DashboardSummary :key="dashboardRefreshKey" />
-      
       <section class="quick-actions-bar">
         <button @click="openHeatModal" class="quick-btn heat-btn">💉 Record Heat</button>
         <button @click="openLUTModal(0, 'Select Animal')" class="quick-btn lut-btn">💊 LUT Injection</button>
         <button class="quick-btn add-btn" @click="router.push('/animals/new')">➕ Add Animal</button>
       </section>
+
+      <DashboardSummary :key="dashboardRefreshKey" />
 
       <section class="herd-section">
         <div class="herd-header">
@@ -599,16 +599,16 @@ onMounted(() => {
 .page {
   width: min(100%, 1240px);
   margin: 0 auto;
-  padding: 24px 20px 56px;
+  padding: 14px 16px 44px;
 }
 
 .hero {
   position: relative;
   display: flex;
   align-items: stretch;
-  min-height: 180px;
-  margin-bottom: 16px;
-  padding: 16px;
+  min-height: 154px;
+  margin-bottom: 10px;
+  padding: 12px;
   border-radius: 22px;
   overflow: hidden;
   background-size: 110% auto;
@@ -639,7 +639,7 @@ onMounted(() => {
   z-index: 1;
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
-  gap: 24px;
+  gap: 16px;
   width: 100%;
 }
 
@@ -666,18 +666,18 @@ onMounted(() => {
 .hero-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px;
-  margin-top: 24px;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .hero-stat {
-  padding: 18px 20px;
+  padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 18px;
   background: rgba(7, 14, 11, 0.38);
   backdrop-filter: blur(8px);
   color: #fff;
-  min-height: 100px;
+  min-height: 84px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -747,7 +747,7 @@ onMounted(() => {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 10px;
 }
 
 .calendar-button,
@@ -767,8 +767,8 @@ onMounted(() => {
 }
 
 .calendar-button {
-  padding: 20px 28px;
-  font-size: 1.2rem;
+  padding: 14px 18px;
+  font-size: 1.05rem;
   gap: 14px;
 }
 
@@ -817,14 +817,14 @@ onMounted(() => {
 
 @media (max-width: 640px) {
   .hero {
-    min-height: 160px;
-    padding: 14px;
+    min-height: 122px;
+    padding: 10px;
     background-size: cover;
     background-position: center center;
   }
 
   .hero-inner {
-    gap: 16px;
+    gap: 12px;
   }
 
   .hero-main,
@@ -845,25 +845,25 @@ onMounted(() => {
 
   .hero-stats {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 12px;
+    gap: 8px;
   }
 
   .hero-stat {
-    padding: 16px 14px;
-    min-height: 90px;
+    padding: 10px 8px;
+    min-height: 66px;
   }
 
   .hero-stat-value {
-    font-size: 1.8rem;
+    font-size: 1.55rem;
   }
 
   .hero-app-logo {
-    width: min(280px, 100%);
+    width: min(240px, 100%);
   }
 }
 .herd-section {
-  margin-top: 28px;
-  padding: 24px;
+  margin-top: 14px;
+  padding: 20px;
   border-radius: 22px;
   background: white;
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
@@ -874,7 +874,7 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .herd-header h2 {
@@ -1163,9 +1163,9 @@ onMounted(() => {
 /* Quick Actions Bar */
 .quick-actions-bar {
   display: flex;
-  gap: 12px;
-  margin: 16px 20px;
-  padding: 16px;
+  gap: 8px;
+  margin: 4px 0 8px;
+  padding: 10px;
   background: linear-gradient(135deg, #f0f8f3, #f8fbfa);
   border-radius: 12px;
   border: 2px solid #d0e8d8;
@@ -1173,13 +1173,14 @@ onMounted(() => {
 }
 
 .quick-btn {
-  padding: 12px 20px;
+  flex: 1 1 180px;
+  padding: 10px 14px;
   border: 2px solid #31572c;
   border-radius: 8px;
   background: white;
   color: #31572c;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.92rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1194,6 +1195,39 @@ onMounted(() => {
 .heat-btn:hover { background: #ff6b6b; border-color: #ff6b6b; color: white; }
 .lut-btn:hover { background: #f59e0b; border-color: #f59e0b; color: white; }
 .add-btn:hover { background: #10b981; border-color: #10b981; color: white; }
+
+@media (max-width: 640px) {
+  .quick-actions-bar {
+    position: sticky;
+    top: 4px;
+    z-index: 20;
+    margin: 2px 0 8px;
+    padding: 8px;
+    gap: 6px;
+    border-width: 1px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  }
+
+  .quick-btn {
+    flex: 1 1 calc(50% - 8px);
+    padding: 8px 10px;
+    font-size: 0.84rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 10px 10px 24px;
+  }
+
+  .quick-actions-bar {
+    top: 2px;
+  }
+
+  .quick-btn {
+    flex: 1 1 100%;
+  }
+}
 
 /* Enhanced Search Input */
 .search-input-large {

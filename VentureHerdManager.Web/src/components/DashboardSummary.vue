@@ -145,15 +145,6 @@ function pregnancyStatusLabel(status: number) {
         </div>
 
         <div class="summary-card important">
-          <span class="icon">🤰</span>
-
-          <div>
-            <strong>{{ dashboard.pregChecksDueCount }}</strong>
-            <small>Preg checks due</small>
-          </div>
-        </div>
-
-        <div class="summary-card important">
           <span class="icon">📅</span>
 
           <div>
@@ -405,7 +396,7 @@ function pregnancyStatusLabel(status: number) {
 .dashboard-summary {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .message,
@@ -428,7 +419,7 @@ function pregnancyStatusLabel(status: number) {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .eyebrow {
@@ -453,14 +444,14 @@ function pregnancyStatusLabel(status: number) {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .summary-card {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 18px 16px;
+  padding: 14px 12px;
   border: 1.5px solid #d8dfd9;
   border-radius: 16px;
   background: #ffffff;
@@ -510,9 +501,9 @@ function pregnancyStatusLabel(status: number) {
 
 .herd-metrics-row {
   display: flex;
-  gap: 16px;
-  margin-top: 12px;
-  padding: 12px 16px;
+  gap: 12px;
+  margin-top: 6px;
+  padding: 10px 12px;
   background: #f8fef9;
   border-radius: 12px;
   border: 1px solid #e8f0e9;
@@ -542,7 +533,7 @@ function pregnancyStatusLabel(status: number) {
 }
 
 .dashboard-panel {
-  padding: 20px;
+  padding: 16px;
   border: 1.5px solid #d8dfd9;
   border-radius: 18px;
   background: #ffffff;
@@ -553,8 +544,8 @@ function pregnancyStatusLabel(status: number) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
   border-bottom: 2px solid #f0f7f1;
 }
 
@@ -593,7 +584,7 @@ function pregnancyStatusLabel(status: number) {
   align-items: center;
   gap: 14px;
   width: 100%;
-  padding: 14px 0;
+  padding: 10px 0;
   border: 0;
   background: transparent;
   text-align: left;
@@ -612,7 +603,7 @@ function pregnancyStatusLabel(status: number) {
 
 .event-row + .event-row {
   border-top: 1px solid #ede8ed;
-  padding-top: 14px;
+  padding-top: 10px;
   margin-top: 0;
 }
 
@@ -650,11 +641,11 @@ function pregnancyStatusLabel(status: number) {
 @media (max-width: 700px) {
   .summary-grid {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
+    gap: 8px;
   }
 
   .summary-card {
-    padding: 16px 14px;
+    padding: 12px 10px;
     flex-direction: column;
     text-align: center;
   }
@@ -668,7 +659,7 @@ function pregnancyStatusLabel(status: number) {
   }
 
   .dashboard-panel {
-    padding: 16px;
+    padding: 14px;
   }
 
   .panel-heading {
@@ -685,6 +676,10 @@ function pregnancyStatusLabel(status: number) {
 @media (max-width: 480px) {
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-summary {
+    gap: 10px;
   }
 
   .section-heading h2,
@@ -704,7 +699,7 @@ function pregnancyStatusLabel(status: number) {
   }
 
   .event-row {
-    padding: 12px 0;
+    padding: 9px 0;
   }
 }
 </style>

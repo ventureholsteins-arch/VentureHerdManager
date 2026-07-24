@@ -599,7 +599,7 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: stretch;
-  min-height: 118px;
+  min-height: 96px;
   margin-bottom: 10px;
   padding: 8px;
   border-radius: 12px;
@@ -665,7 +665,7 @@ onMounted(() => {
   background: rgba(7, 14, 11, 0.38);
   backdrop-filter: blur(8px);
   color: #fff;
-  min-height: 74px;
+  min-height: 64px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -806,7 +806,7 @@ onMounted(() => {
 
 @media (max-width: 640px) {
   .hero {
-    min-height: 94px;
+    min-height: 76px;
     padding: 6px;
     background-size: cover;
     background-position: center center;
@@ -846,7 +846,7 @@ onMounted(() => {
 
   .hero-stat {
     padding: 8px 7px;
-    min-height: 58px;
+    min-height: 50px;
   }
 
   .hero-stat-value {

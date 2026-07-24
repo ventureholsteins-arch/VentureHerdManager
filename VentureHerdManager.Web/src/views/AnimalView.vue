@@ -1095,7 +1095,7 @@ const sexLabel = computed(() => {
   border-radius: 24px;
   background-image:
     linear-gradient(160deg, rgba(246, 251, 247, 0.94), rgba(255, 255, 255, 0.94)),
-    url('/1AB7A903-3FCE-49A4-8BA5-A4502EA70BE1.jpg');
+    url('/candid.jpg');
   background-size: cover;
   background-position: center;
   opacity: 0.24;

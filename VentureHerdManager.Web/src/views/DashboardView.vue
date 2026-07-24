@@ -288,7 +288,7 @@ onMounted(() => {
     <header
       class="hero"
       :style="{
-        backgroundImage: `url('${appearance?.backgroundImageUrl || '/candid 1.jpg'}')`
+        backgroundImage: `url('${appearance?.backgroundImageUrl || '/Seashell_cow.jpg'}')`
       }"
     >
       <div class="hero-overlay" />

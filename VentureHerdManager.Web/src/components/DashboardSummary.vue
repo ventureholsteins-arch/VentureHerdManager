@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
@@ -12,6 +12,16 @@ const router = useRouter()
 const dashboard = ref<DashboardSummary | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
+const pregChecksSectionRef = ref<HTMLElement | null>(null)
+const dueSoonSectionRef = ref<HTMLElement | null>(null)
+const lutTrackingSectionRef = ref<HTMLElement | null>(null)
+const embryoSectionRef = ref<HTMLElement | null>(null)
+
+type ReportSection =
+  | 'pregChecks'
+  | 'dueSoon'
+  | 'lutTracking'
+  | 'embryo'
 
 onMounted(async () => {
   try {
@@ -63,6 +73,22 @@ function pregnancyStatusLabel(status: number) {
 
   return statuses[status] ?? 'Unknown'
 }
+
+async function openReportSection(section: ReportSection) {
+  await nextTick()
+
+  const sectionRefMap: Record<ReportSection, HTMLElement | null> = {
+    pregChecks: pregChecksSectionRef.value,
+    dueSoon: dueSoonSectionRef.value,
+    lutTracking: lutTrackingSectionRef.value,
+    embryo: embryoSectionRef.value
+  }
+
+  const target = sectionRefMap[section]
+  if (!target) return
+
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 </script>
 
 <template>
@@ -99,46 +125,63 @@ function pregnancyStatusLabel(status: number) {
       </div>
 
       <div class="summary-grid">
-        <div class="summary-card">
+        <button
+          type="button"
+          class="summary-card summary-card-button"
+          @click="openReportSection('pregChecks')"
+        >
           <span class="icon">🤰</span>
 
           <div>
             <strong>{{ dashboard.pregChecksDueCount }}</strong>
             <small>Preg checks due</small>
           </div>
-        </div>
+        </button>
 
-        <div class="summary-card">
+        <button
+          type="button"
+          class="summary-card summary-card-button"
+          @click="openReportSection('dueSoon')"
+        >
           <span class="icon">📅</span>
 
           <div>
             <strong>{{ dashboard.dueSoonCount }}</strong>
             <small>Due within 30 days</small>
           </div>
-        </div>
+        </button>
 
-        <div class="summary-card">
+        <button
+          type="button"
+          class="summary-card summary-card-button"
+          @click="openReportSection('lutTracking')"
+        >
           <span class="icon">💉</span>
 
           <div>
             <strong>{{ dashboard.lutTrackingCount }}</strong>
             <small>LUT tracking</small>
           </div>
-        </div>
+        </button>
 
-        <div class="summary-card important">
+        <button
+          type="button"
+          class="summary-card summary-card-button important"
+          @click="openReportSection('embryo')"
+        >
           <span class="icon">🧬</span>
 
           <div>
             <strong>{{ dashboard.embryoImplantsCount }}</strong>
             <small>Embryo implants</small>
           </div>
-        </div>
+        </button>
       </div>
 
       <section
         v-if="(dashboard.pregChecksDue?.length ?? 0) > 0"
         class="dashboard-panel"
+        ref="pregChecksSectionRef"
       >
         <div class="panel-heading">
           <div>
@@ -179,6 +222,7 @@ function pregnancyStatusLabel(status: number) {
       <section
         v-if="(dashboard.dueSoon?.length ?? 0) > 0"
         class="dashboard-panel"
+        ref="dueSoonSectionRef"
       >
         <div class="panel-heading">
           <div>
@@ -219,6 +263,7 @@ function pregnancyStatusLabel(status: number) {
       <section
         v-if="(dashboard.lutTracking?.length ?? 0) > 0"
         class="dashboard-panel"
+        ref="lutTrackingSectionRef"
       >
         <div class="panel-heading">
           <div>
@@ -259,6 +304,7 @@ function pregnancyStatusLabel(status: number) {
       <section
         v-if="(dashboard.embryoImplants?.length ?? 0) > 0"
         class="dashboard-panel"
+        ref="embryoSectionRef"
       >
         <div class="panel-heading">
           <div>
@@ -439,6 +485,17 @@ function pregnancyStatusLabel(status: number) {
   background: #ffffff;
   box-shadow: 0 6px 20px rgba(13, 30, 18, 0.07);
   transition: all 0.2s ease;
+}
+
+.summary-card-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.summary-card-button:focus-visible {
+  outline: 2px solid #31572c;
+  outline-offset: 2px;
 }
 
 .summary-card:hover {

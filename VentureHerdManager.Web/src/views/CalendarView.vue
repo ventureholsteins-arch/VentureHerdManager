@@ -627,7 +627,7 @@ onMounted(async () => {
   border-radius: 28px;
   background-image:
     linear-gradient(145deg, rgba(246, 251, 247, 0.92), rgba(249, 253, 250, 0.94)),
-    url('/candid 1.jpg');
+    url('/Palace_heifer.jpg');
   background-size: cover;
   background-position: center;
   opacity: 0.26;

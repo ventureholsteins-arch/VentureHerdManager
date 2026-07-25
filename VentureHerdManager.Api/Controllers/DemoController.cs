@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VentureHerdManager.Api.Data;
@@ -8,7 +7,6 @@ namespace VentureHerdManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[EnableCors("Frontend")]
 public class DemoController : ControllerBase
 {
     private readonly ApplicationDbContext _context;

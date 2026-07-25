@@ -8,13 +8,32 @@
 
       <div class="modal-body">
         <div class="form-group">
-          <label>Animal:</label>
-          <select v-model="selectedAnimalId" class="form-input">
-            <option value="">-- Select Animal --</option>
-            <option v-for="animal in animals" :key="animal.animalId" :value="animal.animalId">
-              {{ animal.barnName }} ({{ stageLabel(animal.animalStage) }})
-            </option>
-          </select>
+          <label>Search Animal:</label>
+          <input
+            v-model="animalSearch"
+            type="search"
+            class="form-input"
+            placeholder="Type name to filter..."
+            autofocus
+          />
+        </div>
+
+        <div class="form-group" v-if="filteredAnimals.length > 0 || animalSearch">
+          <label>Select Animal:</label>
+          <div class="animal-list">
+            <button
+              v-for="animal in filteredAnimals"
+              :key="animal.animalId"
+              type="button"
+              class="animal-list-item"
+              :class="{ selected: selectedAnimalId === String(animal.animalId) }"
+              @click="selectAnimal(animal)"
+            >
+              {{ animal.barnName }}
+              <span class="stage-tag">{{ stageLabel(animal.animalStage) }}</span>
+            </button>
+            <p v-if="filteredAnimals.length === 0" class="no-results">No animals match &quot;{{ animalSearch }}&quot;</p>
+          </div>
         </div>
 
         <div class="form-group">
@@ -61,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -85,6 +104,7 @@ const stageLabel = (stage: number): string => {
 
 const isOpen = ref(false)
 const selectedAnimalId = ref('')
+const animalSearch = ref('')
 const heatStrength = ref('2')
 const standingHeat = ref(false)
 const pictureUrl = ref('')
@@ -97,6 +117,19 @@ const emit = defineEmits<{
   recordHeat: [data: any]
   goToBreeding: [animalId: number]
 }>()
+
+const filteredAnimals = computed(() => {
+  const q = animalSearch.value.trim().toLowerCase()
+  if (!q) return animals.value.slice(0, 30)
+  return animals.value
+    .filter(a => (a.barnName || '').toLowerCase().includes(q))
+    .slice(0, 30)
+})
+
+function selectAnimal(animal: Animal) {
+  selectedAnimalId.value = String(animal.animalId)
+  animalSearch.value = animal.barnName
+}
 
 const openModal = async () => {
   isOpen.value = true
@@ -119,6 +152,7 @@ const closeModal = () => {
 
 const resetForm = () => {
   selectedAnimalId.value = ''
+  animalSearch.value = ''
   heatStrength.value = '2'
   standingHeat.value = false
   pictureUrl.value = ''
@@ -238,6 +272,57 @@ defineExpose({
 
 textarea.form-input {
   resize: vertical;
+}
+
+.animal-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  display: grid;
+  gap: 0;
+}
+
+.animal-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.animal-list-item:last-child { border-bottom: none; }
+.animal-list-item:hover { background: #f0f7f1; }
+.animal-list-item.selected { background: #dcfce7; color: #166534; }
+
+.stage-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #5d6f63;
+  background: #f0f7f1;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.animal-list-item.selected .stage-tag { background: #bbf7d0; color: #14532d; }
+
+.no-results {
+  padding: 12px;
+  color: #8a9b8e;
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 .btn-primary,

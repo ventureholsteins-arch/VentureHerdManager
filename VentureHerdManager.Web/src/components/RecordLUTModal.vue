@@ -8,17 +8,36 @@
 
       <div class="modal-body">
         <div class="form-group">
-          <label>Animal:</label>
-          <select v-model="selectedAnimalId" class="form-input">
-            <option value="">-- Select Animal --</option>
-            <option v-for="animal in animals" :key="animal.animalId" :value="animal.animalId">
-              {{ animal.barnName }}
-            </option>
-          </select>
+          <label>Search Animal:</label>
+          <input
+            v-model="animalSearch"
+            type="search"
+            class="form-input"
+            placeholder="Type name to filter..."
+            autofocus
+          />
         </div>
 
-        <div v-if="animalName" class="animal-info">
-          Recording LUT for: <strong>{{ animalName }}</strong>
+        <div class="form-group" v-if="filteredAnimals.length > 0 || animalSearch">
+          <label>Select Animal:</label>
+          <div class="animal-list">
+            <button
+              v-for="animal in filteredAnimals"
+              :key="animal.animalId"
+              type="button"
+              class="animal-list-item"
+              :class="{ selected: selectedAnimalId === String(animal.animalId) }"
+              @click="selectAnimal(animal)"
+            >
+              {{ animal.barnName }}
+              <span v-if="animal.animalStage" class="stage-tag">{{ stageLabel(animal.animalStage) }}</span>
+            </button>
+            <p v-if="filteredAnimals.length === 0" class="no-results">No animals match "{{ animalSearch }}"</p>
+          </div>
+        </div>
+
+        <div v-if="selectedAnimalId" class="animal-info">
+          Recording LUT for: <strong>{{ selectedAnimalLabel }}</strong>
           <div class="info-detail">Animal will be monitored for heat for 4 days. Day 3 will trigger an alert.</div>
         </div>
 
@@ -54,15 +73,43 @@ const API_BASE = import.meta.env.VITE_API_URL
 interface AnimalOption {
   animalId: number
   barnName: string
+  animalStage?: number
 }
 
 const isOpen = ref(false)
 const animalId = ref<number | null>(null)
 const selectedAnimalId = ref('')
+const animalSearch = ref('')
 const animalName = ref('')
 const administrationDate = ref(new Date().toISOString().split('T')[0])
 const notes = ref('')
 const animals = ref<AnimalOption[]>([])
+
+const filteredAnimals = computed(() => {
+  const q = animalSearch.value.trim().toLowerCase()
+  if (!q) return animals.value.slice(0, 30)
+  return animals.value
+    .filter(a => (a.barnName || '').toLowerCase().includes(q))
+    .slice(0, 30)
+})
+
+const selectedAnimalLabel = computed(() => {
+  if (!selectedAnimalId.value) return ''
+  const animal = animals.value.find(a => String(a.animalId) === selectedAnimalId.value)
+  return animal?.barnName ?? `Animal #${selectedAnimalId.value}`
+})
+
+const stageLabel = (stage: number): string => {
+  const labels: Record<number, string> = {
+    1: 'Calf', 2: 'Heifer', 3: 'Milking', 4: 'Dry', 5: 'Bull'
+  }
+  return labels[stage] ?? ''
+}
+
+function selectAnimal(animal: AnimalOption) {
+  selectedAnimalId.value = String(animal.animalId)
+  animalSearch.value = animal.barnName
+}
 
 const expectedHeatStart = computed(() => {
   if (!administrationDate.value) return ''
@@ -74,7 +121,7 @@ const expectedHeatStart = computed(() => {
 const expectedHeatEnd = computed(() => {
   if (!administrationDate.value) return ''
   const date = new Date(administrationDate.value)
-  date.setHours(date.getHours() + 96) // 4 days
+  date.setHours(date.getHours() + 96)
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 })
 
@@ -95,6 +142,9 @@ const openModal = async (id?: number, name?: string) => {
 
   animalId.value = typeof id === 'number' && id > 0 ? id : null
   selectedAnimalId.value = animalId.value ? String(animalId.value) : ''
+  animalSearch.value = animalId.value
+    ? (animals.value.find(a => a.animalId === animalId.value)?.barnName ?? name ?? '')
+    : ''
   animalName.value = name ?? ''
   administrationDate.value = new Date().toISOString().split('T')[0]
   notes.value = ''
@@ -112,7 +162,7 @@ const recordLUT = () => {
     : animalId.value
 
   if (!resolvedAnimalId || !administrationDate.value) {
-    alert('Please fill in required fields')
+    alert('Please select an animal and fill in the date.')
     return
   }
 
@@ -201,6 +251,70 @@ defineExpose({
   font-size: 0.85rem;
   color: #666;
   margin-top: 5px;
+}
+
+.animal-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  display: grid;
+  gap: 0;
+}
+
+.animal-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.animal-list-item:last-child {
+  border-bottom: none;
+}
+
+.animal-list-item:hover {
+  background: #f0f7f1;
+}
+
+.animal-list-item.selected {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.stage-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #5d6f63;
+  background: #f0f7f1;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.animal-list-item.selected .stage-tag {
+  background: #bbf7d0;
+  color: #14532d;
+}
+
+.no-results {
+  padding: 12px;
+  color: #8a9b8e;
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 .info-box {

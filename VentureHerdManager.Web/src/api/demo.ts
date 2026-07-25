@@ -52,6 +52,25 @@ export async function resetDemo(): Promise<DemoSeedResult> {
   return response.json() as Promise<DemoSeedResult>
 }
 
+export async function ensureDemo(): Promise<DemoSeedResult> {
+  const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
+
+  const response = await fetch(`${API_BASE}/demo/ensure`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(demoKey ? { 'X-Demo-Key': demoKey } : {})
+    }
+  })
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ message: 'Unknown error' }))
+    throw new Error((body as DemoSeedResult).message || `HTTP ${response.status}`)
+  }
+
+  return response.json() as Promise<DemoSeedResult>
+}
+
 export async function getDemoStatus(): Promise<DemoStatusResponse> {
   const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
 

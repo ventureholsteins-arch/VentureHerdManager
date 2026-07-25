@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+const API_BASE = import.meta.env.VITE_API_URL
+
 type Animal = {
   animalId: number
   barnName: string | null
@@ -20,7 +22,7 @@ async function recordHeat() {
 
   try {
     const response = await fetch(
-      `http://localhost:5051/api/animals/${props.animal.animalId}/heats`,
+      `${API_BASE}/Animals/${props.animal.animalId}/heats`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

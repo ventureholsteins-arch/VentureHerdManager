@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import { getAnimals } from '../api/animals'
 import { getAppearance, type AppearanceSetting } from '../api/appearance'
 import { recordHeat } from '../api/heat'
-import { recordBreeding } from '../api/breeding'
+import { getLatestPregnancyStatuses, recordBreeding } from '../api/breeding'
 import { recordCalving } from '../api/calving'
 import { addNote } from '../api/notes'
 import { recordLUT } from '../api/lut'
@@ -27,9 +27,14 @@ const loading = ref(true)
 const errorMessage = ref('')
 const refreshing = ref(false)
 const dashboardRefreshKey = ref(0)
+const mobileQuickOpen = ref(false)
 
 const searchQuery = ref('')
 const stageFilter = ref<number | null>(null)
+const statusFilter = ref<number | null>(0)
+const pregnancyFilter = ref<number | null>(null)
+const favoriteOnly = ref(false)
+const latestPregnancyStatuses = ref<Record<number, number>>({})
 const heatModalRef = ref<InstanceType<typeof RecordHeatModal>>()
 const breedingModalRef = ref<InstanceType<typeof RecordBreedingModal>>()
 const calvingModalRef = ref<InstanceType<typeof RecordCalvingModal>>()
@@ -69,6 +74,21 @@ const filteredAnimals = computed(() => {
     result = result.filter(animal => animal.animalStage === stageFilter.value)
   }
 
+  if (statusFilter.value !== null) {
+    result = result.filter(animal => (animal.animalStatus ?? 0) === statusFilter.value)
+  }
+
+  if (favoriteOnly.value) {
+    result = result.filter(animal => !!animal.isFavorite)
+  }
+
+  if (pregnancyFilter.value !== null) {
+    result = result.filter(animal => {
+      const status = latestPregnancyStatuses.value[animal.animalId]
+      return status === pregnancyFilter.value
+    })
+  }
+
   // Apply search query
   const query = searchQuery.value.trim()
   if (!query) {
@@ -80,8 +100,10 @@ const filteredAnimals = computed(() => {
     if (fuzzyMatch(query, animal.barnName || '')) return true
     if (fuzzyMatch(query, animal.registeredName || '')) return true
     if (fuzzyMatch(query, animal.registrationNumber || '')) return true
-    // Check sire
+    // Check sire/dam/breed
     if (fuzzyMatch(query, animal.sireName || '')) return true
+    if (fuzzyMatch(query, animal.damName || '')) return true
+    if (fuzzyMatch(query, animal.breed || '')) return true
     return false
   })
 })
@@ -121,13 +143,15 @@ async function loadAnimals() {
   errorMessage.value = ''
 
   try {
-    const [appearanceResponse, animalsResponse] = await Promise.all([
+    const [appearanceResponse, animalsResponse, latestStatuses] = await Promise.all([
       getAppearance(),
-      getAnimals()
+      getAnimals(),
+      getLatestPregnancyStatuses().catch(() => ({}))
     ])
 
     appearance.value = appearanceResponse
     animals.value = Array.isArray(animalsResponse) ? animalsResponse : []
+    latestPregnancyStatuses.value = latestStatuses
   } catch (error) {
     console.error('Failed to load dashboard information:', error)
     errorMessage.value =
@@ -151,11 +175,26 @@ async function refreshDashboard() {
 }
 
 // Modal event handlers
-const openHeatModal = () => heatModalRef.value?.openModal()
+const openHeatModal = () => {
+  mobileQuickOpen.value = false
+  heatModalRef.value?.openModal()
+}
 const openBreedingModal = (id: number, name: string) => breedingModalRef.value?.openModal(id, name)
 const openCalvingModal = (id: number, name: string) => calvingModalRef.value?.openModal(id, name)
 const openNoteModal = (id: number, name: string) => noteModalRef.value?.openModal(id, name)
-const openLUTModal = (id: number, name: string) => lutModalRef.value?.openModal(id, name)
+const openLUTModal = (id?: number, name?: string) => {
+  mobileQuickOpen.value = false
+  lutModalRef.value?.openModal(id, name)
+}
+
+const openAddAnimal = () => {
+  mobileQuickOpen.value = false
+  router.push('/animals/new')
+}
+
+const toggleMobileQuickActions = () => {
+  mobileQuickOpen.value = !mobileQuickOpen.value
+}
 
 // Handle heat recording
 const onRecordHeat = async (data: any) => {
@@ -433,9 +472,27 @@ onMounted(() => {
     <template v-else>
       <section class="quick-actions-bar">
         <button @click="openHeatModal" class="quick-btn heat-btn">💉 Record Heat</button>
-        <button @click="openLUTModal(0, 'Select Animal')" class="quick-btn lut-btn">💊 LUT Injection</button>
-        <button class="quick-btn add-btn" @click="router.push('/animals/new')">➕ Add Animal</button>
+        <button @click="openLUTModal()" class="quick-btn lut-btn">💊 LUT Injection</button>
+        <button class="quick-btn add-btn" @click="openAddAnimal">➕ Add Animal</button>
       </section>
+
+      <div class="mobile-fab-wrap">
+        <button
+          class="mobile-fab"
+          type="button"
+          aria-label="Open quick actions"
+          :aria-expanded="mobileQuickOpen"
+          @click="toggleMobileQuickActions"
+        >
+          {{ mobileQuickOpen ? '✕' : '+' }}
+        </button>
+
+        <div v-if="mobileQuickOpen" class="mobile-fab-menu">
+          <button type="button" class="mobile-fab-action heat" @click="openHeatModal">Heat</button>
+          <button type="button" class="mobile-fab-action lut" @click="openLUTModal()">LUT</button>
+          <button type="button" class="mobile-fab-action add" @click="openAddAnimal">Add</button>
+        </div>
+      </div>
 
       <DashboardSummary :key="dashboardRefreshKey" />
 
@@ -444,7 +501,7 @@ onMounted(() => {
           <div>
             <p class="eyebrow">HERD</p>
             <h2>Animals</h2>
-            <p class="herd-subtitle">Search by name or sire • Click to manage</p>
+            <p class="herd-subtitle">Search by name, sire, dam, breed, or registration • Click to manage</p>
           </div>
 
           <div class="herd-actions">
@@ -452,21 +509,47 @@ onMounted(() => {
               v-model="searchQuery"
               type="search"
               class="search-input-large"
-              placeholder="🔎 Search by animal name, sire, or registration..."
+              placeholder="🔎 Search name, sire, dam, breed, or registration..."
             >
-            <div class="filter-buttons">
-              <button
-                @click="stageFilter = stageFilter === 3 ? null : 3"
-                :class="['filter-btn', { active: stageFilter === 3 }]"
-              >
-                🥛 Milking Cows
-              </button>
-              <button
-                @click="stageFilter = stageFilter === 2 ? null : 2"
-                :class="['filter-btn', { active: stageFilter === 2 }]"
-              >
-                🐮 Heifers
-              </button>
+            <div class="filter-row">
+              <label>
+                Stage
+                <select v-model="stageFilter">
+                  <option :value="null">All stages</option>
+                  <option :value="1">Calf</option>
+                  <option :value="2">Heifer</option>
+                  <option :value="3">Milking</option>
+                  <option :value="4">Dry</option>
+                  <option :value="5">Bull</option>
+                </select>
+              </label>
+
+              <label>
+                Status
+                <select v-model="statusFilter">
+                  <option :value="null">All statuses</option>
+                  <option :value="0">Active</option>
+                  <option :value="1">Sold</option>
+                  <option :value="2">Deceased</option>
+                </select>
+              </label>
+
+              <label>
+                Pregnancy
+                <select v-model="pregnancyFilter">
+                  <option :value="null">Any</option>
+                  <option :value="1">Pregnant</option>
+                  <option :value="0">Unconfirmed</option>
+                  <option :value="2">Open</option>
+                  <option :value="3">Recheck</option>
+                  <option :value="4">Aborted</option>
+                </select>
+              </label>
+
+              <label class="favorite-toggle">
+                <input v-model="favoriteOnly" type="checkbox">
+                Favorites only
+              </label>
             </div>
           </div>
         </div>
@@ -1195,6 +1278,44 @@ onMounted(() => {
   box-shadow: 0 6px 16px rgba(49, 87, 44, 0.2);
 }
 
+.mobile-fab-wrap {
+  display: none;
+}
+
+.mobile-fab {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: none;
+  background: #244f2f;
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 14px 28px rgba(11, 34, 17, 0.35);
+}
+
+.mobile-fab-menu {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.mobile-fab-action {
+  border: 1px solid #d1ddd5;
+  background: #fff;
+  border-radius: 999px;
+  min-height: 48px;
+  padding: 0 18px;
+  font-size: 1rem;
+  font-weight: 800;
+  box-shadow: 0 8px 16px rgba(10, 27, 14, 0.2);
+}
+
+.mobile-fab-action.heat { color: #7f1d1d; }
+.mobile-fab-action.lut { color: #92400e; }
+.mobile-fab-action.add { color: #065f46; }
+
 .heat-btn:hover { background: #ff6b6b; border-color: #ff6b6b; color: white; }
 .lut-btn:hover { background: #f59e0b; border-color: #f59e0b; color: white; }
 .add-btn:hover { background: #10b981; border-color: #10b981; color: white; }
@@ -1215,6 +1336,15 @@ onMounted(() => {
     flex: 1 1 calc(50% - 8px);
     padding: 8px 10px;
     font-size: 0.84rem;
+  }
+
+  .mobile-fab-wrap {
+    display: block;
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 40;
+    text-align: right;
   }
 }
 
@@ -1257,36 +1387,44 @@ onMounted(() => {
   color: #9ca8a0;
 }
 
-.filter-buttons {
-  display: flex;
+.filter-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 12px;
-  flex-wrap: wrap;
 }
 
-.filter-btn {
-  padding: 10px 16px;
-  border: 1px solid #d0dbd2;
-  border-radius: 6px;
-  background: white;
-  color: #0f1f16;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+.filter-row label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #1f3a25;
 }
 
-.filter-btn:hover {
-  border-color: #31572c;
-  background: #f8fbfa;
+.filter-row select {
+  min-height: 44px;
+  border: 1px solid #c8d4cb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 1rem;
+  background: #fff;
 }
 
-.filter-btn.active {
-  border-color: #31572c;
-  background: #31572c;
-  color: white;
-  box-shadow: 0 4px 12px rgba(49, 87, 44, 0.2);
+.favorite-toggle {
+  align-self: end;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid #c8d4cb;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+}
+
+.favorite-toggle input {
+  width: 18px;
+  height: 18px;
 }
 
 /* Enhanced Animal Cards */
@@ -1450,6 +1588,10 @@ onMounted(() => {
 }
 
 @media (max-width: 720px) {
+  .filter-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .card-actions {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     padding: 10px 12px;
@@ -1463,6 +1605,10 @@ onMounted(() => {
 }
 
 @media (max-width: 480px) {
+  .filter-row {
+    grid-template-columns: 1fr;
+  }
+
   .card-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -61,7 +61,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref } from 'vue'
+
+const API_BASE = import.meta.env.VITE_API_URL
 
 interface Animal {
   animalId: number

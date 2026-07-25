@@ -69,6 +69,38 @@ export interface UpdateAnimalRequest {
   isFavorite?: boolean
 }
 
+export interface CreateAnimalRequest {
+  barnName: string
+  registeredName?: string | null
+  registrationNumber?: string | null
+  birthDate?: string | null
+  sex: number
+  animalStage: number
+  animalStatus: number
+  breed?: string | null
+  sireName?: string | null
+  damName?: string | null
+  notes?: string | null
+  isFavorite?: boolean
+}
+
+export async function createAnimal(data: CreateAnimalRequest): Promise<Animal> {
+  const response = await fetch(`${API_BASE}/Animals`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || 'Failed to create animal')
+  }
+
+  return await response.json()
+}
+
 export async function updateAnimal(animalId: number, data: UpdateAnimalRequest): Promise<Animal> {
   const response = await fetch(`${API_BASE}/Animals/${animalId}`, {
     method: 'PUT',

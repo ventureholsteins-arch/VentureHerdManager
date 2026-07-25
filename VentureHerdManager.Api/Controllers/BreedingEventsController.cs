@@ -25,6 +25,26 @@ public class BreedingEventsController : ControllerBase
             .ToListAsync();
     }
 
+    [HttpGet("latest-status")]
+    public async Task<ActionResult<List<LatestPregnancyStatusDto>>> GetLatestStatusByAnimal()
+    {
+        var latest = await _context.BreedingEvents
+            .AsNoTracking()
+            .GroupBy(b => b.AnimalId)
+            .Select(group => group
+                .OrderByDescending(b => b.BreedingDate)
+                .ThenByDescending(b => b.BreedingEventId)
+                .Select(b => new LatestPregnancyStatusDto
+                {
+                    AnimalId = b.AnimalId,
+                    PregnancyStatus = b.PregnancyStatus
+                })
+                .First())
+            .ToListAsync();
+
+        return Ok(latest);
+    }
+
     [HttpPost]
     public async Task<ActionResult<BreedingEvent>> Create(BreedingEvent breeding)
     {
@@ -119,4 +139,11 @@ public class UpdateBreedingEventRequest
     public string? Notes { get; set; }
 
     public string? UpdatedBy { get; set; }
+}
+
+public class LatestPregnancyStatusDto
+{
+    public int AnimalId { get; set; }
+
+    public PregnancyStatus PregnancyStatus { get; set; }
 }

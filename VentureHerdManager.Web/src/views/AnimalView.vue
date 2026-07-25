@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { getAnimal } from '../api/animals'
 import { getAnimalSnapshot } from '../api/animalsSnapshot'
@@ -113,6 +113,53 @@ const noteText = ref('')
 
 const animalId = computed(() => Number(route.params.animalId))
 
+const hasUnsavedFormChanges = computed(() => {
+  const anyFormOpen =
+    showHeatForm.value ||
+    showBreedingForm.value ||
+    showPregCheckForm.value ||
+    showCalvingForm.value ||
+    showDryOffForm.value ||
+    showNoteForm.value
+
+  if (!anyFormOpen) {
+    return false
+  }
+
+  return (
+    heatNotes.value.trim().length > 0 ||
+    !!heatPhotoFile.value ||
+    hasEmbryoTransfer.value ||
+    sireUsed.value.trim().length > 0 ||
+    breedingType.value !== 0 ||
+    breedingNotes.value.trim().length > 0 ||
+    selectedBreedingId.value !== null ||
+    pregnancyStatus.value !== 1 ||
+    calfSex.value !== 0 ||
+    calfBarnName.value.trim().length > 0 ||
+    calfRegisteredName.value.trim().length > 0 ||
+    calfSireName.value.trim().length > 0 ||
+    calfDamName.value.trim().length > 0 ||
+    !!calvingPhotoFile.value ||
+    calvingEase.value !== 0 ||
+    twins.value ||
+    stillborn.value ||
+    calvingNotes.value.trim().length > 0 ||
+    dryReason.value.trim().length > 0 ||
+    dryNotes.value.trim().length > 0 ||
+    noteText.value.trim().length > 0
+  )
+})
+
+const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
+  if (!hasUnsavedFormChanges.value) {
+    return
+  }
+
+  event.preventDefault()
+  event.returnValue = ''
+}
+
 function goBack() {
   router.push('/')
 }
@@ -190,6 +237,8 @@ function openPendingAction() {
 }
 
 onMounted(async () => {
+  window.addEventListener('beforeunload', beforeUnloadHandler)
+
   try {
     const animalSnapshot = await getAnimalSnapshot(
       animalId.value
@@ -229,6 +278,18 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', beforeUnloadHandler)
+})
+
+onBeforeRouteLeave(() => {
+  if (!hasUnsavedFormChanges.value) {
+    return true
+  }
+
+  return window.confirm('You have unsaved form changes. Leave this page?')
 })
 
 async function saveHeat() {

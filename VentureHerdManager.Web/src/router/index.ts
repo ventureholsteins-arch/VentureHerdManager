@@ -6,6 +6,7 @@ import {
 import DashboardView from '../views/DashboardView.vue'
 import AnimalView from '../views/AnimalView.vue'
 import CalendarView from '../views/CalendarView.vue'
+import AnimalCreateView from '../views/AnimalCreateView.vue'
 import DemoView from '../views/DemoView.vue'
 
 import SettingsView from '../views/SettingsView.vue'
@@ -25,6 +26,11 @@ const router = createRouter({
       path: '/demo',
       name: 'demo',
       component: DemoView
+    },
+    {
+      path: '/animals/new',
+      name: 'animal-create',
+      component: AnimalCreateView,
     },
     {
       path: '/calendar',

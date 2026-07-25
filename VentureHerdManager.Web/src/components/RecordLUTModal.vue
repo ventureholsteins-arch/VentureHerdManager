@@ -7,6 +7,16 @@
       </div>
 
       <div class="modal-body">
+        <div class="form-group">
+          <label>Animal:</label>
+          <select v-model="selectedAnimalId" class="form-input">
+            <option value="">-- Select Animal --</option>
+            <option v-for="animal in animals" :key="animal.animalId" :value="animal.animalId">
+              {{ animal.barnName }}
+            </option>
+          </select>
+        </div>
+
         <div v-if="animalName" class="animal-info">
           Recording LUT for: <strong>{{ animalName }}</strong>
           <div class="info-detail">Animal will be monitored for heat for 4 days. Day 3 will trigger an alert.</div>
@@ -39,11 +49,20 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 
+const API_BASE = import.meta.env.VITE_API_URL
+
+interface AnimalOption {
+  animalId: number
+  barnName: string
+}
+
 const isOpen = ref(false)
 const animalId = ref<number | null>(null)
+const selectedAnimalId = ref('')
 const animalName = ref('')
 const administrationDate = ref(new Date().toISOString().split('T')[0])
 const notes = ref('')
+const animals = ref<AnimalOption[]>([])
 
 const expectedHeatStart = computed(() => {
   if (!administrationDate.value) return ''
@@ -64,9 +83,19 @@ const emit = defineEmits<{
   recordLUT: [data: any]
 }>()
 
-const openModal = (id: number, name: string) => {
-  animalId.value = id
-  animalName.value = name
+const openModal = async (id?: number, name?: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/Animals`)
+    if (response.ok) {
+      animals.value = await response.json()
+    }
+  } catch (err) {
+    console.error('Failed to load animals for LUT modal:', err)
+  }
+
+  animalId.value = typeof id === 'number' && id > 0 ? id : null
+  selectedAnimalId.value = animalId.value ? String(animalId.value) : ''
+  animalName.value = name ?? ''
   administrationDate.value = new Date().toISOString().split('T')[0]
   notes.value = ''
   isOpen.value = true
@@ -78,7 +107,11 @@ const closeModal = () => {
 }
 
 const recordLUT = () => {
-  if (!animalId.value || !administrationDate.value) {
+  const resolvedAnimalId = selectedAnimalId.value
+    ? parseInt(selectedAnimalId.value, 10)
+    : animalId.value
+
+  if (!resolvedAnimalId || !administrationDate.value) {
     alert('Please fill in required fields')
     return
   }
@@ -90,7 +123,7 @@ const recordLUT = () => {
   heatEnd.setHours(heatEnd.getHours() + 96)
 
   emit('recordLUT', {
-    animalId: animalId.value,
+    animalId: resolvedAnimalId,
     administrationDate: administrationDate.value,
     expectedHeatWatchStart: heatStart.toISOString(),
     expectedHeatWatchEnd: heatEnd.toISOString(),

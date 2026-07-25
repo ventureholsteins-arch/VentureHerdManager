@@ -78,5 +78,6 @@ public enum EmbryoStatus
     InStorage = 0,
     Assigned = 1,
     Implanted = 2,
-    Failed = 3
+    Failed = 3,
+    Successful = 4
 }

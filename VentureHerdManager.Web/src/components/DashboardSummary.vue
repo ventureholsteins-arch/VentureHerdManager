@@ -40,6 +40,19 @@ const pregChecksSectionRef = ref<HTMLElement | null>(null)
 const dueSoonSectionRef = ref<HTMLElement | null>(null)
 const lutTrackingSectionRef = ref<HTMLElement | null>(null)
 const embryoSectionRef = ref<HTMLElement | null>(null)
+const expandedLists = ref<Record<string, boolean>>({})
+
+function visibleItems<T>(items: T[] | undefined, list: string): T[] {
+  const safeItems = items ?? []
+  return expandedLists.value[list] ? safeItems : safeItems.slice(0, 6)
+}
+
+function toggleList(list: string) {
+  expandedLists.value = {
+    ...expandedLists.value,
+    [list]: !expandedLists.value[list]
+  }
+}
 
 type ReportSection =
   | 'pregChecks'
@@ -220,7 +233,7 @@ async function openReportSection(section: ReportSection) {
         </div>
 
         <button
-          v-for="item in dashboard.pregChecksDue"
+          v-for="item in visibleItems(dashboard.pregChecksDue, 'pregChecks')"
           :key="item.breedingEventId"
           class="event-row"
           @click="openAnimal(item.animalId)"
@@ -241,6 +254,15 @@ async function openReportSection(section: ReportSection) {
           </div>
 
           <span class="arrow">›</span>
+        </button>
+
+        <button
+          v-if="dashboard.pregChecksDue.length > 6"
+          type="button"
+          class="list-toggle"
+          @click="toggleList('pregChecks')"
+        >
+          {{ expandedLists.pregChecks ? 'Show Less' : `Show More (${dashboard.pregChecksDue.length - 6})` }}
         </button>
       </section>
 
@@ -379,7 +401,7 @@ async function openReportSection(section: ReportSection) {
         </div>
 
         <button
-          v-for="heat in dashboard.recentHeats"
+          v-for="heat in visibleItems(dashboard.recentHeats, 'recentHeats')"
           :key="heat.heatEventId"
           class="event-row"
           @click="openAnimal(heat.animalId)"
@@ -397,6 +419,15 @@ async function openReportSection(section: ReportSection) {
           </div>
 
           <span class="arrow">›</span>
+        </button>
+
+        <button
+          v-if="dashboard.recentHeats.length > 6"
+          type="button"
+          class="list-toggle"
+          @click="toggleList('recentHeats')"
+        >
+          {{ expandedLists.recentHeats ? 'Show Less' : `Show More (${dashboard.recentHeats.length - 6})` }}
         </button>
       </section>
 
@@ -676,6 +707,23 @@ async function openReportSection(section: ReportSection) {
   border-top: 1px solid #ede8ed;
   padding-top: 10px;
   margin-top: 0;
+}
+
+.list-toggle {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: 1px solid #31572c;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #31572c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.list-toggle:hover {
+  background: #f3f7f1;
 }
 
 .event-content {

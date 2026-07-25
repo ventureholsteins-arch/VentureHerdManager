@@ -1,44 +1,12 @@
-﻿<script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+<script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  getDemoStatus,
-  resetDemo,
-  type DemoStatusResponse
-} from '../api/demo'
+import { resetDemo } from '../api/demo'
 
 const router = useRouter()
 const loading = ref(false)
 const error = ref<string | null>(null)
-const loadingStatus = ref(false)
-const demoStatus = ref<DemoStatusResponse | null>(null)
 const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
-
-const stageSummary = computed(() => {
-  if (!demoStatus.value) {
-    return 'Loading stage counts...'
-  }
-
-  if (!demoStatus.value.stageCounts.length) {
-    return 'No stage data yet.'
-  }
-
-  return demoStatus.value.stageCounts
-    .map(item => `${item.stage}: ${item.count}`)
-    .join(' · ')
-})
-
-async function loadStatus() {
-  loadingStatus.value = true
-
-  try {
-    demoStatus.value = await getDemoStatus()
-  } catch (err) {
-    console.warn('Failed to load demo status:', err)
-  } finally {
-    loadingStatus.value = false
-  }
-}
 
 async function launchDemo(withReset: boolean) {
   loading.value = true
@@ -59,10 +27,6 @@ async function launchDemo(withReset: boolean) {
     loading.value = false
   }
 }
-
-onMounted(async () => {
-  await loadStatus()
-})
 </script>
 
 <template>
@@ -70,69 +34,60 @@ onMounted(async () => {
     <div class="launch-card">
       <p class="demo-tag">DEMO</p>
       <h1>Venture Herd Manager</h1>
+      <h2 class="demo-promise">
+        Know your herd.
+        <span>Move with confidence.</span>
+      </h2>
       <p class="subtitle">
-        See the real app in action with a pre-loaded herd of demo animals.
-        You can launch instantly, or reset first for a fresh sample set.
+        Easy View keeps the whole crew on the same page. Record work with one
+        hand, keep every event in order, and see what needs to happen next.
       </p>
 
-      <div class="status-box">
-        <p class="status-title">Demo Data Snapshot</p>
-        <p v-if="loadingStatus" class="status-line">Loading demo stats...</p>
-
-        <template v-else-if="demoStatus">
-          <p class="status-line">
-            Animals: <strong>{{ demoStatus.counts.animals }}</strong>
-            · Active: <strong>{{ demoStatus.counts.activeAnimals }}</strong>
-            · Heats: <strong>{{ demoStatus.counts.heats }}</strong>
-            · Breedings: <strong>{{ demoStatus.counts.breedings }}</strong>
-          </p>
-          <p class="status-line">
-            Calvings: <strong>{{ demoStatus.counts.calvings }}</strong>
-            · LUT: <strong>{{ demoStatus.counts.lutalyseEvents }}</strong>
-            · Notes: <strong>{{ demoStatus.counts.notes }}</strong>
-            · Photos: <strong>{{ demoStatus.counts.photos }}</strong>
-          </p>
-          <p class="status-line stage-line">{{ stageSummary }}</p>
-          <ul class="preview-list">
-            <li v-for="item in demoStatus.previewAnimals" :key="item.animalId">
-              {{ item.name }} · {{ item.stage }} · {{ item.breed || 'Unknown breed' }}
-            </li>
-          </ul>
-        </template>
-      </div>
-
       <ul class="feature-list">
-        <li>Dashboard with upcoming due dates &amp; LUT tracking</li>
-        <li>Animal profiles, notes, photos &amp; classification records</li>
-        <li>Heat, breeding, dry-off, and calving event history</li>
-        <li>Calendar view of all herd events</li>
+        <li>One shared animal record for everyone</li>
+        <li>Automatic alerts for work coming due</li>
+        <li>Heats, breeding, embryos, calvings, and notes in order</li>
+        <li>Built to view and update from a phone in the barn</li>
       </ul>
+
+      <div class="custom-software">
+        <strong>Built for your operation</strong>
+        <p>
+          This is custom software. Features, reports, workflows, and branding
+          can be tailored to fit your herd and the way you work.
+        </p>
+      </div>
 
       <p v-if="error" class="error-msg">{{ error }}</p>
 
       <div class="launch-buttons">
         <button
-          class="launch-btn secondary"
+          class="launch-btn"
           type="button"
           :disabled="loading"
           @click="launchDemo(false)"
         >
-          {{ loading ? 'Launching...' : 'Launch Instantly' }}
+          {{ loading ? 'Opening demo...' : 'Explore the Demo' }}
         </button>
 
         <button
-          class="launch-btn"
+          v-if="demoResetEnabled"
+          class="launch-btn secondary"
           type="button"
-          :disabled="loading || !demoResetEnabled"
+          :disabled="loading"
           @click="launchDemo(true)"
         >
-          {{ loading ? 'Resetting demo data...' : 'Reset Then Launch' }}
+          {{ loading ? 'Preparing demo...' : 'Start with Fresh Demo Data' }}
         </button>
       </div>
 
-      <p class="hint">Reset launch is slower because it refreshes all demo seed data.</p>
+      <p v-if="demoResetEnabled" class="hint">
+        Choose “Explore the Demo” to continue where you left off, or choose
+        “Start with Fresh Demo Data” to restore the original sample records.
+      </p>
 
-      <p class="powered-by">Powered by Venture Ag Marketing Custom Application Solutions</p>
+      <p class="powered-by">Custom application solutions by Venture Ag Marketing</p>
+      <p class="rights-reserved">All rights reserved.</p>
     </div>
   </main>
 </template>
@@ -166,9 +121,26 @@ onMounted(async () => {
 }
 
 h1 {
-  margin: 0 0 12px;
+  margin: 0 0 16px;
   font-size: 1.75rem;
   color: #1a2e1c;
+}
+
+.demo-promise {
+  margin: 0 0 18px;
+  color: #17281a;
+  font-size: clamp(2rem, 7vw, 3.25rem);
+  line-height: 0.95;
+  letter-spacing: -0.055em;
+  text-transform: uppercase;
+  font-weight: 900;
+}
+
+.demo-promise span {
+  display: block;
+  margin-top: 8px;
+  color: transparent;
+  -webkit-text-stroke: 1.25px #31572c;
 }
 
 .subtitle {
@@ -184,39 +156,20 @@ h1 {
   line-height: 1.8;
 }
 
-.status-box {
-  margin: 0 0 18px;
-  padding: 12px 14px;
-  border: 1px solid #dbe5de;
+.custom-software {
+  margin: 0 0 24px;
+  padding: 16px;
+  background: #f3f7f1;
+  border: 1px solid #d9e5d5;
   border-radius: 8px;
-  background: #f7fbf8;
+  color: #31572c;
 }
 
-.status-title {
-  margin: 0 0 8px;
-  font-weight: 800;
-  color: #254520;
-}
-
-.status-line {
-  margin: 0 0 6px;
-  color: #304050;
+.custom-software p {
+  margin: 6px 0 0;
+  color: #4a5e4c;
   font-size: 0.92rem;
-}
-
-.stage-line {
-  color: #3f5b47;
-}
-
-.preview-list {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  color: #425466;
-}
-
-.preview-list li {
-  margin: 2px 0;
-  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .launch-buttons {
@@ -248,11 +201,13 @@ h1 {
 }
 
 .launch-btn.secondary {
-  background: #0f172a;
+  background: #fff;
+  color: #31572c;
+  border: 1px solid #31572c;
 }
 
 .launch-btn.secondary:hover:not(:disabled) {
-  background: #1e293b;
+  background: #f3f7f1;
 }
 
 .launch-btn:hover:not(:disabled) {
@@ -272,9 +227,30 @@ h1 {
   letter-spacing: 0.01em;
 }
 
+.rights-reserved {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: #9aa8b3;
+}
+
 .hint {
   margin: 8px 0 0;
   color: #5f6c7b;
   font-size: 0.85rem;
+}
+
+@media (max-width: 560px) {
+  .demo-launch {
+    padding: 14px;
+  }
+
+  .launch-card {
+    padding: 30px 22px;
+  }
+
+  .demo-promise {
+    font-size: clamp(2rem, 12vw, 2.75rem);
+  }
 }
 </style>

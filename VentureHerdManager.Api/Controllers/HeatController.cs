@@ -25,6 +25,40 @@ public class HeatEventsController : ControllerBase
             .ToListAsync();
     }
 
+    [HttpGet("recent-recipients")]
+    public async Task<IActionResult> GetRecentRecipients(
+        [FromQuery] int minDays = 6,
+        [FromQuery] int maxDays = 8)
+    {
+        var today = DateTime.UtcNow.Date;
+        var start = today.AddDays(-maxDays);
+        var end = today.AddDays(-minDays + 1);
+
+        var rows = await (
+            from heat in _context.HeatEvents.AsNoTracking()
+            join animal in _context.Animals.AsNoTracking()
+                on heat.AnimalId equals animal.AnimalId
+            where heat.HeatDateTime >= start
+                && heat.HeatDateTime < end
+                && animal.AnimalStatus == AnimalStatus.Active
+                && animal.Sex == AnimalSex.Female
+            orderby heat.HeatDateTime descending
+            select new
+            {
+                animal.AnimalId,
+                AnimalName = animal.BarnName ?? animal.RegisteredName
+                    ?? $"Animal #{animal.AnimalId}",
+                heat.HeatDateTime,
+                DaysSinceHeat = (today - heat.HeatDateTime.Date).Days
+            })
+            .ToListAsync();
+
+        return Ok(rows
+            .GroupBy(row => row.AnimalId)
+            .Select(group => group.First())
+            .ToList());
+    }
+
     [HttpPost]
     public async Task<ActionResult<HeatEvent>> Create(HeatEvent heatEvent)
     {

@@ -5,6 +5,7 @@ import { resetDemo } from './api/demo'
 
 const appearance = ref<AppearanceSetting | null>(null)
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
+const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
 const demoResetting = ref(false)
 
 onMounted(async () => {
@@ -29,7 +30,12 @@ const appStyle = computed(() => ({
 async function handleDemoReset() {
   demoResetting.value = true
   try {
-    await resetDemo()
+    if (demoResetEnabled) {
+      await resetDemo()
+    }
+    window.location.href = '/'
+  } catch (error) {
+    console.warn('Demo reset unavailable, reopening demo without reset:', error)
     window.location.href = '/'
   } finally {
     demoResetting.value = false
@@ -42,9 +48,9 @@ async function handleDemoReset() {
     <div class="app-background" />
 
     <div v-if="isDemoOnly" class="demo-banner">
-      <span>DEMO MODE - data resets on each launch</span>
+      <span>{{ demoResetEnabled ? 'DEMO MODE - data resets on each launch' : 'DEMO MODE - running without API reset' }}</span>
       <button type="button" :disabled="demoResetting" @click="handleDemoReset">
-        {{ demoResetting ? 'Resetting...' : 'Reset Demo' }}
+        {{ demoResetting ? 'Opening...' : (demoResetEnabled ? 'Reset Demo' : 'Open Demo') }}
       </button>
     </div>
 

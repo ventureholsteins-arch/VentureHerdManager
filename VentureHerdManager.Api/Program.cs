@@ -10,9 +10,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 // Database
-var connectionString = builder.Configuration["ConnectionStrings__DefaultConnection"]
-    ?? builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? builder.Configuration["ConnectionStrings:DefaultConnection"];
+var isDemoMode = builder.Configuration.GetValue<bool>("DemoMode:Enabled");
+var connectionString = isDemoMode 
+    ? (builder.Configuration["ConnectionStrings__DemoConnection"]
+        ?? builder.Configuration.GetConnectionString("DemoConnection")
+        ?? builder.Configuration["ConnectionStrings:DemoConnection"])
+    : (builder.Configuration["ConnectionStrings__DefaultConnection"]
+        ?? builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? builder.Configuration["ConnectionStrings:DefaultConnection"]);
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {

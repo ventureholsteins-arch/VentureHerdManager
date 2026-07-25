@@ -8,6 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Controllers
 builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<DemoSessionContext>();
 
 // Database
 var isDemoMode = builder.Configuration.GetValue<bool>("DemoMode:Enabled");
@@ -52,7 +54,7 @@ builder.Services.AddScoped<HeatService>();
 builder.Services.AddScoped<ClassificationService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<CalendarService>();
-builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<DemoSessionMaintenanceService>();
 builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
 
 // Swagger
@@ -88,6 +90,22 @@ app.UseHttpsRedirection();
 app.UseCors(CorsPolicyName);
 app.UseStaticFiles();
 
+if (isDemoMode)
+{
+    app.Use(async (httpContext, next) =>
+    {
+        if (httpContext.Request.Path.StartsWithSegments("/api")
+            && !HttpMethods.IsOptions(httpContext.Request.Method))
+        {
+            var maintenance = httpContext.RequestServices
+                .GetRequiredService<DemoSessionMaintenanceService>();
+            await maintenance.TouchAsync(httpContext.RequestAborted);
+        }
+
+        await next();
+    });
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -103,6 +121,11 @@ static async Task InitializeDatabaseAsync(WebApplication app)
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<ApplicationDbContext>();
 
+    if (app.Configuration.GetValue<bool>("DemoMode:Enabled"))
+    {
+        await EnsureDemoSessionSchemaAsync(context);
+    }
+
     static async Task EnsureAnimalColumnAsync(
         ApplicationDbContext context,
         string columnName,
@@ -114,6 +137,71 @@ static async Task InitializeDatabaseAsync(WebApplication app)
             "BEGIN " +
             "ALTER TABLE [Animals] ADD [" + columnName + "] " + columnDefinition + "; " +
             "END");
+    }
+
+    static async Task EnsureDemoSessionSchemaAsync(
+        ApplicationDbContext context)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            @"IF OBJECT_ID(N'dbo.DemoSessions', N'U') IS NULL
+              BEGIN
+                CREATE TABLE [dbo].[DemoSessions](
+                  [DemoSessionId] NVARCHAR(64) NOT NULL,
+                  [CreatedAt] DATETIME2 NOT NULL,
+                  [LastSeenAt] DATETIME2 NOT NULL,
+                  CONSTRAINT [PK_DemoSessions] PRIMARY KEY ([DemoSessionId])
+                );
+                CREATE INDEX [IX_DemoSessions_LastSeenAt]
+                  ON [dbo].[DemoSessions]([LastSeenAt]);
+              END");
+
+        var tables = new[]
+        {
+            "Animals",
+            "HeatEvents",
+            "BreedingEvents",
+            "CalvingEvents",
+            "DryOffEvents",
+            "AnimalNotes",
+            "ClassificationRecords",
+            "LutalyseEvents",
+            "AnimalPhotos",
+            "AppearanceSettings",
+            "EmbryoRecords",
+            "ShowAchievements"
+        };
+
+        foreach (var table in tables)
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                $@"IF OBJECT_ID(N'dbo.{table}', N'U') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.{table}', N'DemoSessionId') IS NULL
+                   BEGIN
+                     ALTER TABLE [dbo].[{table}]
+                       ADD [DemoSessionId] NVARCHAR(64) NULL;
+                     CREATE INDEX [IX_{table}_DemoSessionId]
+                       ON [dbo].[{table}]([DemoSessionId]);
+                   END");
+        }
+
+        await context.Database.ExecuteSqlRawAsync(
+            @"IF OBJECT_ID(N'dbo.Animals', N'U') IS NOT NULL
+              BEGIN
+                IF EXISTS (
+                  SELECT 1 FROM sys.indexes
+                  WHERE [name] = N'IX_Animals_RegistrationNumber'
+                    AND [object_id] = OBJECT_ID(N'dbo.Animals'))
+                  DROP INDEX [IX_Animals_RegistrationNumber] ON [dbo].[Animals];
+
+                IF NOT EXISTS (
+                  SELECT 1 FROM sys.indexes
+                  WHERE [name] = N'IX_Animals_DemoSessionId_RegistrationNumber'
+                    AND [object_id] = OBJECT_ID(N'dbo.Animals'))
+                  CREATE UNIQUE INDEX
+                    [IX_Animals_DemoSessionId_RegistrationNumber]
+                    ON [dbo].[Animals]([DemoSessionId], [RegistrationNumber])
+                    WHERE [RegistrationNumber] IS NOT NULL;
+              END");
     }
 
     try

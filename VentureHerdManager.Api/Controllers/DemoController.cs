@@ -92,12 +92,13 @@ public class DemoController : ControllerBase
         await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
         await _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken);
         await _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken);
+        await _context.ShowAchievements.ExecuteDeleteAsync(cancellationToken);
+        await _context.EmbryoRecords.ExecuteDeleteAsync(cancellationToken);
         await _context.HeatEvents.ExecuteDeleteAsync(cancellationToken);
         await _context.BreedingEvents.ExecuteDeleteAsync(cancellationToken);
         await _context.DryOffEvents.ExecuteDeleteAsync(cancellationToken);
         await _context.LutalyseEvents.ExecuteDeleteAsync(cancellationToken);
         await _context.CalvingEvents.ExecuteDeleteAsync(cancellationToken);
-
         await _context.Animals.ExecuteUpdateAsync(
             setters => setters
                 .SetProperty(a => a.DamId, (int?)null)
@@ -303,6 +304,168 @@ public class DemoController : ControllerBase
 
         _context.CalvingEvents.Add(calvingEvent);
 
+        // Add comprehensive historical data across 12 months
+        var heatEvents = new List<HeatEvent>();
+        var breedingEvents = new List<BreedingEvent>();
+        var calvingEvents = new List<CalvingEvent>();
+        var dryOffEvents = new List<DryOffEvent>();
+        var lutEvents = new List<LutalyseEvent>();
+        var embryoRecords = new List<EmbryoRecord>();
+        var showAchievements = new List<ShowAchievement>();
+        var classificationRecords = new List<ClassificationRecord>();
+        
+        var siresUsed = new[] { "Nordic Chief", "Baxton O Manoman", "Supersire", "Peak Power" };
+
+        // Generate 12 months of heats and breedings for each milking cow
+        for (int month = 0; month < 12; month++)
+        {
+            var monthStart = utcNow.AddMonths(-12 + month);
+            
+            // Aurora: 2-3 heats per month
+            for (int heatNum = 0; heatNum < NextInt(2, 4); heatNum++)
+            {
+                var heatDate = monthStart.AddDays(NextInt(0, 25));
+                heatEvents.Add(new HeatEvent
+                {
+                    AnimalId = aurora.AnimalId,
+                    HeatDateTime = heatDate,
+                    HeatStrength = (HeatStrength)NextInt(1, 4),
+                    StandingHeat = true,
+                    CreatedBy = seedUser,
+                    UpdatedBy = seedUser,
+                    CreatedAt = monthStart,
+                    UpdatedAt = monthStart
+                });
+            }
+
+            // Nova: 2-3 heats per month, with breeding every 3-4 heats
+            for (int heatNum = 0; heatNum < NextInt(2, 4); heatNum++)
+            {
+                var heatDate = monthStart.AddDays(NextInt(0, 25));
+                var isBreeding = NextInt(0, 100) < 40;
+                
+                heatEvents.Add(new HeatEvent
+                {
+                    AnimalId = nova.AnimalId,
+                    HeatDateTime = heatDate,
+                    HeatStrength = (HeatStrength)NextInt(1, 4),
+                    StandingHeat = true,
+                    CreatedBy = seedUser,
+                    UpdatedBy = seedUser,
+                    CreatedAt = monthStart,
+                    UpdatedAt = monthStart
+                });
+
+                if (isBreeding)
+                {
+                    breedingEvents.Add(new BreedingEvent
+                    {
+                        AnimalId = nova.AnimalId,
+                        BreedingDate = heatDate,
+                        SireUsed = siresUsed[NextInt(0, siresUsed.Length)],
+                        BreedingType = BreedingType.AI,
+                        PregnancyStatus = NextInt(0, 100) < 65 ? PregnancyStatus.Pregnant : PregnancyStatus.Unconfirmed,
+                        PregnancyCheckDueDate = heatDate.AddDays(35),
+                        ExpectedDueDate = heatDate.AddDays(280),
+                        RecommendedDryOffDate = heatDate.AddDays(250),
+                        CreatedBy = seedUser,
+                        UpdatedBy = seedUser,
+                        CreatedAt = monthStart,
+                        UpdatedAt = monthStart
+                    });
+                }
+            }
+
+            // Daisy: regular events
+            for (int heatNum = 0; heatNum < NextInt(1, 3); heatNum++)
+            {
+                var heatDate = monthStart.AddDays(NextInt(0, 25));
+                heatEvents.Add(new HeatEvent
+                {
+                    AnimalId = daisy.AnimalId,
+                    HeatDateTime = heatDate,
+                    HeatStrength = (HeatStrength)NextInt(1, 4),
+                    StandingHeat = true,
+                    CreatedBy = seedUser,
+                    UpdatedBy = seedUser,
+                    CreatedAt = monthStart,
+                    UpdatedAt = monthStart
+                });
+            }
+        }
+
+        // Add calvings every 3-4 months for pregnant cows
+        for (int i = 1; i < 3; i++)
+        {
+            var calvDate = utcNow.AddMonths(-9 + i * 3).AddDays(NextInt(0, 20));
+            calvingEvents.Add(new CalvingEvent
+            {
+                AnimalId = aurora.AnimalId,
+                CalvingDate = calvDate,
+                CalfSex = CalfSex.Heifer,
+                CalfBarnName = $"Demo Calf {i}",
+                CalvingEase = CalvingEase.Unassisted,
+                NumberOfCalves = 1,
+                Twins = false,
+                Stillborn = false,
+                BirthWeight = Math.Round((decimal)(65 + random.NextDouble() * 30), 1),
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser,
+                CreatedAt = calvDate,
+                UpdatedAt = calvDate
+            });
+        }
+
+        // Add dry-off events
+        for (int i = 0; i < 3; i++)
+        {
+            dryOffEvents.Add(new DryOffEvent
+            {
+                AnimalId = ember.AnimalId,
+                DryOffDate = utcNow.AddMonths(-6 + i * 2),
+                Reason = "Calving prep",
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser,
+                CreatedAt = utcNow.AddMonths(-6 + i * 2),
+                UpdatedAt = utcNow.AddMonths(-6 + i * 2)
+            });
+        }
+
+        // Add embryo records with varying statuses
+        embryoRecords.AddRange(
+            new EmbryoRecord { Code = "ET-2026-001", Sire = "Nordic Chief", Donor = "Venture Primo", Grade = "1", Status = EmbryoStatus.InStorage, CreatedAt = utcNow.AddMonths(-3), UpdatedAt = utcNow },
+            new EmbryoRecord { Code = "ET-2026-002", Sire = "Baxton", Donor = "Venture Primo", Grade = "1", Status = EmbryoStatus.Assigned, RecipientAnimalId = nova.AnimalId, CreatedAt = utcNow.AddMonths(-2), UpdatedAt = utcNow },
+            new EmbryoRecord { Code = "ET-2025-087", Sire = "Peak Power", Donor = "Venture Aurora", Grade = "2", Status = EmbryoStatus.Implanted, RecipientAnimalId = daisy.AnimalId, ImplantDate = DateOnly.FromDateTime(utcNow.AddMonths(-4)), CreatedAt = utcNow.AddMonths(-4), UpdatedAt = utcNow },
+            new EmbryoRecord { Code = "ET-2025-045", Sire = "Supersire", Donor = "Venture Ember", Grade = "1", Status = EmbryoStatus.Failed, ImplantDate = DateOnly.FromDateTime(utcNow.AddMonths(-2)), CreatedAt = utcNow.AddMonths(-2), UpdatedAt = utcNow },
+            new EmbryoRecord { Code = "ET-2026-003", Sire = "Nordic Chief", Donor = "Venture Aurora", Grade = "1", Status = EmbryoStatus.InStorage, CreatedAt = utcNow.AddDays(-10), UpdatedAt = utcNow }
+        );
+
+        // Add show achievements
+        showAchievements.AddRange(
+            new ShowAchievement { AnimalId = aurora.AnimalId, ShowName = "State Fair", ShowDate = DateOnly.FromDateTime(utcNow.AddMonths(-6)), Placed = "Reserve Champion", Bagged = "Excellent" },
+            new ShowAchievement { AnimalId = aurora.AnimalId, ShowName = "County Show", ShowDate = DateOnly.FromDateTime(utcNow.AddMonths(-4)), Placed = "2nd Class", Bagged = "Very Good" },
+            new ShowAchievement { AnimalId = nova.AnimalId, ShowName = "Open Classic", ShowDate = DateOnly.FromDateTime(utcNow.AddMonths(-5)), Placed = "3rd Class", Bagged = "Good" },
+            new ShowAchievement { AnimalId = ember.AnimalId, ShowName = "Junior Show", ShowDate = DateOnly.FromDateTime(utcNow.AddMonths(-3)), Placed = "Champion", Bagged = "Excellent" }
+        );
+
+        // Add more classification records with varied BAA scores
+        classificationRecords.AddRange(
+            new ClassificationRecord { AnimalId = aurora.AnimalId, ClassificationDate = utcNow.AddMonths(-8), Score = 91m, Baa = 109.4m, ClassificationLabel = "EX", CreatedBy = seedUser, UpdatedBy = seedUser, UpdatedAt = utcNow },
+            new ClassificationRecord { AnimalId = aurora.AnimalId, ClassificationDate = utcNow.AddMonths(-2), Score = 90m, Baa = 111.2m, ClassificationLabel = "EX", CreatedBy = seedUser, UpdatedBy = seedUser, UpdatedAt = utcNow },
+            new ClassificationRecord { AnimalId = nova.AnimalId, ClassificationDate = utcNow.AddMonths(-6), Score = 88m, Baa = 104.2m, ClassificationLabel = "VG", CreatedBy = seedUser, UpdatedBy = seedUser, UpdatedAt = utcNow },
+            new ClassificationRecord { AnimalId = nova.AnimalId, ClassificationDate = utcNow.AddMonths(-1), Score = 85m, Baa = 105.8m, ClassificationLabel = "VG", CreatedBy = seedUser, UpdatedBy = seedUser, UpdatedAt = utcNow },
+            new ClassificationRecord { AnimalId = ember.AnimalId, ClassificationDate = utcNow.AddMonths(-7), Score = 87m, Baa = 107.5m, ClassificationLabel = "VG", CreatedBy = seedUser, UpdatedBy = seedUser, UpdatedAt = utcNow },
+            new ClassificationRecord { AnimalId = daisy.AnimalId, ClassificationDate = utcNow.AddMonths(-9), Score = 82m, Baa = 101.3m, ClassificationLabel = "VG", CreatedBy = seedUser, UpdatedBy = seedUser, UpdatedAt = utcNow }
+        );
+
+        _context.HeatEvents.AddRange(heatEvents);
+        _context.BreedingEvents.AddRange(breedingEvents);
+        _context.CalvingEvents.AddRange(calvingEvents);
+        _context.DryOffEvents.AddRange(dryOffEvents);
+        _context.EmbryoRecords.AddRange(embryoRecords);
+        _context.ShowAchievements.AddRange(showAchievements);
+        _context.ClassificationRecords.AddRange(classificationRecords);
+
         _context.AnimalNotes.Add(new AnimalNote
         {
             AnimalId = aurora.AnimalId,
@@ -311,34 +474,6 @@ public class DemoController : ControllerBase
             NoteType = NoteType.General,
             CreatedBy = seedUser
         });
-
-        _context.ClassificationRecords.AddRange(
-            new ClassificationRecord
-            {
-                AnimalId = aurora.AnimalId,
-                ClassificationDate = utcNow.AddMonths(-2),
-                Score = 91m,
-                Baa = 109.4m,
-                AgeInMonthsAtScoring = 52,
-                ClassificationLabel = "EX",
-                Notes = "Demo classification",
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser,
-                UpdatedAt = utcNow
-            },
-            new ClassificationRecord
-            {
-                AnimalId = nova.AnimalId,
-                ClassificationDate = utcNow.AddMonths(-3),
-                Score = 88m,
-                Baa = 104.2m,
-                AgeInMonthsAtScoring = 60,
-                ClassificationLabel = "VG",
-                Notes = "Demo classification",
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser,
-                UpdatedAt = utcNow
-            });
 
         _context.AnimalPhotos.AddRange(
             new AnimalPhoto

@@ -12,7 +12,7 @@
           <select v-model="selectedAnimalId" class="form-input">
             <option value="">-- Select Animal --</option>
             <option v-for="animal in animals" :key="animal.animalId" :value="animal.animalId">
-              {{ animal.barnName }} ({{ animal.stage }})
+              {{ animal.barnName }} ({{ stageLabel(animal.animalStage) }})
             </option>
           </select>
         </div>
@@ -68,7 +68,19 @@ const API_BASE = import.meta.env.VITE_API_URL
 interface Animal {
   animalId: number
   barnName: string
-  stage: string
+  animalStage: number
+}
+
+const stageLabel = (stage: number): string => {
+  const labels: Record<number, string> = {
+    1: 'Calf',
+    2: 'Heifer',
+    3: 'Milking',
+    4: 'Dry',
+    5: 'Bull'
+  }
+
+  return labels[stage] ?? 'Unknown'
 }
 
 const isOpen = ref(false)

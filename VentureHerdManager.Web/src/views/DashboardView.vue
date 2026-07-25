@@ -11,7 +11,6 @@ import { addNote } from '../api/notes'
 import { recordLUT } from '../api/lut'
 import type { Animal } from '../models/Animal'
 import DashboardSummary from '../components/DashboardSummary.vue'
-import QuickActions from '../components/QuickActions.vue'
 import RecordHeatModal from '../components/RecordHeatModal.vue'
 import RecordBreedingModal from '../components/RecordBreedingModal.vue'
 import RecordCalvingModal from '../components/RecordCalvingModal.vue'
@@ -514,7 +513,7 @@ onMounted(() => {
             <div class="filter-row">
               <label>
                 Stage
-                <select v-model="stageFilter">
+                <select v-model.number="stageFilter">
                   <option :value="null">All stages</option>
                   <option :value="1">Calf</option>
                   <option :value="2">Heifer</option>
@@ -526,7 +525,7 @@ onMounted(() => {
 
               <label>
                 Status
-                <select v-model="statusFilter">
+                <select v-model.number="statusFilter">
                   <option :value="null">All statuses</option>
                   <option :value="0">Active</option>
                   <option :value="1">Sold</option>
@@ -536,7 +535,7 @@ onMounted(() => {
 
               <label>
                 Pregnancy
-                <select v-model="pregnancyFilter">
+                <select v-model.number="pregnancyFilter">
                   <option :value="null">Any</option>
                   <option :value="1">Pregnant</option>
                   <option :value="0">Unconfirmed</option>

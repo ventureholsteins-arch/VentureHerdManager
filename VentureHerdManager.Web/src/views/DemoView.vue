@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { resetDemo } from '../api/demo'
-import { getDashboardSummary } from '../api/dashboard'
+import { ensureDemo, resetDemo } from '../api/demo'
 
 const router = useRouter()
 const loading = ref(false)
 const error = ref<string | null>(null)
 const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
+let demoReadyPromise: Promise<unknown> | null = null
 
 onMounted(() => {
-  // Wake the demo API and its database connection while visitors read this page.
-  // The dashboard still performs a fresh request after launch.
-  void getDashboardSummary().catch(() => undefined)
+  // Create this browser's isolated sample herd while visitors read the page.
+  demoReadyPromise = ensureDemo()
+  void demoReadyPromise.catch(() => undefined)
 })
 
 async function launchDemo(withReset: boolean) {
@@ -22,6 +22,10 @@ async function launchDemo(withReset: boolean) {
   try {
     if (withReset && demoResetEnabled) {
       await resetDemo()
+    } else if (demoReadyPromise) {
+      await demoReadyPromise
+    } else {
+      await ensureDemo()
     }
     sessionStorage.setItem('demo-launched', 'true')
     await router.push('/')

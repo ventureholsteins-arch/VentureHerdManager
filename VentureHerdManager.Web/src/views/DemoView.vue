@@ -162,18 +162,19 @@ h1 {
 .demo-promise {
   margin: 0 0 18px;
   color: #17281a;
-  font-size: clamp(2rem, 7vw, 3.25rem);
-  line-height: 0.95;
-  letter-spacing: -0.055em;
-  text-transform: uppercase;
-  font-weight: 900;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 700;
 }
 
 .demo-promise span {
   display: block;
-  margin-top: 8px;
-  color: transparent;
-  -webkit-text-stroke: 1.25px #31572c;
+  margin-top: 5px;
+  color: #31572c;
+  font-style: italic;
+  font-weight: 500;
 }
 
 .subtitle {

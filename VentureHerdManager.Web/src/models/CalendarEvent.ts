@@ -5,6 +5,9 @@ export type CalendarEventType =
   | 'dueDate'
   | 'calving'
   | 'dryOff'
+  | 'lutalyse'
+  | 'lutalyseWatch'
+  | 'classification'
 
 export interface CalendarEvent {
   eventId: string

@@ -2,7 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { getCalendarEvents } from '../api/calendar'
+import {
+  downloadCalendarEventsIcs,
+  getCalendarEvents
+} from '../api/calendar'
 import type {
   CalendarEvent,
   CalendarEventType
@@ -77,6 +80,21 @@ const eventTypes: Array<{
     type: 'dryOff',
     label: 'Dry Off',
     icon: '◇'
+  },
+  {
+    type: 'lutalyse',
+    label: 'Lutalyse',
+    icon: '💉'
+  },
+  {
+    type: 'lutalyseWatch',
+    label: 'LUT Watch',
+    icon: '👀'
+  },
+  {
+    type: 'classification',
+    label: 'Classification',
+    icon: '🏅'
   }
 ]
 
@@ -335,6 +353,21 @@ function goToDashboard() {
   router.push('/')
 }
 
+async function exportForIphone() {
+  try {
+    await downloadCalendarEventsIcs(
+      calendarRangeStart.value,
+      calendarRangeEnd.value
+    )
+  } catch (error) {
+    alert(
+      error instanceof Error
+        ? error.message
+        : 'Calendar export failed.'
+    )
+  }
+}
+
 onMounted(async () => {
   const today = new Date()
 
@@ -364,7 +397,7 @@ onMounted(async () => {
 
         <p class="hero-description">
           See heats, breedings, pregnancy checks, due dates,
-          calvings, and dry-offs in one place.
+          calvings, dry-offs, LUT, and classifications in one place.
         </p>
       </div>
 
@@ -416,6 +449,15 @@ onMounted(async () => {
           {{ monthEventCount }}
           {{ monthEventCount === 1 ? 'event' : 'events' }}
         </span>
+
+        <button
+          class="export-button"
+          type="button"
+          :disabled="loading || events.length === 0"
+          @click="exportForIphone"
+        >
+          Export to iPhone
+        </button>
 
         <button
           class="today-button"
@@ -697,7 +739,8 @@ onMounted(async () => {
 }
 
 .refresh-button,
-.today-button {
+.today-button,
+.export-button {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -715,13 +758,19 @@ onMounted(async () => {
 }
 
 .refresh-button:hover:not(:disabled),
-.today-button:hover {
+.today-button:hover,
+.export-button:hover:not(:disabled) {
   background: #254520;
 }
 
 .refresh-button:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+
+.export-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .refresh-icon {
@@ -1176,6 +1225,21 @@ onMounted(async () => {
 .event-dryOff {
   background: #f1ede8;
   color: #745337;
+}
+
+.event-lutalyse {
+  background: #e5f4ff;
+  color: #14538c;
+}
+
+.event-lutalyseWatch {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.event-classification {
+  background: #fff4e5;
+  color: #9a580f;
 }
 
 @keyframes spin {

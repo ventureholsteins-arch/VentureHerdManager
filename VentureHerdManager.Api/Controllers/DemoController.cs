@@ -58,6 +58,7 @@ public class DemoController : ControllerBase
             await _context.Database.BeginTransactionAsync(cancellationToken);
 
         await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
+        await _context.AnimalProductionSnapshots.ExecuteDeleteAsync(cancellationToken);
         await _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken);
         await _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken);
         await _context.HeatEvents.ExecuteDeleteAsync(cancellationToken);

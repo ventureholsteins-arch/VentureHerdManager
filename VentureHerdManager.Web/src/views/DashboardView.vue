@@ -577,6 +577,8 @@ onMounted(() => {
           </div>
 
           <div class="herd-actions">
+            <button class="add-animal-inline" type="button" @click="openAddAnimal">➕ Add New Animal</button>
+
             <div class="filter-row">
               <label>
                 Stage
@@ -624,8 +626,6 @@ onMounted(() => {
               class="search-input-large"
               placeholder="🔎 Search name, sire, dam, breed, or registration..."
             >
-
-            <button class="add-animal-inline" type="button" @click="openAddAnimal">➕ Add New Animal</button>
           </div>
         </div>
 

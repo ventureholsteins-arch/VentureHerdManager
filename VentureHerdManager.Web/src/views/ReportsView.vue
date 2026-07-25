@@ -3,10 +3,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { getAnimals } from '../api/animals'
+import { getHerdActivity, type HerdActivityResponse } from '../api/analytics'
 import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 
-type HubTab = 'embryos' | 'showString' | 'lists' | 'checklist' | 'achievements'
+type HubTab = 'analytics' | 'embryos' | 'showString' | 'lists' | 'checklist' | 'achievements'
 
 interface AnimalGroupList {
   key: string
@@ -57,9 +58,25 @@ interface AchievementRecord {
 
 const router = useRouter()
 const route = useRoute()
-const activeTab = ref<HubTab>('embryos')
+const activeTab = ref<HubTab>('analytics')
 const loading = ref(true)
 const animals = ref<Animal[]>([])
+
+const analyticsData = ref<HerdActivityResponse | null>(null)
+const analyticsLoading = ref(false)
+const analyticsError = ref('')
+
+async function loadAnalytics() {
+  analyticsLoading.value = true
+  analyticsError.value = ''
+  try {
+    analyticsData.value = await getHerdActivity(12)
+  } catch (e) {
+    analyticsError.value = 'Could not load analytics. Make sure the API is reachable.'
+  } finally {
+    analyticsLoading.value = false
+  }
+}
 
 const showStringClassFilter = ref<string>('all')
 const showStringSearch = ref('')
@@ -200,6 +217,11 @@ function getScoreLabel(score: number | null | undefined): string {
   return `GP ${Math.round(score)}`
 }
 
+function barPct(value: number, allValues: number[]): number {
+  const max = Math.max(...allValues, 1)
+  return Math.round((value / max) * 100)
+}
+
 function filteredListAnimals(list: AnimalGroupList): Animal[] {
   const q = (list.searchQuery || '').trim().toLowerCase()
   if (!q) return animalOptions.value
@@ -244,10 +266,11 @@ function removeAchievement(id: number) { achievements.value = achievements.value
 onMounted(async () => {
   loadData()
   const tabParam = route.query.tab as string | undefined
-  if (tabParam && ['embryos', 'showString', 'lists', 'checklist', 'achievements'].includes(tabParam)) {
+  if (tabParam && ['analytics', 'embryos', 'showString', 'lists', 'checklist', 'achievements'].includes(tabParam)) {
     activeTab.value = tabParam as HubTab
   }
   try { animals.value = await getAnimals() } catch (e) { console.error('Failed to load animals:', e) } finally { loading.value = false }
+  loadAnalytics()
 })
 </script>
 
@@ -263,6 +286,7 @@ onMounted(async () => {
     </header>
 
     <nav class="rp-tabs">
+      <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">📊 Analytics</button>
       <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'">🧬 Embryos</button>
       <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'">🐄 Show String</button>
       <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'">📋 Herd Lists</button>
@@ -271,6 +295,128 @@ onMounted(async () => {
     </nav>
 
     <section v-if="loading" class="rp-panel"><p>Loading animals...</p></section>
+
+    <!-- ANALYTICS -->
+    <section v-else-if="activeTab === 'analytics'" class="rp-panel">
+      <div class="rp-ph">
+        <h2>Herd Analytics</h2>
+        <button type="button" class="rp-add-btn" @click="loadAnalytics" :disabled="analyticsLoading">{{ analyticsLoading ? 'Loading…' : '↻ Refresh' }}</button>
+      </div>
+
+      <p v-if="analyticsError" class="analytics-error">{{ analyticsError }}</p>
+
+      <template v-if="analyticsData && !analyticsLoading">
+        <!-- Summary stat row -->
+        <div class="analytics-stats-row">
+          <div class="analytics-stat">
+            <span class="as-val">{{ analyticsData.totals.activeAnimals }}</span>
+            <span class="as-lbl">Active Animals</span>
+          </div>
+          <div class="analytics-stat">
+            <span class="as-val">{{ analyticsData.totals.calvingsLast12Mo }}</span>
+            <span class="as-lbl">Calvings (12 mo)</span>
+          </div>
+          <div class="analytics-stat">
+            <span class="as-val">{{ analyticsData.totals.heatsLast12Mo }}</span>
+            <span class="as-lbl">Heats (12 mo)</span>
+          </div>
+          <div class="analytics-stat">
+            <span class="as-val">{{ analyticsData.totals.breedingsLast12Mo }}</span>
+            <span class="as-lbl">Breedings (12 mo)</span>
+          </div>
+          <div class="analytics-stat highlight">
+            <span class="as-val">{{ analyticsData.totals.conceptionRatePct }}%</span>
+            <span class="as-lbl">Conception Rate</span>
+          </div>
+        </div>
+
+        <!-- Chart: Calvings per month -->
+        <div class="chart-block">
+          <div class="chart-title">Calvings per Month</div>
+          <div class="bar-chart">
+            <div v-for="m in analyticsData.months" :key="`calv-${m.label}`" class="bar-col">
+              <div class="bar-wrap">
+                <span v-if="m.calvings > 0" class="bar-tip">{{ m.calvings }}</span>
+                <div
+                  class="bar bar-calving"
+                  :style="{ height: barPct(m.calvings, analyticsData.months.map(x => x.calvings)) + '%' }"
+                />
+              </div>
+              <span class="bar-label">{{ m.label.split(' ')[0] }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart: Heats per month -->
+        <div class="chart-block">
+          <div class="chart-title">Heat Events per Month</div>
+          <div class="bar-chart">
+            <div v-for="m in analyticsData.months" :key="`heat-${m.label}`" class="bar-col">
+              <div class="bar-wrap">
+                <span v-if="m.heats > 0" class="bar-tip">{{ m.heats }}</span>
+                <div
+                  class="bar bar-heat"
+                  :style="{ height: barPct(m.heats, analyticsData.months.map(x => x.heats)) + '%' }"
+                />
+              </div>
+              <span class="bar-label">{{ m.label.split(' ')[0] }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart: Breedings + Confirmed pregnancies overlaid -->
+        <div class="chart-block">
+          <div class="chart-title">
+            Breedings vs Confirmed Pregnancies per Month
+            <span class="chart-legend"><span class="legend-dot dot-breed" />Bred <span class="legend-dot dot-preg" style="margin-left:10px"/>Pregnant</span>
+          </div>
+          <div class="bar-chart">
+            <div v-for="m in analyticsData.months" :key="`breed-${m.label}`" class="bar-col">
+              <div class="bar-wrap bar-pair">
+                <div class="bar-pair-inner">
+                  <div class="bar bar-breed" :style="{ height: barPct(m.breedings, analyticsData.months.map(x => x.breedings)) + '%' }" :title="`Bred: ${m.breedings}`" />
+                  <div class="bar bar-preg" :style="{ height: barPct(m.confirmedPregnancies, analyticsData.months.map(x => x.breedings)) + '%' }" :title="`Confirmed: ${m.confirmedPregnancies}`" />
+                </div>
+              </div>
+              <span class="bar-label">{{ m.label.split(' ')[0] }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart: Dry-offs + Sold side by side -->
+        <div class="chart-row-2">
+          <div class="chart-block half">
+            <div class="chart-title">Dry-Offs per Month</div>
+            <div class="bar-chart">
+              <div v-for="m in analyticsData.months" :key="`dry-${m.label}`" class="bar-col">
+                <div class="bar-wrap">
+                  <span v-if="m.dryOffs > 0" class="bar-tip">{{ m.dryOffs }}</span>
+                  <div class="bar bar-dry" :style="{ height: barPct(m.dryOffs, analyticsData.months.map(x => x.dryOffs)) + '%' }" />
+                </div>
+                <span class="bar-label">{{ m.label.split(' ')[0] }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-block half">
+            <div class="chart-title">Animals Sold per Month</div>
+            <div class="bar-chart">
+              <div v-for="m in analyticsData.months" :key="`sold-${m.label}`" class="bar-col">
+                <div class="bar-wrap">
+                  <span v-if="m.soldAnimals > 0" class="bar-tip">{{ m.soldAnimals }}</span>
+                  <div class="bar bar-sold" :style="{ height: barPct(m.soldAnimals, analyticsData.months.map(x => x.soldAnimals)) + '%' }" />
+                </div>
+                <span class="bar-label">{{ m.label.split(' ')[0] }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div v-else-if="analyticsLoading" class="analytics-loading">
+        <div v-for="n in 4" :key="n" class="chart-skeleton" />
+      </div>
+    </section>
 
     <!-- EMBRYO INVENTORY -->
     <section v-else-if="activeTab === 'embryos'" class="rp-panel">
@@ -837,6 +983,41 @@ textarea { min-height: 72px; resize: vertical; }
 .rp-check-row input[type='text'] { min-height: 40px; border: none; background: transparent; color: #0f1f16; font-size: 1rem; }
 .rp-check-row input[type='text']:focus { outline: none; }
 .done-txt { text-decoration: line-through !important; color: #8a9b8e !important; }
+
+/* ── Analytics ── */
+.analytics-stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 22px; }
+.analytics-stat { display: flex; flex-direction: column; align-items: center; padding: 14px 10px; border: 1px solid #e0e8e1; border-radius: 10px; background: #f8fbf8; text-align: center; }
+.analytics-stat.highlight { background: #dcfce7; border-color: #31572c; }
+.as-val { font-size: 2rem; font-weight: 900; color: #0f1f16; line-height: 1; }
+.analytics-stat.highlight .as-val { color: #14532d; }
+.as-lbl { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #5d6f63; margin-top: 6px; }
+.analytics-error { color: #991b1b; background: #fff1f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+.chart-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.chart-block { margin-bottom: 22px; border: 1px solid #e0e8e1; border-radius: 10px; padding: 16px; background: #fff; }
+.chart-block.half { margin-bottom: 0; }
+.chart-title { font-size: 0.82rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; color: #0f1f16; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.chart-legend { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: #5d6f63; }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.dot-breed { background: #3b82f6; }
+.dot-preg { background: #22c55e; }
+.bar-chart { display: flex; gap: 4px; align-items: flex-end; height: 140px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; }
+.bar-wrap { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+.bar-tip { font-size: 0.68rem; font-weight: 900; color: #0f1f16; position: absolute; top: -18px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 2px; transition: height 0.4s ease; }
+.bar-calving  { background: #31572c; }
+.bar-heat     { background: #ef4444; }
+.bar-breed    { background: #3b82f6; }
+.bar-preg     { background: #22c55e; }
+.bar-dry      { background: #f59e0b; }
+.bar-sold     { background: #8b5cf6; }
+.bar-pair { flex-direction: column; justify-content: flex-end; }
+.bar-pair-inner { display: flex; align-items: flex-end; gap: 2px; height: 100%; width: 100%; justify-content: center; }
+.bar-pair-inner .bar { width: calc(50% - 1px); }
+.bar-label { font-size: 0.62rem; font-weight: 700; color: #8a9b8e; text-align: center; white-space: nowrap; }
+.analytics-loading { display: grid; gap: 14px; }
+.chart-skeleton { height: 180px; border-radius: 10px; background: linear-gradient(90deg, #f0f4f1 25%, #e8ede9 50%, #f0f4f1 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 @media (max-width: 640px) {
   .browse-filters { grid-template-columns: 1fr; }

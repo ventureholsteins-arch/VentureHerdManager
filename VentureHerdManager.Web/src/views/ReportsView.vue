@@ -219,7 +219,8 @@ function getScoreLabel(score: number | null | undefined): string {
 
 function barPct(value: number, allValues: number[]): number {
   const max = Math.max(...allValues, 1)
-  return Math.round((value / max) * 100)
+  if (max === 0) return 0
+  return Math.max(Math.round((value / max) * 100), value > 0 ? 4 : 0)
 }
 
 function filteredListAnimals(list: AnimalGroupList): Animal[] {
@@ -283,6 +284,7 @@ onMounted(async () => {
       </div>
       <h1 class="rp-title">Reports &amp; Show Planner</h1>
       <p class="rp-sub">Embryo Inventory · Show String · Herd Lists · Checklist · Achievements</p>
+      <p class="rp-powered">Powered by <strong>Venture Ag Marketing</strong> · Custom Application Solutions</p>
     </header>
 
     <nav class="rp-tabs">
@@ -303,7 +305,12 @@ onMounted(async () => {
         <button type="button" class="rp-add-btn" @click="loadAnalytics" :disabled="analyticsLoading">{{ analyticsLoading ? 'Loading…' : '↻ Refresh' }}</button>
       </div>
 
-      <p v-if="analyticsError" class="analytics-error">{{ analyticsError }}</p>
+      <div v-if="analyticsError" class="analytics-error">
+        <strong>Analytics unavailable right now</strong>
+        <p>{{ analyticsError }}</p>
+        <p style="font-size:0.82rem;color:#7f1d1d;margin-top:4px">This usually means the API is deploying — try refreshing in a minute.</p>
+        <button type="button" class="rp-add-btn" style="margin-top:10px" @click="loadAnalytics">↻ Try Again</button>
+      </div>
 
       <template v-if="analyticsData && !analyticsLoading">
         <!-- Summary stat row -->
@@ -681,6 +688,8 @@ onMounted(async () => {
 .rp-brand { color: #7dd3a0; font-size: 0.75rem; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
 .rp-title { margin: 0; font-size: 1.85rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; text-transform: uppercase; }
 .rp-sub { margin: 6px 0 0; color: rgba(255,255,255,0.6); font-size: 0.88rem; }
+.rp-powered { margin: 10px 0 0; color: rgba(255,255,255,0.3); font-size: 0.72rem; letter-spacing: 0.04em; }
+.rp-powered strong { color: rgba(255,255,255,0.55); font-weight: 900; }
 .rp-back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.07); color: #e2e8f0; font-weight: 800; font-size: 0.85rem; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
 .rp-back:hover { background: rgba(255,255,255,0.14); }
 

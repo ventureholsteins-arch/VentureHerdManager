@@ -415,6 +415,10 @@ onMounted(async () => {
           See heats, breedings, pregnancy checks, due dates,
           calvings, dry-offs, LUT, and classifications in one place.
         </p>
+
+        <p class="hero-powered">
+          Powered by <strong>Venture Ag Marketing</strong> · Custom Application Solutions
+        </p>
       </div>
 
       <button
@@ -753,6 +757,18 @@ onMounted(async () => {
   margin: 0;
   color: #64748b;
   line-height: 1.6;
+}
+
+.hero-powered {
+  margin: 10px 0 0;
+  color: rgba(255,255,255,0.3);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.hero-powered strong {
+  color: rgba(255,255,255,0.55);
+  font-weight: 900;
 }
 
 .refresh-button,

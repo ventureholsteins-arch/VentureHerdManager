@@ -509,15 +509,17 @@ onMounted(() => {
               </span>
             </button>
 
-            <span
-              v-if="formattedLastUpdated"
-              class="hero-updated"
-            >
-              Last updated {{ formattedLastUpdated }}
+            <span class="hero-updated">
+              Powered by Venture Ag Marketing
             </span>
           </div>
 
-          <p class="hero-powered">Powered by Venture Ag Marketing</p>
+          <p
+            v-if="formattedLastUpdated"
+            class="hero-powered"
+          >
+            Last updated {{ formattedLastUpdated }}
+          </p>
         </div>
       </div>
     </header>

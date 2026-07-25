@@ -13,6 +13,11 @@ export interface BreedingEvent {
   createdBy?: string | null
 }
 
+export interface LatestPregnancyStatus {
+  animalId: number
+  pregnancyStatus: number
+}
+
 export async function getBreedings(animalId: number): Promise<BreedingEvent[]> {
   const response = await fetch(`${API_BASE}/BreedingEvents/animal/${animalId}`)
 
@@ -112,4 +117,21 @@ export async function deleteBreedingEvent(
   if (!response.ok) {
     throw new Error('Failed to delete breeding')
   }
+}
+
+export async function getLatestPregnancyStatuses(): Promise<Record<number, number>> {
+  const response = await fetch(`${API_BASE}/BreedingEvents/latest-status`)
+
+  if (!response.ok) {
+    throw new Error('Failed to load latest pregnancy statuses')
+  }
+
+  const rows: LatestPregnancyStatus[] = await response.json()
+  const map: Record<number, number> = {}
+
+  for (const row of rows) {
+    map[row.animalId] = row.pregnancyStatus
+  }
+
+  return map
 }

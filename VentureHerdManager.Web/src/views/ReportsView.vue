@@ -3,11 +3,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { getAnimals } from '../api/animals'
-import { getHerdActivity, type HerdActivityResponse } from '../api/analytics'
+import { getHerdActivity, getEmbryoImplants, type HerdActivityResponse, type EmbryoImplantResponse } from '../api/analytics'
 import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 
-type HubTab = 'analytics' | 'embryos' | 'showString' | 'lists' | 'checklist' | 'achievements'
+type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'lists' | 'checklist' | 'achievements'
 
 interface AnimalGroupList {
   key: string
@@ -75,6 +75,22 @@ async function loadAnalytics() {
     analyticsError.value = 'Could not load analytics. Make sure the API is reachable.'
   } finally {
     analyticsLoading.value = false
+  }
+}
+
+const embryoImplantsData = ref<EmbryoImplantResponse | null>(null)
+const embryoImplantsLoading = ref(false)
+const embryoImplantsError = ref('')
+
+async function loadEmbryoImplants() {
+  embryoImplantsLoading.value = true
+  embryoImplantsError.value = ''
+  try {
+    embryoImplantsData.value = await getEmbryoImplants(12)
+  } catch (e) {
+    embryoImplantsError.value = 'Could not load embryo implant data. Make sure the API is reachable.'
+  } finally {
+    embryoImplantsLoading.value = false
   }
 }
 
@@ -267,11 +283,12 @@ function removeAchievement(id: number) { achievements.value = achievements.value
 onMounted(async () => {
   loadData()
   const tabParam = route.query.tab as string | undefined
-  if (tabParam && ['analytics', 'embryos', 'showString', 'lists', 'checklist', 'achievements'].includes(tabParam)) {
+  if (tabParam && ['analytics', 'embryos', 'embryoImplants', 'showString', 'lists', 'checklist', 'achievements'].includes(tabParam)) {
     activeTab.value = tabParam as HubTab
   }
   try { animals.value = await getAnimals() } catch (e) { console.error('Failed to load animals:', e) } finally { loading.value = false }
   loadAnalytics()
+  loadEmbryoImplants()
 })
 </script>
 
@@ -289,6 +306,7 @@ onMounted(async () => {
 
     <nav class="rp-tabs">
       <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'">🧬 Embryos</button>
+      <button :class="{ active: activeTab === 'embryoImplants' }" @click="activeTab = 'embryoImplants'">🤰 Implants</button>
       <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'">🐄 Show String</button>
       <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'">📋 Herd Lists</button>
       <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'">✅ Checklist</button>
@@ -488,6 +506,61 @@ onMounted(async () => {
               <option value="In Storage">Back to Storage</option>
             </select>
           </label>
+        </div>
+      </template>
+    </section>
+
+    <!-- EMBRYO IMPLANTS -->
+    <section v-else-if="activeTab === 'embryoImplants'" class="rp-panel">
+      <div class="rp-ph">
+        <h2>Embryo Implants vs Results</h2>
+        <button type="button" class="rp-add-btn" @click="loadEmbryoImplants" :disabled="embryoImplantsLoading">{{ embryoImplantsLoading ? 'Loading…' : '↻ Refresh' }}</button>
+      </div>
+      <p class="rp-hint">Monthly breakdown of embryos implanted vs. failed outcomes.</p>
+
+      <template v-if="embryoImplantsError">
+        <div class="rp-error">{{ embryoImplantsError }} <button type="button" @click="loadEmbryoImplants">Try Again</button></div>
+      </template>
+
+      <template v-else-if="embryoImplantsData && !embryoImplantsLoading">
+        <div class="as-row">
+          <div class="as-stat">
+            <span class="as-label">Total Implanted</span>
+            <span class="as-val">{{ embryoImplantsData.totals.totalImplanted }}</span>
+          </div>
+          <div class="as-stat">
+            <span class="as-label">Successful (Pregnant)</span>
+            <span class="as-val">{{ embryoImplantsData.totals.totalSuccessful }}</span>
+          </div>
+          <div class="as-stat">
+            <span class="as-label">Failed / Stuck</span>
+            <span class="as-val">{{ embryoImplantsData.totals.totalFailed }}</span>
+          </div>
+          <div class="as-stat">
+            <span class="as-label">Success Rate</span>
+            <span class="as-val">{{ embryoImplantsData.totals.successRatePct }}%</span>
+          </div>
+        </div>
+
+        <div class="bc-group">
+          <div class="bc-title">Implanted vs Failed (Monthly)</div>
+          <div class="bar-chart">
+            <div class="bar-legend">
+              <span><span class="dot" style="background: #00c853;"></span>Implanted</span>
+              <span><span class="dot" style="background: #f44336;"></span>Failed</span>
+              <span><span class="dot" style="background: #2196f3;"></span>Successful</span>
+            </div>
+            <div class="bc-wrap">
+              <div v-for="m in embryoImplantsData.months" :key="`ei-${m.label}`" class="bar-col">
+                <div class="bar-wrap">
+                  <div class="bar bar-implanted" :style="{ height: barPct(m.implanted, embryoImplantsData.months.map(x => x.implanted)) + '%' }" :title="`Implanted: ${m.implanted}`" />
+                  <div class="bar bar-failed" :style="{ height: barPct(m.failed, embryoImplantsData.months.map(x => x.failed)) + '%' }" :title="`Failed: ${m.failed}`" />
+                  <div class="bar bar-successful" :style="{ height: barPct(m.successful, embryoImplantsData.months.map(x => x.successful)) + '%' }" :title="`Successful: ${m.successful}`" />
+                </div>
+                <div class="bar-tip">{{ m.label }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </template>
     </section>
@@ -1020,6 +1093,9 @@ textarea { min-height: 72px; resize: vertical; }
 .bar-preg     { background: #22c55e; }
 .bar-dry      { background: #f59e0b; }
 .bar-sold     { background: #8b5cf6; }
+.bar-implanted { background: #00c853; }
+.bar-failed   { background: #f44336; }
+.bar-successful { background: #2196f3; }
 .bar-pair { flex-direction: column; justify-content: flex-end; }
 .bar-pair-inner { display: flex; align-items: flex-end; gap: 2px; height: 100%; width: 100%; justify-content: center; }
 .bar-pair-inner .bar { width: calc(50% - 1px); }

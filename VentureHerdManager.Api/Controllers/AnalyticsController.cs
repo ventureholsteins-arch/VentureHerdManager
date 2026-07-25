@@ -119,4 +119,79 @@ public class AnalyticsController : ControllerBase
             }
         });
     }
+
+    [HttpGet("embryo-implants")]
+    public async Task<IActionResult> GetEmbryoImplants(
+        [FromQuery] int months = 12,
+        CancellationToken cancellationToken = default)
+    {
+        var cutoff = DateTime.Today.AddMonths(-months + 1);
+        var cutoffStart = new DateTime(cutoff.Year, cutoff.Month, 1);
+
+        // Get monthly embryos implanted (from HeatEvents with EmbryoImplantDate)
+        var implanted = (await _context.HeatEvents
+            .AsNoTracking()
+            .Where(e => e.HasEmbryoTransfer && e.EmbryoImplantDate.HasValue)
+            .GroupBy(e => new { e.EmbryoImplantDate!.Value.Year, e.EmbryoImplantDate!.Value.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+            .ToListAsync(cancellationToken))
+            .Select(x => new MonthCount(x.Year, x.Month, x.Count)).ToList();
+
+        // Get monthly embryos marked as failed
+        var failed = (await _context.EmbryoRecords
+            .AsNoTracking()
+            .Where(e => e.Status == EmbryoStatus.Failed && e.ImplantDate.HasValue)
+            .GroupBy(e => new { e.ImplantDate!.Value.Year, e.ImplantDate!.Value.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+            .ToListAsync(cancellationToken))
+            .Select(x => new MonthCount(x.Year, x.Month, x.Count)).ToList();
+
+        // Get monthly embryos that resulted in pregnancy (EmbryoRecords in Implanted status)
+        var successfulPregnancies = (await _context.EmbryoRecords
+            .AsNoTracking()
+            .Where(e => e.Status == EmbryoStatus.Implanted && e.ImplantDate.HasValue)
+            .GroupBy(e => new { e.ImplantDate!.Value.Year, e.ImplantDate!.Value.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+            .ToListAsync(cancellationToken))
+            .Select(x => new MonthCount(x.Year, x.Month, x.Count)).ToList();
+
+        static int Lookup(List<MonthCount> src, int year, int month) =>
+            src.FirstOrDefault(x => x.Year == year && x.Month == month)?.Count ?? 0;
+
+        var monthData = Enumerable.Range(0, months)
+            .Select(i =>
+            {
+                var d = cutoffStart.AddMonths(i);
+                var implantCount = Lookup(implanted, d.Year, d.Month);
+                var failedCount = Lookup(failed, d.Year, d.Month);
+                var successCount = Lookup(successfulPregnancies, d.Year, d.Month);
+                return new
+                {
+                    label = d.ToString("MMM yyyy"),
+                    implanted = implantCount,
+                    failed = failedCount,
+                    successful = successCount
+                };
+            })
+            .ToList();
+
+        var totalImplanted = implanted.Sum(i => i.Count);
+        var totalFailed = failed.Sum(f => f.Count);
+        var totalSuccessful = successfulPregnancies.Sum(s => s.Count);
+        var successRate = totalImplanted > 0
+            ? Math.Round((double)totalSuccessful / totalImplanted * 100, 1)
+            : 0.0;
+
+        return Ok(new
+        {
+            months = monthData,
+            totals = new
+            {
+                totalImplanted,
+                totalFailed,
+                totalSuccessful,
+                successRatePct = successRate
+            }
+        });
+    }
 }

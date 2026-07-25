@@ -9,6 +9,18 @@ public class AppearanceController : ControllerBase
     [HttpGet]
     public IActionResult GetAppearance()
     {
-        return Ok(new { message = "Appearance settings are disabled." });
+        // Return default appearance settings
+        return Ok(new
+        {
+            appearanceSettingId = 0,
+            farmName = "Venture Herd Manager",
+            logoUrl = "/farm-logo.png",
+            backgroundImageUrl = "/herd-manager-bg.jpg",
+            backgroundOpacity = 0.15,
+            overlayOpacity = 0.85,
+            theme = "light",
+            accentColor = "#31572c",
+            updatedAt = DateTime.UtcNow.ToIso8601String()
+        });
     }
 }

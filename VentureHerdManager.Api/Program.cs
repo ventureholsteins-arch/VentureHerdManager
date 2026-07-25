@@ -3,6 +3,7 @@ using VentureHerdManager.Api.Data;
 using VentureHerdManager.Api.Models;
 using VentureHerdManager.Api.Services;
 
+// Force redeploy with updated CORS config
 var builder = WebApplication.CreateBuilder(args);
 
 // Controllers
@@ -36,18 +37,18 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // CORS
-var allowedOrigins =
-    builder.Configuration
-        .GetSection("AllowedOrigins")
-        .Get<string[]>()
-    ?? ["http://localhost:5173"];
+const string CorsPolicyName = "Frontend";
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Frontend", policy =>
+    options.AddPolicy(CorsPolicyName, policy =>
     {
         policy
-            .WithOrigins(allowedOrigins)
+            .WithOrigins(
+                "http://localhost:5173",
+                "https://ashy-sand-0956e200f.azurestaticapps.net",
+                "https://delightful-sky-0c402ac0f.7.azurestaticapps.net"
+            )
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -55,7 +56,9 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-app.UseCors("Frontend");
+app.UseHttpsRedirection();
+
+app.UseCors(CorsPolicyName);
 app.UseStaticFiles();
 
 app.UseSwagger();

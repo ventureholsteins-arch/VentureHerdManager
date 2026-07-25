@@ -52,7 +52,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (isDemoOnly && to.path !== '/demo') {
+  if (isDemoOnly && to.path !== '/demo' && !sessionStorage.getItem('demo-launched')) {
     return '/demo'
   }
 

@@ -57,7 +57,12 @@ public class DemoController : ControllerBase
         await using var transaction =
             await _context.Database.BeginTransactionAsync(cancellationToken);
 
+        // Disable FK constraints to allow deletion
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] NOCHECK CONSTRAINT ALL", cancellationToken);
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] NOCHECK CONSTRAINT ALL", cancellationToken);
+
         await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
+        await _context.AnimalProductionSnapshots.ExecuteDeleteAsync(cancellationToken);
         await _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken);
         await _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken);
         await _context.HeatEvents.ExecuteDeleteAsync(cancellationToken);
@@ -356,6 +361,11 @@ public class DemoController : ControllerBase
             });
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Re-enable FK constraints
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] CHECK CONSTRAINT ALL", cancellationToken);
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] CHECK CONSTRAINT ALL", cancellationToken);
+
         await transaction.CommitAsync(cancellationToken);
 
         return Ok(new DemoSeedResult
@@ -376,16 +386,7 @@ public class DemoController : ControllerBase
         {
             return BadRequest(new DemoSeedResult
             {
-                Message = "DemoMode is disabled. Set DemoMode:Enabled=true in app settings."
-            });
-        }
-
-        var requiredKey = _configuration["DemoMode:SeedKey"];
-        if (!string.IsNullOrWhiteSpace(requiredKey) && requiredKey != providedKey)
-        {
-            return Unauthorized(new DemoSeedResult
-            {
-                Message = "Missing or invalid X-Demo-Key header."
+                Message = "DemoMode is disabled."
             });
         }
 

@@ -66,6 +66,12 @@ async function openDemoFast() {
     <div class="app-content">
       <RouterView />
     </div>
+
+    <footer class="app-footer">
+      <span>Powered by <strong>Venture Ag Marketing</strong></span>
+      <span class="footer-sep">·</span>
+      <span>Custom Application Solutions</span>
+    </footer>
   </div>
 </template>
 
@@ -137,5 +143,30 @@ async function openDemoFast() {
 .demo-banner button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.app-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  background: #0d1a10;
+  color: rgba(255,255,255,0.42);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.app-footer strong {
+  color: rgba(255,255,255,0.72);
+  font-weight: 900;
+}
+
+.footer-sep {
+  color: rgba(255,255,255,0.2);
 }
 </style>

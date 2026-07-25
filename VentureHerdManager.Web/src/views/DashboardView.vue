@@ -526,9 +526,18 @@ onMounted(() => {
 
     <section
       v-if="loading"
-      class="card"
+      class="card dashboard-loader"
     >
-      <p>Loading dashboard...</p>
+      <div class="loader-mark" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div>
+        <p class="loader-kicker">VENTURE HERD MANAGER</p>
+        <h2>Opening your herd</h2>
+        <p class="loader-copy">Animal records · breeding · alerts</p>
+      </div>
     </section>
 
     <section
@@ -944,6 +953,67 @@ onMounted(() => {
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 8px 24px rgba(17, 33, 20, 0.05);
+}
+
+
+.dashboard-loader {
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  color: #18311f;
+  text-align: left;
+}
+
+.dashboard-loader h2,
+.dashboard-loader p {
+  margin: 0;
+}
+
+.loader-kicker {
+  color: #6b7c6d;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.dashboard-loader h2 {
+  margin-top: 4px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.55rem, 5vw, 2.1rem);
+}
+
+.loader-copy {
+  margin-top: 6px !important;
+  color: #667369;
+  font-size: 0.82rem;
+}
+
+.loader-mark {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  border-radius: 50%;
+  background: #e7efe8;
+}
+
+.loader-mark span {
+  width: 5px;
+  border-radius: 999px;
+  background: #31572c;
+  animation: herd-loading 0.9s ease-in-out infinite alternate;
+}
+
+.loader-mark span:nth-child(1) { height: 9px; }
+.loader-mark span:nth-child(2) { height: 18px; animation-delay: 0.15s; }
+.loader-mark span:nth-child(3) { height: 13px; animation-delay: 0.3s; }
+
+@keyframes herd-loading {
+  to { height: 24px; opacity: 0.55; }
 }
 
 .error-card {

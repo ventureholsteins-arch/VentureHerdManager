@@ -35,12 +35,12 @@ async function launchDemo(withReset: boolean) {
       <p class="demo-tag">DEMO</p>
       <h1>Venture Herd Manager</h1>
       <h2 class="demo-promise">
-        Know your herd.
-        <span>Move with confidence.</span>
+        Your operation should not have to fit
+        <span>somebody else's software.</span>
       </h2>
       <p class="subtitle">
-        Easy View keeps the whole crew on the same page. Record work with one
-        hand, keep every event in order, and see what needs to happen next.
+        Try animal records, breeding, embryos, alerts, and reports in one
+        shared place—built around the way a crew actually works.
       </p>
 
       <div class="photo-strip" aria-label="Venture Holsteins">
@@ -48,19 +48,10 @@ async function launchDemo(withReset: boolean) {
         <img src="/Seashell_cow.jpg" alt="Venture Holsteins cow in the show ring">
       </div>
 
-      <ul class="feature-list">
-        <li>One shared animal record for everyone</li>
-        <li>Automatic alerts for work coming due</li>
-        <li>Heats, breeding, embryos, calvings, and notes in order</li>
-        <li>Built to view and update from a phone in the barn</li>
-      </ul>
-
-      <div class="custom-software">
-        <strong>Built for your operation</strong>
-        <p>
-          This is custom software. Features, reports, workflows, and branding
-          can be tailored to fit your herd and the way you work.
-        </p>
+      <div class="capability-row" aria-label="Demo features">
+        <span>Animal records</span>
+        <span>Breeding &amp; embryos</span>
+        <span>Calendar &amp; alerts</span>
       </div>
 
       <p v-if="error" class="error-msg">{{ error }}</p>
@@ -183,27 +174,21 @@ h1 {
   line-height: 1.6;
 }
 
-.feature-list {
-  margin: 0 0 28px;
-  padding-left: 20px;
-  color: #4a5e4c;
-  line-height: 1.8;
-}
-
-.custom-software {
+.capability-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
   margin: 0 0 24px;
-  padding: 16px;
-  background: #f3f7f1;
-  border: 1px solid #d9e5d5;
-  border-radius: 8px;
-  color: #31572c;
 }
 
-.custom-software p {
-  margin: 6px 0 0;
-  color: #4a5e4c;
-  font-size: 0.92rem;
-  line-height: 1.5;
+.capability-row span {
+  padding: 7px 10px;
+  border: 1px solid #d9e5d5;
+  border-radius: 999px;
+  background: #f3f7f1;
+  color: #31572c;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .launch-buttons {
@@ -284,7 +269,7 @@ h1 {
   }
 
   .demo-promise {
-    font-size: clamp(2rem, 12vw, 2.75rem);
+    font-size: clamp(1.85rem, 8.5vw, 2.4rem);
   }
 
   .photo-strip img {

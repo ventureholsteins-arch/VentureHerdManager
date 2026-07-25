@@ -514,6 +514,8 @@ onMounted(() => {
               Last updated {{ formattedLastUpdated }}
             </span>
           </div>
+
+          <p class="hero-powered">Powered by Venture Ag Marketing</p>
         </div>
       </div>
     </header>
@@ -896,6 +898,16 @@ onMounted(() => {
   letter-spacing: 0.02em;
 }
 
+.hero-powered {
+  margin-top: 12px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.48);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
 .calendar-button {
   padding: 14px 18px;
   font-size: 1.05rem;
@@ -949,6 +961,10 @@ onMounted(() => {
   .hero-actions {
     justify-content: flex-start;
   }
+
+  .hero-powered {
+    font-size: 0.7rem;
+  }
 }
 
 @media (max-width: 640px) {
@@ -982,6 +998,12 @@ onMounted(() => {
 
   .hero-updated {
     text-align: center;
+    font-size: 0.85rem;
+  }
+
+  .hero-powered {
+    font-size: 0.65rem;
+    margin-top: 6px;
   }
 
   .hero-stats {

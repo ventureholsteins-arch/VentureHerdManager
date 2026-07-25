@@ -1002,10 +1002,10 @@ onMounted(() => {
 .herd-section {
   margin-top: 14px;
   padding: 20px;
-  border-radius: 12px;
-  border: 1px solid #1e2a30;
-  background: #0d1117;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+  border-radius: 10px;
+  border: 1px solid #d8e0db;
+  background: white;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
 
 .herd-header {
@@ -1018,7 +1018,7 @@ onMounted(() => {
 
 .herd-header h2 {
   margin: 4px 0 0;
-  color: #e8f5ea;
+  color: #0f1f16;
   font-size: 1.6rem;
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -1026,7 +1026,7 @@ onMounted(() => {
 
 .herd-subtitle {
   margin: 6px 0 0;
-  color: #3d5448;
+  color: #5d6f63;
   font-size: 0.9rem;
 }
 
@@ -1305,34 +1305,33 @@ onMounted(() => {
   gap: 8px;
   margin: 4px 0 8px;
   padding: 10px;
-  background: #0d1117;
+  background: linear-gradient(165deg, #f6faf7, #eef5f0);
   border-radius: 8px;
-  border: 1px solid #1e2a30;
-  border-top: 3px solid #22c55e;
+  border: 1px solid #d2ddd5;
+  border-top: 3px solid #244f2f;
   flex-wrap: wrap;
 }
 
 .quick-btn {
   flex: 1 1 180px;
-  padding: 11px 14px;
-  border: 1px solid #1e2a30;
-  border-bottom: 3px solid #1a3520;
+  padding: 10px 14px;
+  border: 1px solid #31572c;
+  border-bottom: 3px solid #244f2f;
   border-radius: 6px;
-  background: #111820;
-  color: #8fa898;
-  font-weight: 900;
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  background: white;
+  color: #31572c;
+  font-weight: 700;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .quick-btn:hover {
-  background: #141c1a;
-  color: #22c55e;
-  border-color: #22c55e;
-  transform: translateY(-1px);
+  background: #31572c;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(49, 87, 44, 0.2);
 }
 
 .mobile-fab-wrap {
@@ -1344,12 +1343,12 @@ onMounted(() => {
   height: 62px;
   border-radius: 50%;
   border: none;
-  background: #22c55e;
-  color: #071207;
+  background: #244f2f;
+  color: #fff;
   font-size: 2rem;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
-  box-shadow: 0 14px 28px rgba(11, 34, 17, 0.55);
+  box-shadow: 0 14px 28px rgba(11, 34, 17, 0.35);
 }
 
 .mobile-fab-menu {
@@ -1422,25 +1421,26 @@ onMounted(() => {
 /* Enhanced Search Input */
 .search-input-large {
   width: 100%;
-  padding: 16px 20px;
-  border: 1px solid #1e2a30;
+  padding: 18px 24px;
+  border: 1px solid #c8d4cb;
   border-radius: 8px;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 500;
-  color: #e2e8f0;
-  background: #111820;
-  box-shadow: none;
-  transition: border-color 0.18s;
+  color: #0f1f16;
+  background: white;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transition: all 0.2s ease;
 }
 
 .search-input-large:focus {
   outline: none;
-  border-color: #22c55e;
-  background: #0d1117;
+  border-color: #31572c;
+  box-shadow: 0 8px 24px rgba(49, 87, 44, 0.12);
+  background: #f8fbfa;
 }
 
 .search-input-large::placeholder {
-  color: #3d5448;
+  color: #9ca8a0;
 }
 
 .filter-row {
@@ -1452,21 +1452,19 @@ onMounted(() => {
 .filter-row label {
   display: grid;
   gap: 4px;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   font-weight: 800;
-  color: #3d5448;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  color: #1f3a25;
 }
 
 .filter-row select {
   min-height: 44px;
-  border: 1px solid #1e2a30;
+  border: 1px solid #c8d4cb;
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 0.95rem;
-  background: #111820;
-  color: #e2e8f0;
+  font-size: 1rem;
+  background: #fff;
+  color: #1f2937;
 }
 
 .favorite-toggle {
@@ -1475,11 +1473,11 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  border: 1px solid #1e2a30;
+  border: 1px solid #c8d4cb;
   border-radius: 8px;
   padding: 0 10px;
-  background: #111820;
-  color: #8fa898;
+  background: #fff;
+  color: #1f2937;
   font-size: 0.85rem;
   font-weight: 700;
 }
@@ -1500,20 +1498,22 @@ onMounted(() => {
 .player-card {
   display: flex;
   flex-direction: column;
-  background: #111820;
-  border: 1px solid #1e2a30;
+  background: #fff;
+  border: 1.5px solid #d8dfd9;
   border-radius: 10px;
   overflow: hidden;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s;
 }
 
 .player-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 16px 36px rgba(0,0,0,0.42);
+  border-color: #31572c;
+  box-shadow: 0 12px 28px rgba(49, 87, 44, 0.14);
 }
 
 .card-favorite {
   border-color: #d97706;
+  border-left: 3px solid #d97706;
 }
 
 .player-card-banner {
@@ -1521,8 +1521,8 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 6px 12px;
-  background: #0d1117;
-  border-bottom: 1px solid #1e2a30;
+  background: #f4f7f4;
+  border-bottom: 1px solid #e0e8e1;
 }
 
 .banner-left {
@@ -1532,7 +1532,7 @@ onMounted(() => {
 }
 
 .banner-reg {
-  color: #4a6070;
+  color: #8a9b8e;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1552,11 +1552,11 @@ onMounted(() => {
   text-transform: uppercase;
 }
 
-.badge-stage-1 { background: #1e3a5f; color: #60a5fa; }
-.badge-stage-2 { background: #3b1d7f; color: #a78bfa; }
-.badge-stage-3 { background: #14331e; color: #22c55e; }
-.badge-stage-4 { background: #1c2e14; color: #86efac; }
-.badge-stage-5 { background: #451a03; color: #fb923c; }
+.badge-stage-1 { background: #dbeafe; color: #1d4ed8; }
+.badge-stage-2 { background: #ede9fe; color: #6d28d9; }
+.badge-stage-3 { background: #dcfce7; color: #15803d; }
+.badge-stage-4 { background: #d1fae5; color: #065f46; }
+.badge-stage-5 { background: #ffedd5; color: #c2410c; }
 
 .player-card-body {
   flex: 1;
@@ -1569,13 +1569,13 @@ onMounted(() => {
 }
 
 .player-card-body:hover .player-name {
-  color: #22c55e;
+  color: #31572c;
 }
 
 .player-name {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 900;
-  color: #e8f5ea;
+  color: #0f1f16;
   letter-spacing: -0.02em;
   line-height: 1.2;
   transition: color 0.15s;
@@ -1586,13 +1586,13 @@ onMounted(() => {
   gap: 4px;
   flex-wrap: wrap;
   margin-top: 4px;
-  color: #4a6070;
+  color: #5d6f63;
   font-size: 0.82rem;
   font-weight: 600;
 }
 
 .meta-sep {
-  color: #253a30;
+  color: #c8d4cc;
 }
 
 /* Stat rail */
@@ -1600,8 +1600,8 @@ onMounted(() => {
   display: flex;
   gap: 0;
   margin-top: 12px;
-  border-top: 1px solid #1e2a30;
-  border-bottom: 1px solid #1e2a30;
+  border-top: 1px solid #e8efe9;
+  border-bottom: 1px solid #e8efe9;
 }
 
 .stat-cell {
@@ -1610,7 +1610,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 8px 4px 6px;
-  border-right: 1px solid #1e2a30;
+  border-right: 1px solid #e8efe9;
 }
 
 .stat-cell:last-child {
@@ -1620,23 +1620,23 @@ onMounted(() => {
 .stat-val {
   font-size: 0.92rem;
   font-weight: 900;
-  color: #d1fae5;
+  color: #1a3520;
   line-height: 1.2;
   text-align: center;
 }
 
 .show-class-val {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
 }
 
 .score-val {
-  color: #fbbf24;
+  color: #31572c;
 }
 
 .stat-lbl {
-  font-size: 0.65rem;
+  font-size: 0.64rem;
   font-weight: 700;
-  color: #3d5448;
+  color: #8a9b8e;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-top: 2px;
@@ -1646,14 +1646,15 @@ onMounted(() => {
 .player-card-actions {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1.2fr;
-  border-top: 1px solid #1e2a30;
+  border-top: 1px solid #e8efe9;
+  background: #f8fbf8;
 }
 
 .pca-btn {
   border: none;
-  border-right: 1px solid #1e2a30;
+  border-right: 1px solid #e0e8e1;
   background: transparent;
-  color: #5a7a6a;
+  color: #5d7a68;
   font-weight: 800;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
@@ -1667,15 +1668,15 @@ onMounted(() => {
   border-right: none;
 }
 
-.pca-btn:hover { color: #e8f5ea; background: #1a2824; }
-.pca-heat:hover { color: #f87171; }
-.pca-breed:hover { color: #a78bfa; }
-.pca-edit:hover { color: #fbbf24; }
+.pca-btn:hover { color: #0f1f16; background: #eef5f0; }
+.pca-heat:hover { color: #991b1b; background: #fff1f2; }
+.pca-breed:hover { color: #4c1d95; background: #f5f3ff; }
+.pca-edit:hover { color: #92400e; background: #fffbeb; }
 .pca-open {
-  color: #22c55e;
+  color: #31572c;
   font-weight: 900;
 }
-.pca-open:hover { background: #14331e; }
+.pca-open:hover { background: #dcfce7; }
 
 /* Backwards-compat stub so old card-name strong doesn't conflict */
 .card-name strong {

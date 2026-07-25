@@ -2,379 +2,44 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace VentureHerdManager.Api.Controllers;
 
+/// <summary>
+/// CRITICAL: Demo functionality is disabled to prevent production data loss.
+/// 
+/// REASON: The demo environment was accidentally connected to the production database.
+/// The reset endpoint deleted photos, notes, classifications, and events from production.
+/// 
+/// SOLUTION: Demo mode requires a completely separate database.
+/// Until a separate demo database is configured, ALL demo endpoints return 403 Forbidden.
+/// 
+/// FUTURE IMPLEMENTATION:
+/// 1. Create separate Azure SQL database for demo-only data
+/// 2. Add DemoConnection string to appsettings.json
+/// 3. Update Program.cs to route demo mode requests to the demo database
+/// 4. Re-enable reset endpoint ONLY when DemoMode:Enabled is true AND using DemoConnection
+/// 5. Add comprehensive tests to prevent demo from modifying production data
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class DemoController : ControllerBase
 {
-    /// <summary>
-    /// CRITICAL: Demo endpoint is permanently disabled.
-    /// Demo must use a separate database to avoid production data loss.
-    /// </summary>
-    
     [HttpPost("reset")]
     public ActionResult<object> Reset()
     {
-        return StatusCode(403, new { error = "Demo reset endpoint is permanently disabled. Demo mode requires a separate database." });
+        return StatusCode(403, new 
+        { 
+            error = "Demo reset endpoint is permanently disabled.",
+            reason = "Demo mode requires a separate database to prevent production data loss.",
+            action = "Contact administrator to set up demo database."
+        });
     }
 
     [HttpGet("status")]
     public ActionResult<object> Status()
     {
-        return StatusCode(403, new { error = "Demo is disabled. Use separate demo database instead." });
-    }
-
-            await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
-            await _context.AnimalProductionSnapshots.ExecuteDeleteAsync(cancellationToken);
-            await _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken);
-            await _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken);
-            await _context.HeatEvents.ExecuteDeleteAsync(cancellationToken);
-            await _context.BreedingEvents.ExecuteDeleteAsync(cancellationToken);
-            await _context.DryOffEvents.ExecuteDeleteAsync(cancellationToken);
-            await _context.LutalyseEvents.ExecuteDeleteAsync(cancellationToken);
-            await _context.CalvingEvents.ExecuteDeleteAsync(cancellationToken);
-
-            await _context.Animals.ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(a => a.DamId, (int?)null)
-                    .SetProperty(a => a.SireId, (int?)null),
-                cancellationToken);
-
-            await _context.Animals.ExecuteDeleteAsync(cancellationToken);
-
-            var utcNow = DateTime.UtcNow;
-            var seedUser = "DemoSeeder";
-
-        var demoAnimals = new List<Animal>
-        {
-            new()
-            {
-                BarnName = "Venture Aurora",
-                RegisteredName = "Venture Aurora 501",
-                RegistrationNumber = "DEMO-501",
-                Sex = AnimalSex.Female,
-                AnimalStage = AnimalStage.Milking,
-                AnimalStatus = AnimalStatus.Active,
-                Breed = "Holstein",
-                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-4)),
-                CurrentLactation = 2,
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser,
-                IsFavorite = true
-            },
-            new()
-            {
-                BarnName = "Venture Nova",
-                RegisteredName = "Venture Nova 327",
-                RegistrationNumber = "DEMO-327",
-                Sex = AnimalSex.Female,
-                AnimalStage = AnimalStage.Milking,
-                AnimalStatus = AnimalStatus.Active,
-                Breed = "Holstein",
-                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-5)),
-                CurrentLactation = 3,
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            },
-            new()
-            {
-                BarnName = "Venture Ember",
-                RegisteredName = "Venture Ember 612",
-                RegistrationNumber = "DEMO-612",
-                Sex = AnimalSex.Female,
-                AnimalStage = AnimalStage.Dry,
-                AnimalStatus = AnimalStatus.Active,
-                Breed = "Jersey",
-                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-4).AddMonths(-6)),
-                CurrentLactation = 2,
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            },
-            new()
-            {
-                BarnName = "Venture Daisy",
-                RegisteredName = "Venture Daisy 214",
-                RegistrationNumber = "DEMO-214",
-                Sex = AnimalSex.Female,
-                AnimalStage = AnimalStage.Heifer,
-                AnimalStatus = AnimalStatus.Active,
-                Breed = "Holstein",
-                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-2)),
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            },
-            new()
-            {
-                BarnName = "Venture Clover",
-                RegisteredName = "Venture Clover 198",
-                RegistrationNumber = "DEMO-198",
-                Sex = AnimalSex.Female,
-                AnimalStage = AnimalStage.Calf,
-                AnimalStatus = AnimalStatus.Active,
-                Breed = "Holstein",
-                BirthDate = DateOnly.FromDateTime(utcNow.AddMonths(-4)),
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            },
-            new()
-            {
-                BarnName = "Venture Titan",
-                RegisteredName = "Venture Titan 900",
-                RegistrationNumber = "DEMO-900",
-                Sex = AnimalSex.Male,
-                AnimalStage = AnimalStage.Bull,
-                AnimalStatus = AnimalStatus.Active,
-                Breed = "Holstein",
-                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-3)),
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            }
-        };
-
-        _context.Animals.AddRange(demoAnimals);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var aurora = demoAnimals.First(a => a.BarnName == "Venture Aurora");
-        var nova = demoAnimals.First(a => a.BarnName == "Venture Nova");
-        var ember = demoAnimals.First(a => a.BarnName == "Venture Ember");
-        var daisy = demoAnimals.First(a => a.BarnName == "Venture Daisy");
-
-        var demoCalf = new Animal
-        {
-            BarnName = "Venture Spark",
-            RegisteredName = "Venture Spark 001",
-            RegistrationNumber = "DEMO-CALF-001",
-            Sex = AnimalSex.Female,
-            AnimalStage = AnimalStage.Calf,
-            AnimalStatus = AnimalStatus.Active,
-            Breed = "Holstein",
-            BirthDate = DateOnly.FromDateTime(utcNow.AddDays(-2)),
-            SireName = "Venture Titan 900",
-            DamId = aurora.AnimalId,
-            DamName = aurora.RegisteredName ?? aurora.BarnName,
-            CreatedBy = seedUser,
-            UpdatedBy = seedUser,
-            ProfilePictureUrl = "https://picsum.photos/seed/venture-calf/900/600"
-        };
-
-        _context.Animals.Add(demoCalf);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var heats = new List<HeatEvent>
-        {
-            new()
-            {
-                AnimalId = aurora.AnimalId,
-                HeatDateTime = utcNow.AddDays(-7),
-                HeatStrength = HeatStrength.Strong,
-                StandingHeat = true,
-                HasEmbryoTransfer = true,
-                EmbryoImplantDate = utcNow,
-                Notes = "Demo heat event for walkthrough.",
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            },
-            new()
-            {
-                AnimalId = daisy.AnimalId,
-                HeatDateTime = utcNow.AddDays(-2),
-                HeatStrength = HeatStrength.Normal,
-                StandingHeat = true,
-                Notes = "Observed during morning checks.",
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            }
-        };
-
-        _context.HeatEvents.AddRange(heats);
-
-        var breedings = new List<BreedingEvent>
-        {
-            new()
-            {
-                AnimalId = nova.AnimalId,
-                BreedingDate = utcNow.AddDays(-40),
-                SireUsed = "Demonstrator-ET-11",
-                BreedingType = BreedingType.AI,
-                PregnancyStatus = PregnancyStatus.Pregnant,
-                PregnancyCheckDueDate = utcNow.AddDays(-10),
-                ExpectedDueDate = utcNow.AddDays(22),
-                RecommendedDryOffDate = utcNow.AddDays(-38),
-                CloseUpDate = utcNow.AddDays(1),
-                Notes = "Demo pregnant cow due soon.",
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            },
-            new()
-            {
-                AnimalId = ember.AnimalId,
-                BreedingDate = utcNow.AddDays(-26),
-                SireUsed = "Venture Titan 900",
-                BreedingType = BreedingType.Natural,
-                PregnancyStatus = PregnancyStatus.Recheck,
-                PregnancyCheckDueDate = utcNow.AddDays(3),
-                ExpectedDueDate = utcNow.AddDays(257),
-                Notes = "Recheck needed in demo dashboard.",
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser
-            }
-        };
-
-        _context.BreedingEvents.AddRange(breedings);
-
-        _context.LutalyseEvents.Add(new LutalyseEvent
-        {
-            AnimalId = daisy.AnimalId,
-            AdministrationDate = utcNow.AddDays(-1),
-            ExpectedHeatWatchStart = utcNow,
-            ExpectedHeatWatchEnd = utcNow.AddDays(3),
-            HeatObserved = false,
-            Notes = "Demo LUT tracking item.",
-            CreatedBy = seedUser,
-            UpdatedBy = seedUser
+        return StatusCode(403, new 
+        { 
+            error = "Demo is disabled.",
+            reason = "Demo functionality requires database isolation."
         });
-
-        var calvingEvent = new CalvingEvent
-        {
-            AnimalId = aurora.AnimalId,
-            CalvingDate = utcNow.AddDays(-2),
-            CalfSex = CalfSex.Heifer,
-            CalfBarnName = demoCalf.BarnName,
-            CalfRegisteredName = demoCalf.RegisteredName,
-            CalfAnimalId = demoCalf.AnimalId,
-            CalvingEase = CalvingEase.Unassisted,
-            NumberOfCalves = 1,
-            Twins = false,
-            Stillborn = false,
-            BirthWeight = 86.5m,
-            PictureUrl = "https://picsum.photos/seed/venture-calf/900/600",
-            Notes = "Healthy demo calf. Good appetite.",
-            CreatedBy = seedUser,
-            UpdatedBy = seedUser
-        };
-
-        _context.CalvingEvents.Add(calvingEvent);
-
-        _context.AnimalNotes.AddRange(
-            new AnimalNote
-            {
-                AnimalId = aurora.AnimalId,
-                NoteDate = utcNow.AddDays(-1),
-                NoteText = "Demo note: appetite and milk output normal.",
-                NoteType = NoteType.General,
-                CreatedBy = seedUser
-            },
-            new AnimalNote
-            {
-                AnimalId = nova.AnimalId,
-                NoteDate = utcNow.AddDays(-2),
-                NoteText = "Demo note: close-up ration adjusted.",
-                NoteType = NoteType.Health,
-                CreatedBy = seedUser
-            });
-
-        _context.ClassificationRecords.AddRange(
-            new ClassificationRecord
-            {
-                AnimalId = aurora.AnimalId,
-                ClassificationDate = utcNow.AddMonths(-2),
-                Score = 91.0m,
-                Baa = 109.4m,
-                ClassificationLabel = "EX",
-                Notes = "Demo elite score",
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser,
-                UpdatedAt = utcNow
-            },
-            new ClassificationRecord
-            {
-                AnimalId = nova.AnimalId,
-                ClassificationDate = utcNow.AddMonths(-3),
-                Score = 88.0m,
-                Baa = 104.2m,
-                ClassificationLabel = "VG",
-                Notes = "Demo classification",
-                CreatedBy = seedUser,
-                UpdatedBy = seedUser,
-                UpdatedAt = utcNow
-            });
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        _context.AnimalPhotos.AddRange(
-            new AnimalPhoto
-            {
-                AnimalId = aurora.AnimalId,
-                PhotoUrl = calvingEvent.PictureUrl!,
-                PhotoType = AnimalPhotoType.Calving,
-                RelatedEventId = calvingEvent.CalvingEventId,
-                RelatedEventType = nameof(CalvingEvent),
-                Caption = "Demo calving photo",
-                CreatedBy = seedUser
-            },
-            new AnimalPhoto
-            {
-                AnimalId = demoCalf.AnimalId,
-                PhotoUrl = calvingEvent.PictureUrl!,
-                PhotoType = AnimalPhotoType.Calf,
-                RelatedEventId = calvingEvent.CalvingEventId,
-                RelatedEventType = nameof(CalvingEvent),
-                Caption = "Demo calf profile photo",
-                CreatedBy = seedUser
-            });
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-            // Re-enable FK constraints
-            await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] CHECK CONSTRAINT ALL", cancellationToken);
-            await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] CHECK CONSTRAINT ALL", cancellationToken);
-
-            await transaction.CommitAsync(cancellationToken);
-
-            return Ok(new DemoSeedResult
-            {
-                Message = "Demo data reset and seeded.",
-                Animals = await _context.Animals.CountAsync(cancellationToken),
-                HeatEvents = await _context.HeatEvents.CountAsync(cancellationToken),
-                BreedingEvents = await _context.BreedingEvents.CountAsync(cancellationToken),
-                CalvingEvents = await _context.CalvingEvents.CountAsync(cancellationToken),
-                LutalyseEvents = await _context.LutalyseEvents.CountAsync(cancellationToken)
-            });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new DemoSeedResult
-            {
-                Message = $"Error resetting demo data: {ex.Message}"
-            });
-        }
     }
-
-    private ActionResult<DemoSeedResult>? ValidateDemoAccess(string? providedKey)
-    {
-        var enabled = _configuration.GetValue<bool>("DemoMode:Enabled");
-        if (!enabled)
-        {
-            return BadRequest(new DemoSeedResult
-            {
-                Message = "DemoMode is disabled."
-            });
-        }
-
-        return null;
-    }
-}
-
-public class DemoSeedResult
-{
-    public string Message { get; set; } = string.Empty;
-
-    public int Animals { get; set; }
-
-    public int HeatEvents { get; set; }
-
-    public int BreedingEvents { get; set; }
-
-    public int CalvingEvents { get; set; }
-
-    public int LutalyseEvents { get; set; }
 }

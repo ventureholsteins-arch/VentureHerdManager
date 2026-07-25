@@ -20,7 +20,7 @@ public class AppearanceController : ControllerBase
             overlayOpacity = 0.85,
             theme = "light",
             accentColor = "#31572c",
-            updatedAt = DateTime.UtcNow.ToIso8601String()
+            updatedAt = DateTime.UtcNow.ToString("O")
         });
     }
 }

@@ -46,3 +46,41 @@ export async function getCalendarEvents(
     ? result as CalendarEvent[]
     : []
 }
+
+export async function downloadCalendarEventsIcs(
+  startDate: Date,
+  endDate: Date
+): Promise<void> {
+  const query = new URLSearchParams({
+    startDate: formatApiDate(startDate),
+    endDate: formatApiDate(endDate)
+  })
+
+  const response = await fetch(
+    `${getApiUrl()}/Calendar/export.ics?${query.toString()}`
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+
+    throw new Error(
+      errorText ||
+      `Calendar export failed with status ${response.status}.`
+    )
+  }
+
+  const fileBlob = await response.blob()
+  const objectUrl = URL.createObjectURL(fileBlob)
+  const link = document.createElement('a')
+
+  link.href = objectUrl
+  link.download =
+    `venture-herd-calendar-${formatApiDate(startDate)}-` +
+    `${formatApiDate(endDate)}.ics`
+
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+
+  URL.revokeObjectURL(objectUrl)
+}

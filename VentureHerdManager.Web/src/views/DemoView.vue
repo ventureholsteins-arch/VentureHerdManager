@@ -6,17 +6,23 @@ import { resetDemo } from '../api/demo'
 const router = useRouter()
 const loading = ref(false)
 const error = ref<string | null>(null)
+const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
 
 async function launchDemo() {
   loading.value = true
   error.value = null
 
   try {
-    await resetDemo()
+    if (demoResetEnabled) {
+      await resetDemo()
+    }
     sessionStorage.setItem('demo-launched', 'true')
     await router.push('/')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load demo data.'
+    // If reset API is unavailable, continue launching demo so UI still works.
+    console.warn('Demo reset unavailable, launching without reset:', err)
+    sessionStorage.setItem('demo-launched', 'true')
+    await router.push('/')
   } finally {
     loading.value = false
   }

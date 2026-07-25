@@ -17,6 +17,7 @@ jobs:
         env:
           VITE_DEMO_ONLY: "true"
           VITE_API_URL: "https://Demo-API-123.azurewebsites.net/api"
+          VITE_DEMO_RESET_ENABLED: "false"
           VITE_DEMO_KEY: ${{ secrets.DEMO_SEED_KEY }}
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEMO }}

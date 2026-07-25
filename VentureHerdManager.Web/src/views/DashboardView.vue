@@ -32,6 +32,10 @@ const mobileQuickOpen = ref(false)
 const lastUpdatedAt = ref<string | null>(null)
 
 const DASHBOARD_CACHE_KEY = 'venture-herd-dashboard-cache-v1'
+const dashboardStorage =
+  import.meta.env.VITE_DEMO_ONLY === 'true'
+    ? sessionStorage
+    : localStorage
 
 interface DashboardCachePayload {
   savedAt: string
@@ -185,7 +189,7 @@ async function loadAnimals() {
       latestPregnancyStatuses: latestPregnancyStatuses.value
     }
 
-    localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(payload))
+    dashboardStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(payload))
   } catch (error) {
     console.error('Failed to load dashboard information:', error)
 
@@ -204,7 +208,7 @@ async function loadAnimals() {
 }
 
 function loadDashboardCache() {
-  const cached = localStorage.getItem(DASHBOARD_CACHE_KEY)
+  const cached = dashboardStorage.getItem(DASHBOARD_CACHE_KEY)
   if (!cached) {
     return
   }

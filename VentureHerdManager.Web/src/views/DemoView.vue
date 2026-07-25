@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { resetDemo } from '../api/demo'
@@ -34,16 +34,20 @@ async function launchDemo(withReset: boolean) {
     <div class="launch-card">
       <p class="demo-tag">DEMO</p>
       <h1>Venture Herd Manager</h1>
+      <h2 class="demo-promise">
+        Know your herd.
+        <span>Move with confidence.</span>
+      </h2>
       <p class="subtitle">
-        Explore Venture Herd Manager using sample animals and records.
-        Choose an option below to begin.
+        Easy View keeps the whole crew on the same page. Record work with one
+        hand, keep every event in order, and see what needs to happen next.
       </p>
 
       <ul class="feature-list">
-        <li>View your herd dashboard and upcoming events</li>
-        <li>Open animal profiles, notes, photos, and records</li>
-        <li>Track heats, breeding, dry-offs, and calvings</li>
-        <li>Review herd activity on the calendar and in reports</li>
+        <li>One shared animal record for everyone</li>
+        <li>Automatic alerts for work coming due</li>
+        <li>Heats, breeding, embryos, calvings, and notes in order</li>
+        <li>Built to view and update from a phone in the barn</li>
       </ul>
 
       <div class="custom-software">
@@ -117,9 +121,26 @@ async function launchDemo(withReset: boolean) {
 }
 
 h1 {
-  margin: 0 0 12px;
+  margin: 0 0 16px;
   font-size: 1.75rem;
   color: #1a2e1c;
+}
+
+.demo-promise {
+  margin: 0 0 18px;
+  color: #17281a;
+  font-size: clamp(2rem, 7vw, 3.25rem);
+  line-height: 0.95;
+  letter-spacing: -0.055em;
+  text-transform: uppercase;
+  font-weight: 900;
+}
+
+.demo-promise span {
+  display: block;
+  margin-top: 8px;
+  color: transparent;
+  -webkit-text-stroke: 1.25px #31572c;
 }
 
 .subtitle {
@@ -217,5 +238,19 @@ h1 {
   margin: 8px 0 0;
   color: #5f6c7b;
   font-size: 0.85rem;
+}
+
+@media (max-width: 560px) {
+  .demo-launch {
+    padding: 14px;
+  }
+
+  .launch-card {
+    padding: 30px 22px;
+  }
+
+  .demo-promise {
+    font-size: clamp(2rem, 12vw, 2.75rem);
+  }
 }
 </style>

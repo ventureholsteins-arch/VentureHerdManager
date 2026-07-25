@@ -58,7 +58,7 @@ interface AchievementRecord {
 
 const router = useRouter()
 const route = useRoute()
-const activeTab = ref<HubTab>('analytics')
+const activeTab = ref<HubTab>('embryos')
 const loading = ref(true)
 const animals = ref<Animal[]>([])
 
@@ -286,12 +286,12 @@ onMounted(async () => {
     </header>
 
     <nav class="rp-tabs">
-      <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">📊 Analytics</button>
       <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'">🧬 Embryos</button>
       <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'">🐄 Show String</button>
       <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'">📋 Herd Lists</button>
       <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'">✅ Checklist</button>
       <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'">🏆 Achievements</button>
+      <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">📊 Analytics</button>
     </nav>
 
     <section v-if="loading" class="rp-panel"><p>Loading animals...</p></section>

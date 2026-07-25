@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { resetDemo } from '../api/demo'
 
 const router = useRouter()
 const loading = ref(false)
@@ -11,8 +12,7 @@ async function launchDemo() {
   error.value = null
 
   try {
-    // Demo reset endpoint is intentionally disabled for production data safety.
-    // Launch directly into the app in demo mode.
+    await resetDemo()
     sessionStorage.setItem('demo-launched', 'true')
     await router.push('/')
   } catch (err) {
@@ -29,8 +29,8 @@ async function launchDemo() {
       <p class="demo-tag">DEMO</p>
       <h1>Venture Herd Manager</h1>
       <p class="subtitle">
-        Explore the app in demo mode.
-        Demo reset is disabled until a dedicated demo database is configured.
+        See the real app in action with a pre-loaded herd of demo animals.
+        Demo data is reset fresh each time.
       </p>
 
       <ul class="feature-list">

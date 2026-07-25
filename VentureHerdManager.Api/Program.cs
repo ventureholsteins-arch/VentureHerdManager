@@ -29,6 +29,12 @@ var connectionString =
         ? demoConnectionString
         : defaultConnectionString;
 
+if (isDemoMode && string.IsNullOrWhiteSpace(demoConnectionString))
+{
+    throw new InvalidOperationException(
+        "DemoMode is enabled but ConnectionStrings__DemoConnection is not configured.");
+}
+
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(

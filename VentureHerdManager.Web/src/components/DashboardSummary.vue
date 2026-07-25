@@ -9,7 +9,31 @@ import {
 
 const router = useRouter()
 
-const dashboard = ref<DashboardSummary | null>(null)
+const emptyDashboard: DashboardSummary = {
+  totalAnimals: 0,
+  milking: 0,
+  dry: 0,
+  heifers: 0,
+  calves: 0,
+  bulls: 0,
+  pregChecksDueCount: 0,
+  dueSoonCount: 0,
+  lutTrackingCount: 0,
+  embryoImplantsCount: 0,
+  herdScoreAverage: null,
+  herdBaaAverage: null,
+  animalsWithScore: 0,
+  animalsWithBaa: 0,
+  percentExcellent2ndLactationOrHigher: null,
+  pregChecksDue: [],
+  dueSoon: [],
+  lutTracking: [],
+  embryoImplants: [],
+  recentHeats: [],
+  recentBreedings: []
+}
+
+const dashboard = ref<DashboardSummary>(emptyDashboard)
 const loading = ref(true)
 const errorMessage = ref('')
 const pregChecksSectionRef = ref<HTMLElement | null>(null)
@@ -28,7 +52,8 @@ onMounted(async () => {
     dashboard.value = await getDashboardSummary()
   } catch (error) {
     console.error('Failed to load dashboard:', error)
-    errorMessage.value = 'Dashboard could not be loaded.'
+    errorMessage.value = 'Summary panel is temporarily unavailable. Herd cards are still up to date.'
+    dashboard.value = { ...emptyDashboard }
   } finally {
     loading.value = false
   }
@@ -97,11 +122,11 @@ async function openReportSection(section: ReportSection) {
       Loading dashboard...
     </p>
 
-    <p v-else-if="errorMessage" class="error-message">
-      {{ errorMessage }}
-    </p>
+    <template v-else>
+      <p v-if="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </p>
 
-    <template v-else-if="dashboard">
       <div class="section-heading">
         <div>
           <p class="eyebrow">HERD OVERVIEW</p>

@@ -628,70 +628,57 @@ onMounted(() => {
           <div
             v-for="animal in filteredAnimals"
             :key="animal.animalId"
-            class="animal-card-enhanced"
+            class="player-card"
+            :class="{ 'card-favorite': animal.isFavorite }"
           >
-            <button
-              class="card-main"
-              type="button"
-              @click="router.push(`/animals/${animal.animalId}`)"
-            >
-              <div class="card-header">
-                <div class="card-name">
-                  <strong>{{ animal.barnName || animal.registeredName || `Animal #${animal.animalId}` }}</strong>
-                  <p class="card-stage">{{ getStageLabel(animal.animalStage) }}</p>
-                </div>
-                <div class="card-status" :class="animal.animalStatus === 0 ? 'active' : 'inactive'">
-                  {{ animal.animalStatus === 0 ? '✓' : '✕' }}
-                </div>
+            <!-- Card top banner -->
+            <div class="player-card-banner">
+              <div class="banner-left">
+                <span class="card-badge" :class="`badge-stage-${animal.animalStage}`">{{ getStageLabel(animal.animalStage) }}</span>
+                <span v-if="animal.isFavorite" class="fav-star" title="Favorite">★</span>
+              </div>
+              <span class="banner-reg">{{ animal.registrationNumber || '' }}</span>
+            </div>
+
+            <!-- Main clickable area -->
+            <button class="player-card-body" type="button" @click="router.push(`/animals/${animal.animalId}`)">
+              <div class="player-name">
+                {{ animal.barnName || animal.registeredName || `Animal #${animal.animalId}` }}
               </div>
 
-              <div class="card-details">
-                <div class="detail-row">
-                  <span class="label">Breed:</span>
-                  <span>{{ animal.breed || '—' }}</span>
+              <div class="player-meta">
+                <span>{{ animal.breed || 'Unknown' }}</span>
+                <span v-if="animal.sireName" class="meta-sep">·</span>
+                <span v-if="animal.sireName">{{ animal.sireName }}</span>
+              </div>
+
+              <!-- Stat row -->
+              <div class="stat-rail">
+                <div class="stat-cell" title="Show Age">
+                  <span class="stat-val">{{ formatCurrentAge(animal.birthDate) }}</span>
+                  <span class="stat-lbl">Age</span>
                 </div>
-                <div class="detail-row">
-                  <span class="label">Sire:</span>
-                  <span>{{ animal.sireName || '—' }}</span>
+                <div class="stat-cell" title="Show Class">
+                  <span class="stat-val show-class-val">{{ getShowClassLabel(animal.birthDate, animal.animalStage) }}</span>
+                  <span class="stat-lbl">Show Class</span>
                 </div>
-                <div class="detail-row">
-                  <span class="label">Show Age:</span>
-                  <span>{{ formatCurrentAge(animal.birthDate) }}</span>
+                <div class="stat-cell" v-if="animal.latestScore">
+                  <span class="stat-val score-val">{{ getScoreLabel(animal.latestScore) }}</span>
+                  <span class="stat-lbl">Score</span>
                 </div>
-                <div class="detail-row">
-                  <span class="label">Show Class:</span>
-                  <span>{{ getShowClassLabel(animal.birthDate, animal.animalStage) }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Lactation:</span>
-                  <span>{{ animal.currentLactation || '—' }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Score:</span>
-                  <span>{{ getScoreLabel(animal.latestScore) }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">BAA:</span>
-                  <span>{{ getBaaLabel(animal.latestBaa) }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="label">Reg #:</span>
-                  <span class="reg-num">{{ animal.registrationNumber || '—' }}</span>
+                <div class="stat-cell" v-if="animal.currentLactation">
+                  <span class="stat-val">{{ animal.currentLactation }}</span>
+                  <span class="stat-lbl">Lac</span>
                 </div>
               </div>
             </button>
 
-            <div class="card-actions">
-              <button 
-                @click.stop="openEditModal(animal)"
-                class="action-btn edit"
-                title="Edit Animal"
-              >✏️ Edit</button>
-              <button 
-                @click.stop="router.push(`/animals/${animal.animalId}`)"
-                class="action-btn view"
-                title="Open Animal"
-              >👁 Open</button>
+            <!-- Action row -->
+            <div class="player-card-actions">
+              <button @click.stop="openHeatModal" class="pca-btn pca-heat" title="Record Heat">Heat</button>
+              <button @click.stop="openBreedingModal(animal.animalId, animal.barnName || animal.registeredName || `#${animal.animalId}`)" class="pca-btn pca-breed" title="Record Breeding">Breed</button>
+              <button @click.stop="openEditModal(animal)" class="pca-btn pca-edit" title="Edit">Edit</button>
+              <button @click.stop="router.push(`/animals/${animal.animalId}`)" class="pca-btn pca-open" title="Open">Open →</button>
             </div>
           </div>
         </div>
@@ -1015,10 +1002,10 @@ onMounted(() => {
 .herd-section {
   margin-top: 14px;
   padding: 20px;
-  border-radius: 10px;
-  border: 1px solid #d8e0db;
-  background: white;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  border: 1px solid #1e2a30;
+  background: #0d1117;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.3);
 }
 
 .herd-header {
@@ -1031,7 +1018,7 @@ onMounted(() => {
 
 .herd-header h2 {
   margin: 4px 0 0;
-  color: #0f1f16;
+  color: #e8f5ea;
   font-size: 1.6rem;
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -1039,7 +1026,7 @@ onMounted(() => {
 
 .herd-subtitle {
   margin: 6px 0 0;
-  color: #5d6f63;
+  color: #3d5448;
   font-size: 0.9rem;
 }
 
@@ -1318,33 +1305,34 @@ onMounted(() => {
   gap: 8px;
   margin: 4px 0 8px;
   padding: 10px;
-  background: linear-gradient(165deg, #f6faf7, #eef5f0);
+  background: #0d1117;
   border-radius: 8px;
-  border: 1px solid #d2ddd5;
-  border-top: 3px solid #244f2f;
+  border: 1px solid #1e2a30;
+  border-top: 3px solid #22c55e;
   flex-wrap: wrap;
 }
 
 .quick-btn {
   flex: 1 1 180px;
-  padding: 10px 14px;
-  border: 1px solid #31572c;
-  border-bottom: 3px solid #244f2f;
+  padding: 11px 14px;
+  border: 1px solid #1e2a30;
+  border-bottom: 3px solid #1a3520;
   border-radius: 6px;
-  background: white;
-  color: #31572c;
-  font-weight: 700;
-  font-size: 0.92rem;
-  letter-spacing: 0.01em;
+  background: #111820;
+  color: #8fa898;
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .quick-btn:hover {
-  background: #31572c;
-  color: white;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(49, 87, 44, 0.2);
+  background: #141c1a;
+  color: #22c55e;
+  border-color: #22c55e;
+  transform: translateY(-1px);
 }
 
 .mobile-fab-wrap {
@@ -1356,12 +1344,12 @@ onMounted(() => {
   height: 62px;
   border-radius: 50%;
   border: none;
-  background: #244f2f;
-  color: #fff;
+  background: #22c55e;
+  color: #071207;
   font-size: 2rem;
-  font-weight: 700;
+  font-weight: 900;
   line-height: 1;
-  box-shadow: 0 14px 28px rgba(11, 34, 17, 0.35);
+  box-shadow: 0 14px 28px rgba(11, 34, 17, 0.55);
 }
 
 .mobile-fab-menu {
@@ -1434,26 +1422,25 @@ onMounted(() => {
 /* Enhanced Search Input */
 .search-input-large {
   width: 100%;
-  padding: 18px 24px;
-  border: 1px solid #c8d4cb;
+  padding: 16px 20px;
+  border: 1px solid #1e2a30;
   border-radius: 8px;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 500;
-  color: #0f1f16;
-  background: white;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-  transition: all 0.2s ease;
+  color: #e2e8f0;
+  background: #111820;
+  box-shadow: none;
+  transition: border-color 0.18s;
 }
 
 .search-input-large:focus {
   outline: none;
-  border-color: #31572c;
-  box-shadow: 0 8px 24px rgba(49, 87, 44, 0.12);
-  background: #f8fbfa;
+  border-color: #22c55e;
+  background: #0d1117;
 }
 
 .search-input-large::placeholder {
-  color: #9ca8a0;
+  color: #3d5448;
 }
 
 .filter-row {
@@ -1465,18 +1452,21 @@ onMounted(() => {
 .filter-row label {
   display: grid;
   gap: 4px;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 800;
-  color: #1f3a25;
+  color: #3d5448;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .filter-row select {
   min-height: 44px;
-  border: 1px solid #c8d4cb;
+  border: 1px solid #1e2a30;
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 1rem;
-  background: #fff;
+  font-size: 0.95rem;
+  background: #111820;
+  color: #e2e8f0;
 }
 
 .favorite-toggle {
@@ -1485,10 +1475,13 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  border: 1px solid #c8d4cb;
+  border: 1px solid #1e2a30;
   border-radius: 8px;
   padding: 0 10px;
-  background: #fff;
+  background: #111820;
+  color: #8fa898;
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .favorite-toggle input {
@@ -1496,53 +1489,195 @@ onMounted(() => {
   height: 18px;
 }
 
-/* Enhanced Animal Cards */
+/* ── Sporty Player Cards ── */
 .animal-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
   margin-top: 16px;
 }
 
-.animal-card-enhanced {
-  border: 2px solid #e5ebe8;
-  border-radius: 8px;
-  background: white;
+.player-card {
+  display: flex;
+  flex-direction: column;
+  background: #111820;
+  border: 1px solid #1e2a30;
+  border-radius: 10px;
   overflow: hidden;
-  transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.animal-card-enhanced:hover {
-  border-color: #31572c;
-  box-shadow: 0 12px 32px rgba(49, 87, 44, 0.15);
-  transform: translateY(-4px);
+.player-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(0,0,0,0.42);
 }
 
-.card-main {
-  flex: 1;
-  padding: 18px;
-  border: none;
-  background: white;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.card-favorite {
+  border-color: #d97706;
 }
 
-.card-main:hover {
-  background: #f8fbfa;
-}
-
-.card-header {
+.player-card-banner {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  padding: 6px 12px;
+  background: #0d1117;
+  border-bottom: 1px solid #1e2a30;
 }
 
+.banner-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.banner-reg {
+  color: #4a6070;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.fav-star {
+  color: #d97706;
+  font-size: 0.95rem;
+}
+
+.card-badge {
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.badge-stage-1 { background: #1e3a5f; color: #60a5fa; }
+.badge-stage-2 { background: #3b1d7f; color: #a78bfa; }
+.badge-stage-3 { background: #14331e; color: #22c55e; }
+.badge-stage-4 { background: #1c2e14; color: #86efac; }
+.badge-stage-5 { background: #451a03; color: #fb923c; }
+
+.player-card-body {
+  flex: 1;
+  padding: 14px 14px 10px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.player-card-body:hover .player-name {
+  color: #22c55e;
+}
+
+.player-name {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #e8f5ea;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  transition: color 0.15s;
+}
+
+.player-meta {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  color: #4a6070;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.meta-sep {
+  color: #253a30;
+}
+
+/* Stat rail */
+.stat-rail {
+  display: flex;
+  gap: 0;
+  margin-top: 12px;
+  border-top: 1px solid #1e2a30;
+  border-bottom: 1px solid #1e2a30;
+}
+
+.stat-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px 6px;
+  border-right: 1px solid #1e2a30;
+}
+
+.stat-cell:last-child {
+  border-right: none;
+}
+
+.stat-val {
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: #d1fae5;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.show-class-val {
+  font-size: 0.72rem;
+}
+
+.score-val {
+  color: #fbbf24;
+}
+
+.stat-lbl {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #3d5448;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+/* Card action row */
+.player-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.2fr;
+  border-top: 1px solid #1e2a30;
+}
+
+.pca-btn {
+  border: none;
+  border-right: 1px solid #1e2a30;
+  background: transparent;
+  color: #5a7a6a;
+  font-weight: 800;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.pca-btn:last-child {
+  border-right: none;
+}
+
+.pca-btn:hover { color: #e8f5ea; background: #1a2824; }
+.pca-heat:hover { color: #f87171; }
+.pca-breed:hover { color: #a78bfa; }
+.pca-edit:hover { color: #fbbf24; }
+.pca-open {
+  color: #22c55e;
+  font-weight: 900;
+}
+.pca-open:hover { background: #14331e; }
+
+/* Backwards-compat stub so old card-name strong doesn't conflict */
 .card-name strong {
   display: block;
   font-size: 1.35rem;
@@ -1661,15 +1796,8 @@ onMounted(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .card-actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 10px 12px;
-    gap: 6px;
-  }
-
-  .action-btn {
-    font-size: 0.92rem;
-    padding: 8px 6px;
+  .player-card-actions {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -1678,8 +1806,12 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .card-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .player-card-actions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .pca-btn {
+    border-bottom: 1px solid #1e2a30;
   }
 }
 </style>

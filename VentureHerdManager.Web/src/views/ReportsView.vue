@@ -239,9 +239,12 @@ onMounted(async () => {
 <template>
   <main class="reports-page">
     <header class="hero">
-      <button class="back" type="button" @click="router.push('/')">← Dashboard</button>
-      <h1>Reports & Show Planner</h1>
-      <p>Build lineups, working lists, show checklists, embryo inventory, and achievements in one place.</p>
+      <div class="hero-top">
+        <button class="back" type="button" @click="router.push('/')">← Dashboard</button>
+        <span style="color:#22c55e;font-size:0.75rem;font-weight:900;letter-spacing:0.12em;text-transform:uppercase;">Venture Herd Manager</span>
+      </div>
+      <h1>Reports &amp; Show Planner</h1>
+      <p class="hero-sub">Lineups · Working Lists · Show Checklist · Embryo Inventory · Achievements</p>
     </header>
 
     <section class="tabs">
@@ -448,194 +451,392 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* ── Base ── */
 .reports-page {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 18px;
+  padding: 0 0 60px;
+  font-family: 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
+  background: #0d1117;
+  min-height: 100vh;
 }
 
+/* ── Hero header ── */
 .hero {
-  border: 1px solid #d9e3dc;
-  background: linear-gradient(165deg, #f6fbf7, #edf5ef);
-  border-radius: 12px;
-  padding: 18px;
-  margin-bottom: 12px;
+  position: relative;
+  background: linear-gradient(135deg, #0d1f14 0%, #142b1c 60%, #1a3522 100%);
+  padding: 22px 24px 18px;
+  border-bottom: 3px solid #22c55e;
+}
+
+.hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 
 .hero h1 {
-  margin: 8px 0;
-  font-size: 2rem;
-  color: #163322;
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
 }
 
-.hero p {
-  margin: 0;
-  color: #4d6171;
+.hero-sub {
+  margin: 6px 0 0;
+  color: rgba(255,255,255,0.6);
+  font-size: 0.88rem;
+  letter-spacing: 0.03em;
 }
 
 .back {
-  border: 1px solid #31572c;
-  background: #fff;
-  color: #31572c;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.07);
+  color: #e2e8f0;
   font-weight: 800;
-  border-radius: 8px;
-  padding: 8px 12px;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
+.back:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+/* ── Tab rail ── */
 .tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  overflow-x: auto;
+  gap: 0;
+  background: #111820;
+  border-bottom: 2px solid #1e2a22;
+  padding: 0 16px;
 }
 
+.tabs::-webkit-scrollbar { height: 0; }
+
 .tabs button {
-  border: 1px solid #c7d4ca;
-  background: #fff;
-  color: #1f2937;
-  border-radius: 8px;
-  min-height: 42px;
-  padding: 0 14px;
+  flex-shrink: 0;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #8a9ba8;
   font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 14px 18px 11px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.tabs button:hover {
+  color: #e2e8f0;
 }
 
 .tabs button.active {
-  border-color: #31572c;
-  background: #31572c;
-  color: #fff;
+  color: #22c55e;
+  border-bottom-color: #22c55e;
 }
 
+/* ── Panel wrapper ── */
 .panel {
-  border: 1px solid #d9e3dc;
+  margin: 20px 16px;
+  background: #141c1a;
+  border: 1px solid #1e2d24;
   border-radius: 12px;
-  background: #fff;
-  padding: 16px;
+  padding: 20px;
 }
 
-.panel h2 {
-  margin: 0;
-  color: #163322;
-}
-
+/* ── Panel header ── */
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #1e2d24;
 }
 
-.panel-header button {
+.panel-header h2 {
+  margin: 0;
+  color: #f0faf3;
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.panel-header button,
+.add-btn {
   border: none;
-  background: #31572c;
-  color: #fff;
-  border-radius: 8px;
-  min-height: 40px;
-  padding: 0 12px;
-  font-weight: 800;
+  background: #22c55e;
+  color: #071207;
+  border-radius: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
-.row-card,
-.group-card {
-  border: 1px solid #e0e7e2;
-  border-radius: 10px;
-  padding: 12px;
+.panel-header button:hover,
+.add-btn:hover {
+  background: #16a34a;
+}
+
+/* ── Row card (show string / embryo / achievement) ── */
+.row-card {
+  background: #0d1117;
+  border: 1px solid #1e2d24;
+  border-left: 3px solid #22c55e;
+  border-radius: 8px;
+  padding: 16px;
   margin: 10px 0;
   display: grid;
-  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
+.row-card label:first-child {
+  grid-column: 1;
+}
+
+.row-card .danger {
+  grid-column: 1 / -1;
+}
+
+/* full-width fields */
+.row-card label:has(textarea),
+.row-card label:has([placeholder*='Note']),
+.row-card label:has([placeholder*='Direction']),
+.row-card label:has([placeholder*='Feeding']) {
+  grid-column: 1 / -1;
+}
+
+/* ── Group card (herd lists) ── */
+.group-card {
+  background: #0d1117;
+  border: 1px solid #1e2d24;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+}
+
+.group-card h3 {
+  margin: 0 0 12px;
+  color: #22c55e;
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ── Labels / inputs ── */
 label {
   display: grid;
   gap: 6px;
-  color: #1f2937;
+  color: #8fa898;
   font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 input,
 select,
 textarea {
-  min-height: 42px;
-  border: 1px solid #c8d4cb;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 1rem;
+  min-height: 44px;
+  border: 1px solid #253328;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.98rem;
+  font-family: inherit;
+  background: #141c1a;
+  color: #e2e8f0;
+  transition: border-color 0.15s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #22c55e;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #3d5448;
 }
 
 textarea {
-  min-height: 78px;
+  min-height: 82px;
+  resize: vertical;
 }
 
+/* ── Chip buttons ── */
 .chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 12px;
 }
 
 .chip {
-  border: 1px solid #c8d4cb;
+  border: 1px solid #253328;
   border-radius: 999px;
-  background: #fff;
-  color: #1f2937;
-  min-height: 36px;
-  padding: 0 12px;
+  background: #141c1a;
+  color: #8fa898;
+  min-height: 34px;
+  padding: 0 14px;
   font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip:hover {
+  border-color: #22c55e;
+  color: #e2e8f0;
 }
 
 .chip.selected {
-  border-color: #31572c;
-  background: #e8f5ea;
-  color: #17331f;
+  border-color: #22c55e;
+  background: #14331e;
+  color: #22c55e;
+  font-weight: 900;
 }
 
+/* ── Checklist ── */
 .checklist {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .check-item {
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 28px 1fr;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #0d1117;
+  border: 1px solid #1e2d24;
 }
 
 .check-item input[type='checkbox'] {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   margin: 0;
+  accent-color: #22c55e;
 }
 
 .check-item input[type='text'] {
-  min-height: 42px;
+  min-height: 40px;
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
 }
 
+.check-item input[type='text']:focus {
+  outline: none;
+  border-bottom: 1px solid #22c55e;
+  border-radius: 0;
+}
+
+/* ── Danger button ── */
 .danger {
-  border: none;
-  background: #991b1b;
-  color: #fff;
-  border-radius: 8px;
-  min-height: 40px;
+  border: 1px solid #7f1d1d;
+  background: transparent;
+  color: #f87171;
+  border-radius: 6px;
+  min-height: 36px;
   padding: 0 12px;
   font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
   justify-self: start;
+  transition: background 0.15s;
 }
 
+.danger:hover {
+  background: #7f1d1d;
+  color: #fff;
+}
+
+/* ── Empty / hint ── */
 .empty {
-  border: 1px dashed #c8d4cb;
+  border: 1px dashed #253328;
   border-radius: 8px;
-  padding: 14px;
-  color: #5b6b78;
+  padding: 24px;
+  color: #3d5448;
+  text-align: center;
+  font-size: 0.92rem;
 }
 
 .hint {
-  color: #5b6b78;
-  margin: 6px 0 10px;
+  color: #5a7266;
+  margin: 0 0 14px;
+  font-size: 0.87rem;
+  line-height: 1.5;
 }
 
+/* ── Status badge ── */
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status-badge.storage { background: #1e3a5f; color: #60a5fa; }
+.status-badge.assigned { background: #3b1d7f; color: #a78bfa; }
+.status-badge.implanted { background: #14331e; color: #22c55e; }
+
+/* ── Responsive ── */
 @media (max-width: 760px) {
+  .hero {
+    padding: 16px;
+  }
+
+  .hero h1 {
+    font-size: 1.35rem;
+  }
+
   .tabs button {
-    flex: 1 1 calc(50% - 8px);
+    padding: 12px 14px 9px;
+    font-size: 0.75rem;
+  }
+
+  .row-card {
+    grid-template-columns: 1fr;
+  }
+
+  .row-card label:first-child,
+  .row-card .danger {
+    grid-column: 1;
+  }
+
+  .panel {
+    margin: 12px 10px;
+    padding: 14px;
   }
 }
 </style>

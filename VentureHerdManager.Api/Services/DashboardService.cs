@@ -29,18 +29,21 @@ public class DashboardService
             .Where(animal => animal.AnimalStatus == AnimalStatus.Active)
             .ToListAsync();
 
+        // Create a dictionary for fast animal name lookup
+        var animalNameDict = animals.ToDictionary(a => a.AnimalId, a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}");
+
         var milkingCowIds = animals
             .Where(a => a.AnimalStage == AnimalStage.Milking)
             .Select(a => a.AnimalId)
             .ToList();
 
         // Run all independent queries in parallel
-        var task1 = GetPregChecksDueAsync(today, pregnancyCheckCutoff, animals);
-        var task2 = GetDueSoonAsync(today, dueSoonCutoff, animals);
-        var task3 = GetLutTrackingAsync(today, lutTrackingDays, animals);
-        var task4 = GetEmbryoImplantsAsync(today, embryoTrackingDays, animals);
-        var task5 = GetRecentHeatsAsync(animals);
-        var task6 = GetRecentBreedingsAsync(today, animals);
+        var task1 = GetPregChecksDueAsync(today, pregnancyCheckCutoff, animalNameDict);
+        var task2 = GetDueSoonAsync(today, dueSoonCutoff, animalNameDict);
+        var task3 = GetLutTrackingAsync(today, lutTrackingDays, animalNameDict);
+        var task4 = GetEmbryoImplantsAsync(today, embryoTrackingDays, animalNameDict);
+        var task5 = GetRecentHeatsAsync(animalNameDict);
+        var task6 = GetRecentBreedingsAsync(today, animalNameDict);
         var task7 = _classificationService.GetLatestClassificationsForAnimalsAsync(milkingCowIds);
 
         await Task.WhenAll(task1, task2, task3, task4, task5, task6, task7);
@@ -75,7 +78,7 @@ public class DashboardService
         return BuildDashboardResponse(animals, pregChecksDue, dueSoon, lutTracking, embryoImplants, recentHeats, recentBreedings, scoredMilkingScores, scoredMilkingBaas, excellent2ndLacCount);
     }
 
-    private async Task<List<dynamic>> GetPregChecksDueAsync(DateTime today, DateTime pregnancyCheckCutoff, List<Animal> animals)
+    private async Task<List<dynamic>> GetPregChecksDueAsync(DateTime today, DateTime pregnancyCheckCutoff, Dictionary<int, string> animalNameDict)
     {
         return await (from breeding in _context.BreedingEvents.AsNoTracking()
              where
@@ -90,9 +93,6 @@ public class DashboardService
              {
                  breeding.BreedingEventId,
                  breeding.AnimalId,
-                 AnimalName = animals.Where(a => a.AnimalId == breeding.AnimalId)
-                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
-                     .FirstOrDefault() ?? $"Animal {breeding.AnimalId}",
                  breeding.SireUsed,
                  breeding.BreedingDate,
                  breeding.PregnancyCheckDueDate,
@@ -100,11 +100,22 @@ public class DashboardService
                  DaysUntilCheck = (breeding.PregnancyCheckDueDate.Value.Date - today).Days,
                  IsOverdue = breeding.PregnancyCheckDueDate.Value.Date < today
              })
-            .Cast<dynamic>()
-            .ToListAsync();
+            .ToListAsync()
+            .ContinueWith(t => t.Result.Select(r => new
+            {
+                r.BreedingEventId,
+                r.AnimalId,
+                AnimalName = animalNameDict.ContainsKey(r.AnimalId) ? animalNameDict[r.AnimalId] : $"Animal {r.AnimalId}",
+                r.SireUsed,
+                r.BreedingDate,
+                r.PregnancyCheckDueDate,
+                r.PregnancyStatus,
+                r.DaysUntilCheck,
+                r.IsOverdue
+            } as dynamic).ToList());
     }
 
-    private async Task<List<dynamic>> GetDueSoonAsync(DateTime today, DateTime dueSoonCutoff, List<Animal> animals)
+    private async Task<List<dynamic>> GetDueSoonAsync(DateTime today, DateTime dueSoonCutoff, Dictionary<int, string> animalNameDict)
     {
         return await (from breeding in _context.BreedingEvents.AsNoTracking()
              where breeding.PregnancyStatus == PregnancyStatus.Pregnant
@@ -116,18 +127,23 @@ public class DashboardService
              {
                  breeding.BreedingEventId,
                  breeding.AnimalId,
-                 AnimalName = animals.Where(a => a.AnimalId == breeding.AnimalId)
-                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
-                     .FirstOrDefault() ?? $"Animal {breeding.AnimalId}",
                  breeding.SireUsed,
                  breeding.ExpectedDueDate,
                  DaysUntilDue = breeding.ExpectedDueDate.HasValue ? (breeding.ExpectedDueDate.Value.Date - today).Days : int.MaxValue
              })
-            .Cast<dynamic>()
-            .ToListAsync();
+            .ToListAsync()
+            .ContinueWith(t => t.Result.Select(r => new
+            {
+                r.BreedingEventId,
+                r.AnimalId,
+                AnimalName = animalNameDict.ContainsKey(r.AnimalId) ? animalNameDict[r.AnimalId] : $"Animal {r.AnimalId}",
+                r.SireUsed,
+                r.ExpectedDueDate,
+                r.DaysUntilDue
+            } as dynamic).ToList());
     }
 
-    private async Task<List<dynamic>> GetLutTrackingAsync(DateTime today, int lutTrackingDays, List<Animal> animals)
+    private async Task<List<dynamic>> GetLutTrackingAsync(DateTime today, int lutTrackingDays, Dictionary<int, string> animalNameDict)
     {
         return await (from lut in _context.LutalyseEvents.AsNoTracking()
              where lut.AdministrationDate.Date >= today.AddDays(-lutTrackingDays)
@@ -137,33 +153,36 @@ public class DashboardService
              {
                  lut.LutalyseEventId,
                  lut.AnimalId,
-                 AnimalName = animals.Where(a => a.AnimalId == lut.AnimalId)
-                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
-                     .FirstOrDefault() ?? $"Animal {lut.AnimalId}",
                  lut.AdministrationDate,
                  lut.ExpectedHeatWatchEnd,
                  lut.HeatObserved,
                  DaysTracked = (today - lut.AdministrationDate.Date).Days,
                  DaysRemaining = (lut.ExpectedHeatWatchEnd.Date - today).Days
              })
-            .Cast<dynamic>()
-            .ToListAsync();
+            .ToListAsync()
+            .ContinueWith(t => t.Result.Select(r => new
+            {
+                r.LutalyseEventId,
+                r.AnimalId,
+                AnimalName = animalNameDict.ContainsKey(r.AnimalId) ? animalNameDict[r.AnimalId] : $"Animal {r.AnimalId}",
+                r.AdministrationDate,
+                r.ExpectedHeatWatchEnd,
+                r.HeatObserved,
+                r.DaysTracked,
+                r.DaysRemaining
+            } as dynamic).ToList());
     }
 
-    private async Task<List<dynamic>> GetEmbryoImplantsAsync(DateTime today, int embryoTrackingDays, List<Animal> animals)
+    private async Task<List<dynamic>> GetEmbryoImplantsAsync(DateTime today, int embryoTrackingDays, Dictionary<int, string> animalNameDict)
     {
         return await (from heat in _context.HeatEvents.AsNoTracking()
-             where heat.HasEmbryoTransfer == true
-                   && heat.HeatDateTime.Date >= today.AddDays(-embryoTrackingDays)
+             where heat.HasEmbryoTransfer && heat.HeatDateTime.Date >= today.AddDays(-embryoTrackingDays)
                    && heat.HeatDateTime.Date <= today
              orderby heat.HeatDateTime descending
              select new
              {
                  heat.HeatEventId,
                  heat.AnimalId,
-                 AnimalName = animals.Where(a => a.AnimalId == heat.AnimalId)
-                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
-                     .FirstOrDefault() ?? $"Animal {heat.AnimalId}",
                  heat.HeatDateTime,
                  heat.EmbryoImplantDate,
                  DaysTracked = (today - heat.HeatDateTime.Date).Days,
@@ -171,11 +190,20 @@ public class DashboardService
                      ? (heat.EmbryoImplantDate.Value.Date - today).Days
                      : embryoTrackingDays - (today - heat.HeatDateTime.Date).Days
              })
-            .Cast<dynamic>()
-            .ToListAsync();
+            .ToListAsync()
+            .ContinueWith(t => t.Result.Select(r => new
+            {
+                r.HeatEventId,
+                r.AnimalId,
+                AnimalName = animalNameDict.ContainsKey(r.AnimalId) ? animalNameDict[r.AnimalId] : $"Animal {r.AnimalId}",
+                r.HeatDateTime,
+                r.EmbryoImplantDate,
+                r.DaysTracked,
+                r.DaysUntilImplant
+            } as dynamic).ToList());
     }
 
-    private async Task<List<dynamic>> GetRecentHeatsAsync(List<Animal> animals)
+    private async Task<List<dynamic>> GetRecentHeatsAsync(Dictionary<int, string> animalNameDict)
     {
         return await (from heat in _context.HeatEvents.AsNoTracking()
              orderby heat.HeatDateTime descending
@@ -183,18 +211,22 @@ public class DashboardService
              {
                  heat.HeatEventId,
                  heat.AnimalId,
-                 AnimalName = animals.Where(a => a.AnimalId == heat.AnimalId)
-                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
-                     .FirstOrDefault() ?? $"Animal {heat.AnimalId}",
                  heat.HeatDateTime,
                  heat.Notes
              })
             .Take(10)
-            .Cast<dynamic>()
-            .ToListAsync();
+            .ToListAsync()
+            .ContinueWith(t => t.Result.Select(r => new
+            {
+                r.HeatEventId,
+                r.AnimalId,
+                AnimalName = animalNameDict.ContainsKey(r.AnimalId) ? animalNameDict[r.AnimalId] : $"Animal {r.AnimalId}",
+                r.HeatDateTime,
+                r.Notes
+            } as dynamic).ToList());
     }
 
-    private async Task<List<dynamic>> GetRecentBreedingsAsync(DateTime today, List<Animal> animals)
+    private async Task<List<dynamic>> GetRecentBreedingsAsync(DateTime today, Dictionary<int, string> animalNameDict)
     {
         return await (from breeding in _context.BreedingEvents.AsNoTracking()
              where breeding.BreedingDate >= today.AddDays(-45)
@@ -204,9 +236,6 @@ public class DashboardService
              {
                  breeding.BreedingEventId,
                  breeding.AnimalId,
-                 AnimalName = animals.Where(a => a.AnimalId == breeding.AnimalId)
-                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
-                     .FirstOrDefault() ?? $"Animal {breeding.AnimalId}",
                  breeding.BreedingDate,
                  breeding.SireUsed,
                  breeding.BreedingType,
@@ -215,8 +244,19 @@ public class DashboardService
                  breeding.ExpectedDueDate
              })
             .Take(10)
-            .Cast<dynamic>()
-            .ToListAsync();
+            .ToListAsync()
+            .ContinueWith(t => t.Result.Select(r => new
+            {
+                r.BreedingEventId,
+                r.AnimalId,
+                AnimalName = animalNameDict.ContainsKey(r.AnimalId) ? animalNameDict[r.AnimalId] : $"Animal {r.AnimalId}",
+                r.BreedingDate,
+                r.SireUsed,
+                r.BreedingType,
+                r.PregnancyStatus,
+                r.PregnancyCheckDueDate,
+                r.ExpectedDueDate
+            } as dynamic).ToList());
     }
 
     private object BuildDashboardResponse(

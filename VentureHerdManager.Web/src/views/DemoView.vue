@@ -43,6 +43,11 @@ async function launchDemo(withReset: boolean) {
         hand, keep every event in order, and see what needs to happen next.
       </p>
 
+      <div class="photo-strip" aria-label="Venture Holsteins">
+        <img src="/Palace_heifer.jpg" alt="Venture Holsteins heifer in the show ring">
+        <img src="/Seashell_cow.jpg" alt="Venture Holsteins cow in the show ring">
+      </div>
+
       <ul class="feature-list">
         <li>One shared animal record for everyone</li>
         <li>Automatic alerts for work coming due</li>
@@ -99,17 +104,45 @@ async function launchDemo(withReset: boolean) {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  position: relative;
+  background:
+    linear-gradient(rgba(10, 28, 17, 0.74), rgba(10, 28, 17, 0.88)),
+    url('/candid.jpg') center / cover fixed;
 }
 
 .launch-card {
-  background: #fff;
-  border: 1px solid #d5dde4;
+  position: relative;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-top: 5px solid #31572c;
   border-radius: 12px;
   padding: 40px 48px;
   max-width: 520px;
   width: 100%;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.photo-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 22px;
+}
+
+.photo-strip img {
+  width: 100%;
+  height: 112px;
+  display: block;
+  object-fit: cover;
+  border-radius: 7px;
+}
+
+.photo-strip img:first-child {
+  object-position: center 42%;
+}
+
+.photo-strip img:last-child {
+  object-position: center 48%;
 }
 
 .demo-tag {
@@ -251,6 +284,10 @@ h1 {
 
   .demo-promise {
     font-size: clamp(2rem, 12vw, 2.75rem);
+  }
+
+  .photo-strip img {
+    height: 90px;
   }
 }
 </style>

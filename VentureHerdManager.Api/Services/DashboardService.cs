@@ -15,7 +15,7 @@ public class DashboardService
         _classificationService = classificationService;
     }
 
-    public object GetDashboard()
+    public async Task<object> GetDashboardAsync()
     {
         var today = DateTime.Today;
         var pregnancyCheckCutoff = today.AddDays(30);
@@ -24,19 +24,35 @@ public class DashboardService
         var embryoTrackingDays = 7;
 
         // Get active animals
-        var animals = _context.Animals
+        var animals = await _context.Animals
             .AsNoTracking()
             .Where(animal => animal.AnimalStatus == AnimalStatus.Active)
-            .ToList();
+            .ToListAsync();
 
         var milkingCowIds = animals
             .Where(a => a.AnimalStage == AnimalStage.Milking)
             .Select(a => a.AnimalId)
             .ToList();
 
-        // Get latest classifications for milking cows
-        var milkingClassifications = _classificationService.GetLatestClassificationsForAnimals(milkingCowIds);
-        
+        // Run all independent queries in parallel
+        var task1 = GetPregChecksDueAsync(today, pregnancyCheckCutoff, animals);
+        var task2 = GetDueSoonAsync(today, dueSoonCutoff, animals);
+        var task3 = GetLutTrackingAsync(today, lutTrackingDays, animals);
+        var task4 = GetEmbryoImplantsAsync(today, embryoTrackingDays, animals);
+        var task5 = GetRecentHeatsAsync(animals);
+        var task6 = GetRecentBreedingsAsync(today, animals);
+        var task7 = _classificationService.GetLatestClassificationsForAnimalsAsync(milkingCowIds);
+
+        await Task.WhenAll(task1, task2, task3, task4, task5, task6, task7);
+
+        var pregChecksDue = task1.Result;
+        var dueSoon = task2.Result;
+        var lutTracking = task3.Result;
+        var embryoImplants = task4.Result;
+        var recentHeats = task5.Result;
+        var recentBreedings = task6.Result;
+        var milkingClassifications = task7.Result;
+
         var scoredMilkingScores = milkingClassifications
             .Where(c => c.Score.HasValue)
             .Select(c => c.Score.Value)
@@ -47,7 +63,6 @@ public class DashboardService
             .Select(c => c.Baa.Value)
             .ToList();
 
-        // Calculate excellent 2nd lactation+ for milking cows with scores
         var milkingWith2ndLacAndScores = animals
             .Where(a => a.AnimalStage == AnimalStage.Milking && a.CurrentLactation >= 2)
             .Where(a => milkingClassifications.Any(c => c.Score.HasValue))
@@ -57,10 +72,12 @@ public class DashboardService
             ? (milkingClassifications.Count(c => c.Score >= 90) * 100m) / milkingWith2ndLacAndScores.Count
             : 0m;
 
-        var pregChecksDue =
-            (from breeding in _context.BreedingEvents.AsNoTracking()
-             join animal in _context.Animals.AsNoTracking()
-                 on breeding.AnimalId equals animal.AnimalId
+        return BuildDashboardResponse(animals, pregChecksDue, dueSoon, lutTracking, embryoImplants, recentHeats, recentBreedings, scoredMilkingScores, scoredMilkingBaas, excellent2ndLacCount);
+    }
+
+    private async Task<List<dynamic>> GetPregChecksDueAsync(DateTime today, DateTime pregnancyCheckCutoff, List<Animal> animals)
+    {
+        return await (from breeding in _context.BreedingEvents.AsNoTracking()
              where
                  (
                      breeding.PregnancyStatus == PregnancyStatus.Unconfirmed ||
@@ -73,29 +90,23 @@ public class DashboardService
              {
                  breeding.BreedingEventId,
                  breeding.AnimalId,
-
-                 AnimalName =
-                     animal.BarnName
-                     ?? animal.RegisteredName
-                     ?? $"Animal {animal.AnimalId}",
-
+                 AnimalName = animals.Where(a => a.AnimalId == breeding.AnimalId)
+                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
+                     .FirstOrDefault() ?? $"Animal {breeding.AnimalId}",
                  breeding.SireUsed,
                  breeding.BreedingDate,
                  breeding.PregnancyCheckDueDate,
                  breeding.PregnancyStatus,
-
-                 DaysUntilCheck =
-                     (breeding.PregnancyCheckDueDate.Value.Date - today).Days,
-
-                 IsOverdue =
-                     breeding.PregnancyCheckDueDate.Value.Date < today
+                 DaysUntilCheck = (breeding.PregnancyCheckDueDate.Value.Date - today).Days,
+                 IsOverdue = breeding.PregnancyCheckDueDate.Value.Date < today
              })
-            .ToList();
+            .Cast<dynamic>()
+            .ToListAsync();
+    }
 
-        var dueSoon =
-            (from breeding in _context.BreedingEvents.AsNoTracking()
-             join animal in _context.Animals.AsNoTracking()
-                 on breeding.AnimalId equals animal.AnimalId
+    private async Task<List<dynamic>> GetDueSoonAsync(DateTime today, DateTime dueSoonCutoff, List<Animal> animals)
+    {
+        return await (from breeding in _context.BreedingEvents.AsNoTracking()
              where breeding.PregnancyStatus == PregnancyStatus.Pregnant
                    && breeding.ExpectedDueDate.HasValue
                    && breeding.ExpectedDueDate.Value.Date >= today
@@ -105,109 +116,87 @@ public class DashboardService
              {
                  breeding.BreedingEventId,
                  breeding.AnimalId,
-
-                 AnimalName =
-                     animal.BarnName
-                     ?? animal.RegisteredName
-                     ?? $"Animal {animal.AnimalId}",
-
+                 AnimalName = animals.Where(a => a.AnimalId == breeding.AnimalId)
+                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
+                     .FirstOrDefault() ?? $"Animal {breeding.AnimalId}",
                  breeding.SireUsed,
                  breeding.ExpectedDueDate,
-
-                 DaysUntilDue =
-                     breeding.ExpectedDueDate.HasValue ? 
-                     (breeding.ExpectedDueDate.Value.Date - today).Days : 
-                     int.MaxValue
+                 DaysUntilDue = breeding.ExpectedDueDate.HasValue ? (breeding.ExpectedDueDate.Value.Date - today).Days : int.MaxValue
              })
-            .ToList();
+            .Cast<dynamic>()
+            .ToListAsync();
+    }
 
-        var lutTracking =
-            (from lut in _context.LutalyseEvents.AsNoTracking()
-             join animal in _context.Animals.AsNoTracking()
-                 on lut.AnimalId equals animal.AnimalId
+    private async Task<List<dynamic>> GetLutTrackingAsync(DateTime today, int lutTrackingDays, List<Animal> animals)
+    {
+        return await (from lut in _context.LutalyseEvents.AsNoTracking()
              where lut.AdministrationDate.Date >= today.AddDays(-lutTrackingDays)
                    && lut.AdministrationDate.Date <= today
-                   && animal.AnimalStatus == AnimalStatus.Active
              orderby lut.AdministrationDate descending
              select new
              {
                  lut.LutalyseEventId,
                  lut.AnimalId,
-
-                 AnimalName =
-                     animal.BarnName
-                     ?? animal.RegisteredName
-                     ?? $"Animal {animal.AnimalId}",
-
+                 AnimalName = animals.Where(a => a.AnimalId == lut.AnimalId)
+                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
+                     .FirstOrDefault() ?? $"Animal {lut.AnimalId}",
                  lut.AdministrationDate,
                  lut.ExpectedHeatWatchEnd,
                  lut.HeatObserved,
-
-                 DaysTracked =
-                     (today - lut.AdministrationDate.Date).Days,
-
-                 DaysRemaining =
-                     (lut.ExpectedHeatWatchEnd.Date - today).Days
+                 DaysTracked = (today - lut.AdministrationDate.Date).Days,
+                 DaysRemaining = (lut.ExpectedHeatWatchEnd.Date - today).Days
              })
-            .ToList();
+            .Cast<dynamic>()
+            .ToListAsync();
+    }
 
-        var embryoImplants =
-            (from heat in _context.HeatEvents.AsNoTracking()
-             join animal in _context.Animals.AsNoTracking()
-                 on heat.AnimalId equals animal.AnimalId
+    private async Task<List<dynamic>> GetEmbryoImplantsAsync(DateTime today, int embryoTrackingDays, List<Animal> animals)
+    {
+        return await (from heat in _context.HeatEvents.AsNoTracking()
              where heat.HasEmbryoTransfer == true
                    && heat.HeatDateTime.Date >= today.AddDays(-embryoTrackingDays)
                    && heat.HeatDateTime.Date <= today
-                   && animal.AnimalStatus == AnimalStatus.Active
              orderby heat.HeatDateTime descending
              select new
              {
                  heat.HeatEventId,
                  heat.AnimalId,
-
-                 AnimalName =
-                     animal.BarnName
-                     ?? animal.RegisteredName
-                     ?? $"Animal {animal.AnimalId}",
-
+                 AnimalName = animals.Where(a => a.AnimalId == heat.AnimalId)
+                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
+                     .FirstOrDefault() ?? $"Animal {heat.AnimalId}",
                  heat.HeatDateTime,
                  heat.EmbryoImplantDate,
-
-                 DaysTracked =
-                     (today - heat.HeatDateTime.Date).Days,
-
-                 DaysUntilImplant =
-                     (heat.EmbryoImplantDate.HasValue
-                         ? (heat.EmbryoImplantDate.Value.Date - today).Days
-                         : embryoTrackingDays - (today - heat.HeatDateTime.Date).Days)
+                 DaysTracked = (today - heat.HeatDateTime.Date).Days,
+                 DaysUntilImplant = heat.EmbryoImplantDate.HasValue
+                     ? (heat.EmbryoImplantDate.Value.Date - today).Days
+                     : embryoTrackingDays - (today - heat.HeatDateTime.Date).Days
              })
-            .ToList();
+            .Cast<dynamic>()
+            .ToListAsync();
+    }
 
-        var recentHeats =
-            (from heat in _context.HeatEvents.AsNoTracking()
-             join animal in _context.Animals.AsNoTracking()
-                 on heat.AnimalId equals animal.AnimalId
+    private async Task<List<dynamic>> GetRecentHeatsAsync(List<Animal> animals)
+    {
+        return await (from heat in _context.HeatEvents.AsNoTracking()
              orderby heat.HeatDateTime descending
              select new
              {
                  heat.HeatEventId,
                  heat.AnimalId,
-
-                 AnimalName =
-                     animal.BarnName
-                     ?? animal.RegisteredName
-                     ?? $"Animal {animal.AnimalId}",
-
+                 AnimalName = animals.Where(a => a.AnimalId == heat.AnimalId)
+                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
+                     .FirstOrDefault() ?? $"Animal {heat.AnimalId}",
                  heat.HeatDateTime,
                  heat.Notes
              })
             .Take(10)
-            .ToList();
+            .Cast<dynamic>()
+            .ToListAsync();
+    }
 
-        var recentBreedings =
-            (from breeding in _context.BreedingEvents.AsNoTracking()
-             join animal in _context.Animals.AsNoTracking()
-                 on breeding.AnimalId equals animal.AnimalId
+    private async Task<List<dynamic>> GetRecentBreedingsAsync(DateTime today, List<Animal> animals)
+    {
+        return await (from breeding in _context.BreedingEvents.AsNoTracking()
              where breeding.BreedingDate >= today.AddDays(-45)
                    && breeding.BreedingDate <= today
              orderby breeding.BreedingDate descending
@@ -215,12 +204,9 @@ public class DashboardService
              {
                  breeding.BreedingEventId,
                  breeding.AnimalId,
-
-                 AnimalName =
-                     animal.BarnName
-                     ?? animal.RegisteredName
-                     ?? $"Animal {animal.AnimalId}",
-
+                 AnimalName = animals.Where(a => a.AnimalId == breeding.AnimalId)
+                     .Select(a => a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}")
+                     .FirstOrDefault() ?? $"Animal {breeding.AnimalId}",
                  breeding.BreedingDate,
                  breeding.SireUsed,
                  breeding.BreedingType,
@@ -229,50 +215,41 @@ public class DashboardService
                  breeding.ExpectedDueDate
              })
             .Take(10)
-            .ToList();
+            .Cast<dynamic>()
+            .ToListAsync();
+    }
 
+    private object BuildDashboardResponse(
+        List<Animal> animals,
+        List<dynamic> pregChecksDue,
+        List<dynamic> dueSoon,
+        List<dynamic> lutTracking,
+        List<dynamic> embryoImplants,
+        List<dynamic> recentHeats,
+        List<dynamic> recentBreedings,
+        List<decimal> scoredMilkingScores,
+        List<decimal> scoredMilkingBaas,
+        decimal excellent2ndLacCount)
+    {
         return new
         {
             TotalAnimals = animals.Count,
-
             Milking = animals.Count(a => a.AnimalStage == AnimalStage.Milking),
-
-            Dry = animals.Count(a =>
-                a.AnimalStage == AnimalStage.Dry),
-
-            Heifers = animals.Count(a =>
-                a.AnimalStage == AnimalStage.Heifer),
-
-            Calves = animals.Count(a =>
-                a.AnimalStage == AnimalStage.Calf),
-
-            Bulls = animals.Count(a =>
-                a.AnimalStage == AnimalStage.Bull),
-
+            Dry = animals.Count(a => a.AnimalStage == AnimalStage.Dry),
+            Heifers = animals.Count(a => a.AnimalStage == AnimalStage.Heifer),
+            Calves = animals.Count(a => a.AnimalStage == AnimalStage.Calf),
+            Bulls = animals.Count(a => a.AnimalStage == AnimalStage.Bull),
             PregChecksDueCount = pregChecksDue.Count,
-
-            OverduePregChecksCount =
-                pregChecksDue.Count(item => item.IsOverdue),
-
-            UpcomingPregChecksCount =
-                pregChecksDue.Count(item => !item.IsOverdue),
-
+            OverduePregChecksCount = pregChecksDue.Where(item => item.IsOverdue == true).Count(),
+            UpcomingPregChecksCount = pregChecksDue.Where(item => item.IsOverdue == false).Count(),
             DueSoonCount = dueSoon.Count,
-
             LutTrackingCount = lutTracking.Count,
-
             EmbryoImplantsCount = embryoImplants.Count,
-
             HerdScoreAverage = CalculateHerdAverageExcludingBottom10(scoredMilkingScores),
-
             HerdBaaAverage = CalculateHerdAverageExcludingBottom10(scoredMilkingBaas),
-
-            AnimalsWithScore = milkingClassifications.Count(c => c.Score.HasValue),
-
+            AnimalsWithScore = scoredMilkingScores.Count,
             AnimalsWithBaa = scoredMilkingBaas.Count,
-
             PercentExcellent2ndLactationOrHigher = excellent2ndLacCount,
-
             PregChecksDue = pregChecksDue,
             DueSoon = dueSoon,
             LutTracking = lutTracking,

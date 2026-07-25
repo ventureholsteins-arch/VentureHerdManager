@@ -71,6 +71,8 @@ async function openDemoFast() {
       <span>Powered by <strong>Venture Ag Marketing</strong></span>
       <span class="footer-sep">·</span>
       <span>Custom Application Solutions</span>
+      <span class="footer-sep">·</span>
+      <span>&copy; {{ new Date().getFullYear() }} All Rights Reserved</span>
     </footer>
   </div>
 </template>

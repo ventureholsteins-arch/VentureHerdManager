@@ -135,4 +135,34 @@ public class ClassificationService
             ClassificationDate = cr.ClassificationDate
         }).ToList();
     }
+
+    public async Task<List<CurrentClassificationDto>> GetLatestClassificationsForAnimalsAsync(List<int> animalIds)
+    {
+        if (!animalIds.Any())
+            return new List<CurrentClassificationDto>();
+
+        // Materialize to client first, then group
+        var records = await _context.ClassificationRecords
+            .AsNoTracking()
+            .Where(cr => animalIds.Contains(cr.AnimalId))
+            .ToListAsync();
+
+        var latest = records
+            .GroupBy(cr => cr.AnimalId)
+            .Select(g => g
+                .OrderByDescending(cr => cr.ClassificationDate ?? DateTime.MinValue)
+                .ThenByDescending(cr => cr.CreatedAt)
+                .ThenByDescending(cr => cr.ClassificationRecordId)
+                .First())
+            .ToList();
+
+        return latest.Select(cr => new CurrentClassificationDto
+        {
+            AnimalId = cr.AnimalId,
+            Score = cr.Score,
+            Baa = cr.Baa,
+            Label = ScoreClassification.GetGradeLabel(cr.Score),
+            ClassificationDate = cr.ClassificationDate
+        }).ToList();
+    }
 }

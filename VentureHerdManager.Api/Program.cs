@@ -11,17 +11,29 @@ builder.Services.AddControllers();
 
 // Database
 var isDemoMode = builder.Configuration.GetValue<bool>("DemoMode:Enabled");
-var connectionString = isDemoMode 
-    ? (builder.Configuration["ConnectionStrings__DemoConnection"]
-        ?? builder.Configuration.GetConnectionString("DemoConnection")
-        ?? builder.Configuration["ConnectionStrings:DemoConnection"])
-    : (builder.Configuration["ConnectionStrings__DefaultConnection"]
-        ?? builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? builder.Configuration["ConnectionStrings:DefaultConnection"]);
+var defaultConnectionString =
+    builder.Configuration["ConnectionStrings__DefaultConnection"]
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? builder.Configuration["ConnectionStrings:DefaultConnection"];
+
+var demoConnectionString =
+    builder.Configuration["ConnectionStrings__DemoConnection"]
+    ?? builder.Configuration.GetConnectionString("DemoConnection")
+    ?? builder.Configuration["ConnectionStrings:DemoConnection"];
+
+// Safety rule:
+// - Always prefer DefaultConnection for production and normal operation.
+// - Only use DemoConnection when DemoMode is enabled AND DemoConnection is explicitly configured.
+var connectionString =
+    isDemoMode && !string.IsNullOrWhiteSpace(demoConnectionString)
+        ? demoConnectionString
+        : defaultConnectionString;
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    connectionString = "Server=localhost;Database=VentureHerdManager;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
+    throw new InvalidOperationException(
+        "No database connection string configured. Set ConnectionStrings__DefaultConnection (or ConnectionStrings:DefaultConnection). " +
+        "For demo mode, also configure ConnectionStrings__DemoConnection.");
 }
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -51,6 +63,8 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 "http://localhost:5173",
+                "http://localhost:5174",
+                "http://localhost:5175",
                 "https://ashy-sand-0956e200f.azurestaticapps.net",
                 "https://delightful-sky-0c402ac0f.7.azurestaticapps.net"
             )

@@ -41,6 +41,10 @@ async function handleDemoReset() {
     demoResetting.value = false
   }
 }
+
+async function openDemoFast() {
+  window.location.href = '/'
+}
 </script>
 
 <template>
@@ -48,10 +52,15 @@ async function handleDemoReset() {
     <div class="app-background" />
 
     <div v-if="isDemoOnly" class="demo-banner">
-      <span>{{ demoResetEnabled ? 'DEMO MODE - data resets on each launch' : 'DEMO MODE - running without API reset' }}</span>
-      <button type="button" :disabled="demoResetting" @click="handleDemoReset">
-        {{ demoResetting ? 'Opening...' : (demoResetEnabled ? 'Reset Demo' : 'Open Demo') }}
-      </button>
+      <span>{{ demoResetEnabled ? 'DEMO MODE - open instantly or reset for fresh seed data' : 'DEMO MODE - running without API reset' }}</span>
+      <div class="demo-actions">
+        <button type="button" class="secondary" :disabled="demoResetting" @click="openDemoFast">
+          Open Fast
+        </button>
+        <button type="button" :disabled="demoResetting || !demoResetEnabled" @click="handleDemoReset">
+          {{ demoResetting ? 'Resetting...' : 'Reset Demo' }}
+        </button>
+      </div>
     </div>
 
     <div class="app-content">
@@ -110,6 +119,15 @@ async function handleDemoReset() {
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+.demo-banner .demo-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.demo-banner button.secondary {
+  background: rgba(5, 10, 18, 0.42);
 }
 
 .demo-banner button:hover:not(:disabled) {

@@ -1,19 +1,51 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { resetDemo } from '../api/demo'
+import {
+  getDemoStatus,
+  resetDemo,
+  type DemoStatusResponse
+} from '../api/demo'
 
 const router = useRouter()
 const loading = ref(false)
 const error = ref<string | null>(null)
+const loadingStatus = ref(false)
+const demoStatus = ref<DemoStatusResponse | null>(null)
 const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
 
-async function launchDemo() {
+const stageSummary = computed(() => {
+  if (!demoStatus.value) {
+    return 'Loading stage counts...'
+  }
+
+  if (!demoStatus.value.stageCounts.length) {
+    return 'No stage data yet.'
+  }
+
+  return demoStatus.value.stageCounts
+    .map(item => `${item.stage}: ${item.count}`)
+    .join(' · ')
+})
+
+async function loadStatus() {
+  loadingStatus.value = true
+
+  try {
+    demoStatus.value = await getDemoStatus()
+  } catch (err) {
+    console.warn('Failed to load demo status:', err)
+  } finally {
+    loadingStatus.value = false
+  }
+}
+
+async function launchDemo(withReset: boolean) {
   loading.value = true
   error.value = null
 
   try {
-    if (demoResetEnabled) {
+    if (withReset && demoResetEnabled) {
       await resetDemo()
     }
     sessionStorage.setItem('demo-launched', 'true')
@@ -27,6 +59,10 @@ async function launchDemo() {
     loading.value = false
   }
 }
+
+onMounted(async () => {
+  await loadStatus()
+})
 </script>
 
 <template>
@@ -36,8 +72,34 @@ async function launchDemo() {
       <h1>Venture Herd Manager</h1>
       <p class="subtitle">
         See the real app in action with a pre-loaded herd of demo animals.
-        Demo data is reset fresh each time.
+        You can launch instantly, or reset first for a fresh sample set.
       </p>
+
+      <div class="status-box">
+        <p class="status-title">Demo Data Snapshot</p>
+        <p v-if="loadingStatus" class="status-line">Loading demo stats...</p>
+
+        <template v-else-if="demoStatus">
+          <p class="status-line">
+            Animals: <strong>{{ demoStatus.counts.animals }}</strong>
+            · Active: <strong>{{ demoStatus.counts.activeAnimals }}</strong>
+            · Heats: <strong>{{ demoStatus.counts.heats }}</strong>
+            · Breedings: <strong>{{ demoStatus.counts.breedings }}</strong>
+          </p>
+          <p class="status-line">
+            Calvings: <strong>{{ demoStatus.counts.calvings }}</strong>
+            · LUT: <strong>{{ demoStatus.counts.lutalyseEvents }}</strong>
+            · Notes: <strong>{{ demoStatus.counts.notes }}</strong>
+            · Photos: <strong>{{ demoStatus.counts.photos }}</strong>
+          </p>
+          <p class="status-line stage-line">{{ stageSummary }}</p>
+          <ul class="preview-list">
+            <li v-for="item in demoStatus.previewAnimals" :key="item.animalId">
+              {{ item.name }} · {{ item.stage }} · {{ item.breed || 'Unknown breed' }}
+            </li>
+          </ul>
+        </template>
+      </div>
 
       <ul class="feature-list">
         <li>Dashboard with upcoming due dates &amp; LUT tracking</li>
@@ -48,14 +110,27 @@ async function launchDemo() {
 
       <p v-if="error" class="error-msg">{{ error }}</p>
 
-      <button
-        class="launch-btn"
-        type="button"
-        :disabled="loading"
-        @click="launchDemo"
-      >
-        {{ loading ? 'Loading demo data...' : 'Launch Demo' }}
-      </button>
+      <div class="launch-buttons">
+        <button
+          class="launch-btn secondary"
+          type="button"
+          :disabled="loading"
+          @click="launchDemo(false)"
+        >
+          {{ loading ? 'Launching...' : 'Launch Instantly' }}
+        </button>
+
+        <button
+          class="launch-btn"
+          type="button"
+          :disabled="loading || !demoResetEnabled"
+          @click="launchDemo(true)"
+        >
+          {{ loading ? 'Resetting demo data...' : 'Reset Then Launch' }}
+        </button>
+      </div>
+
+      <p class="hint">Reset launch is slower because it refreshes all demo seed data.</p>
 
       <p class="powered-by">Powered by Venture Ag Marketing Custom Application Solutions</p>
     </div>
@@ -109,6 +184,46 @@ h1 {
   line-height: 1.8;
 }
 
+.status-box {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid #dbe5de;
+  border-radius: 8px;
+  background: #f7fbf8;
+}
+
+.status-title {
+  margin: 0 0 8px;
+  font-weight: 800;
+  color: #254520;
+}
+
+.status-line {
+  margin: 0 0 6px;
+  color: #304050;
+  font-size: 0.92rem;
+}
+
+.stage-line {
+  color: #3f5b47;
+}
+
+.preview-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #425466;
+}
+
+.preview-list li {
+  margin: 2px 0;
+  font-size: 0.9rem;
+}
+
+.launch-buttons {
+  display: grid;
+  gap: 10px;
+}
+
 .error-msg {
   margin: 0 0 16px;
   padding: 10px 14px;
@@ -132,6 +247,14 @@ h1 {
   transition: background 0.15s;
 }
 
+.launch-btn.secondary {
+  background: #0f172a;
+}
+
+.launch-btn.secondary:hover:not(:disabled) {
+  background: #1e293b;
+}
+
 .launch-btn:hover:not(:disabled) {
   background: #264822;
 }
@@ -147,5 +270,11 @@ h1 {
   font-size: 0.75rem;
   color: #8a9ba8;
   letter-spacing: 0.01em;
+}
+
+.hint {
+  margin: 8px 0 0;
+  color: #5f6c7b;
+  font-size: 0.85rem;
 }
 </style>

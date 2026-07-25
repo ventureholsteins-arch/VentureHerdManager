@@ -54,33 +54,35 @@ public class DemoController : ControllerBase
             return guardResult;
         }
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(cancellationToken);
 
-        // Disable FK constraints to allow deletion
-        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] NOCHECK CONSTRAINT ALL", cancellationToken);
-        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] NOCHECK CONSTRAINT ALL", cancellationToken);
+            // Disable FK constraints to allow deletion
+            await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] NOCHECK CONSTRAINT ALL", cancellationToken);
+            await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] NOCHECK CONSTRAINT ALL", cancellationToken);
 
-        await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
-        await _context.AnimalProductionSnapshots.ExecuteDeleteAsync(cancellationToken);
-        await _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken);
-        await _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken);
-        await _context.HeatEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.BreedingEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.DryOffEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.LutalyseEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.CalvingEvents.ExecuteDeleteAsync(cancellationToken);
+            await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
+            await _context.AnimalProductionSnapshots.ExecuteDeleteAsync(cancellationToken);
+            await _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken);
+            await _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken);
+            await _context.HeatEvents.ExecuteDeleteAsync(cancellationToken);
+            await _context.BreedingEvents.ExecuteDeleteAsync(cancellationToken);
+            await _context.DryOffEvents.ExecuteDeleteAsync(cancellationToken);
+            await _context.LutalyseEvents.ExecuteDeleteAsync(cancellationToken);
+            await _context.CalvingEvents.ExecuteDeleteAsync(cancellationToken);
 
-        await _context.Animals.ExecuteUpdateAsync(
-            setters => setters
-                .SetProperty(a => a.DamId, (int?)null)
-                .SetProperty(a => a.SireId, (int?)null),
-            cancellationToken);
+            await _context.Animals.ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(a => a.DamId, (int?)null)
+                    .SetProperty(a => a.SireId, (int?)null),
+                cancellationToken);
 
-        await _context.Animals.ExecuteDeleteAsync(cancellationToken);
+            await _context.Animals.ExecuteDeleteAsync(cancellationToken);
 
-        var utcNow = DateTime.UtcNow;
-        var seedUser = "DemoSeeder";
+            var utcNow = DateTime.UtcNow;
+            var seedUser = "DemoSeeder";
 
         var demoAnimals = new List<Animal>
         {
@@ -362,21 +364,29 @@ public class DemoController : ControllerBase
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Re-enable FK constraints
-        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] CHECK CONSTRAINT ALL", cancellationToken);
-        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] CHECK CONSTRAINT ALL", cancellationToken);
+            // Re-enable FK constraints
+            await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] CHECK CONSTRAINT ALL", cancellationToken);
+            await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] CHECK CONSTRAINT ALL", cancellationToken);
 
-        await transaction.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
-        return Ok(new DemoSeedResult
+            return Ok(new DemoSeedResult
+            {
+                Message = "Demo data reset and seeded.",
+                Animals = await _context.Animals.CountAsync(cancellationToken),
+                HeatEvents = await _context.HeatEvents.CountAsync(cancellationToken),
+                BreedingEvents = await _context.BreedingEvents.CountAsync(cancellationToken),
+                CalvingEvents = await _context.CalvingEvents.CountAsync(cancellationToken),
+                LutalyseEvents = await _context.LutalyseEvents.CountAsync(cancellationToken)
+            });
+        }
+        catch (Exception ex)
         {
-            Message = "Demo data reset and seeded.",
-            Animals = await _context.Animals.CountAsync(cancellationToken),
-            HeatEvents = await _context.HeatEvents.CountAsync(cancellationToken),
-            BreedingEvents = await _context.BreedingEvents.CountAsync(cancellationToken),
-            CalvingEvents = await _context.CalvingEvents.CountAsync(cancellationToken),
-            LutalyseEvents = await _context.LutalyseEvents.CountAsync(cancellationToken)
-        });
+            return StatusCode(500, new DemoSeedResult
+            {
+                Message = $"Error resetting demo data: {ex.Message}"
+            });
+        }
     }
 
     private ActionResult<DemoSeedResult>? ValidateDemoAccess(string? providedKey)

@@ -101,6 +101,9 @@ public class Animal
     public ICollection<AnimalPhoto> Photos { get; set; } =
         new List<AnimalPhoto>();
 
+    public ICollection<ShowAchievement> ShowAchievements { get; set; } =
+        new List<ShowAchievement>();
+
     [NotMapped]
     public string DisplayName =>
         !string.IsNullOrWhiteSpace(BarnName)

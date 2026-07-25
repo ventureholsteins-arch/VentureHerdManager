@@ -33,6 +33,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<AppearanceSetting> AppearanceSettings =>
         Set<AppearanceSetting>();
 
+    public DbSet<EmbryoRecord> EmbryoRecords => Set<EmbryoRecord>();
+
+    public DbSet<ShowAchievement> ShowAchievements => Set<ShowAchievement>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -47,6 +51,8 @@ public class ApplicationDbContext : DbContext
         ConfigureLutalyseEvent(modelBuilder);
         ConfigureAnimalPhoto(modelBuilder);
         ConfigureAppearanceSetting(modelBuilder);
+        ConfigureEmbryoRecord(modelBuilder);
+        ConfigureShowAchievement(modelBuilder);
     }
 
     private static void ConfigureAnimal(ModelBuilder modelBuilder)
@@ -371,6 +377,49 @@ public class ApplicationDbContext : DbContext
             .HasPrecision(4, 2);
 
         entity.Property(setting => setting.UpdatedAt)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+    }
+
+    private static void ConfigureEmbryoRecord(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<EmbryoRecord>();
+
+        entity.HasKey(e => e.EmbryoRecordId);
+
+        entity.HasOne(e => e.RecipientAnimal)
+            .WithMany()
+            .HasForeignKey(e => e.RecipientAnimalId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        entity.HasIndex(e => e.Status);
+        entity.HasIndex(e => e.RecipientAnimalId);
+
+        entity.Property(e => e.CreatedAt)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        entity.Property(e => e.UpdatedAt)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+    }
+
+    private static void ConfigureShowAchievement(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<ShowAchievement>();
+
+        entity.HasKey(a => a.ShowAchievementId);
+
+        entity.HasOne(a => a.Animal)
+            .WithMany(animal => animal.ShowAchievements)
+            .HasForeignKey(a => a.AnimalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasIndex(a => a.AnimalId);
+        entity.HasIndex(a => a.ShowDate);
+        entity.HasIndex(a => new { a.AnimalId, a.ShowDate });
+
+        entity.Property(a => a.CreatedAt)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        entity.Property(a => a.UpdatedAt)
             .HasDefaultValueSql("SYSUTCDATETIME()");
     }
 }

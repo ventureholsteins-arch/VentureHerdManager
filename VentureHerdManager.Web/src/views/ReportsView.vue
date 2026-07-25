@@ -156,6 +156,33 @@ const showStringBrowseAnimals = computed(() => {
 })
 
 const showStringSorted = computed(() => [...showStringRows.value].sort((a, b) => a.lineupOrder - b.lineupOrder))
+
+// Split lineup into Cows (stage 3/4 or show class has "Cow") and Heifers/Youngstock
+const showStringCows = computed(() =>
+  showStringSorted.value.filter(row => {
+    if (!row.animalId) return false
+    const a = animals.value.find(x => x.animalId === row.animalId)
+    if (!a) return false
+    return a.animalStage === 3 || a.animalStage === 4 ||
+      getShowClassLabel(a.birthDate, a.animalStage).includes('Cow') ||
+      getShowClassLabel(a.birthDate, a.animalStage).includes('Year-Old')
+  })
+)
+
+const showStringYoungstock = computed(() =>
+  showStringSorted.value.filter(row => {
+    if (!row.animalId) return false
+    const a = animals.value.find(x => x.animalId === row.animalId)
+    if (!a) return false
+    return a.animalStage === 1 || a.animalStage === 2 ||
+      getShowClassLabel(a.birthDate, a.animalStage).includes('Heifer') ||
+      getShowClassLabel(a.birthDate, a.animalStage).includes('Calf')
+  })
+)
+
+const showStringUnassigned = computed(() =>
+  showStringSorted.value.filter(row => !row.animalId)
+)
 const embryosActive = computed(() => embryoRecords.value.filter(e => e.status !== 'Failed'))
 const embryosFailed = computed(() => embryoRecords.value.filter(e => e.status === 'Failed'))
 
@@ -164,6 +191,13 @@ function getAnimalLabel(animalId: number | null): string {
   const a = animals.value.find(x => x.animalId === animalId)
   if (!a) return `Animal #${animalId}`
   return `${a.barnName || a.registeredName || `#${a.animalId}`} · ${formatCurrentAge(a.birthDate)} · ${getShowClassLabel(a.birthDate, a.animalStage)}`
+}
+
+function getScoreLabel(score: number | null | undefined): string {
+  if (!score) return ''
+  if (score >= 90) return `EX ${Math.round(score)}`
+  if (score >= 85) return `VG ${Math.round(score)}`
+  return `GP ${Math.round(score)}`
 }
 
 function filteredListAnimals(list: AnimalGroupList): Animal[] {
@@ -338,19 +372,96 @@ onMounted(async () => {
       <div v-if="showStringSorted.length > 0" class="lineup-label">Lineup ({{ showStringSorted.length }})</div>
       <div v-else class="rp-empty">Use the browser above or "+ Blank Row" to build your lineup.</div>
 
-      <div v-for="row in showStringSorted" :key="row.id" class="rp-row-card">
-        <label>Order #<input v-model.number="row.lineupOrder" type="number" min="1"></label>
-        <label>Animal
-          <select v-model.number="row.animalId">
-            <option :value="null">— Unassigned —</option>
-            <option v-for="a in animalOptions" :key="a.animalId" :value="a.animalId">{{ getAnimalLabel(a.animalId) }}</option>
-          </select>
-        </label>
-        <label class="rp-full">Feed Ration<input v-model="row.feedRation" type="text" placeholder="8 lbs grain, 20 lbs hay, top dress X…"></label>
-        <label class="rp-full">Feed Notes<textarea v-model="row.feedNotes" rows="2" placeholder="Show-week schedule, timing, special instructions" /></label>
-        <label class="rp-full">Ring Directions<textarea v-model="row.ringDirections" rows="2" placeholder="Clipping notes, lead side, prep cues, blanketing" /></label>
-        <button type="button" class="rp-danger" @click="removeShowStringRow(row.id)">Remove</button>
-      </div>
+      <!-- Section: Cows -->
+      <template v-if="showStringCows.length > 0">
+        <div class="lineup-section-hd">
+          <span class="lineup-section-icon">🐄</span>
+          Cows <span class="lineup-section-ct">{{ showStringCows.length }}</span>
+        </div>
+        <div v-for="(row, idx) in showStringCows" :key="row.id" class="lineup-card">
+          <div class="lineup-pos">{{ idx + 1 }}</div>
+          <div class="lineup-main">
+            <div class="lineup-name">
+              {{ row.animalId ? (animals.find(a => a.animalId === row.animalId)?.barnName || animals.find(a => a.animalId === row.animalId)?.registeredName || `#${row.animalId}`) : '—' }}
+              <button type="button" class="lineup-remove" @click="removeShowStringRow(row.id)" title="Remove">✕</button>
+            </div>
+            <div class="lineup-meta-row">
+              <span class="lineup-class-pill">{{ row.animalId ? getShowClassLabel(animals.find(a => a.animalId === row.animalId)?.birthDate, animals.find(a => a.animalId === row.animalId)?.animalStage) : '' }}</span>
+              <span class="lineup-age" v-if="row.animalId">{{ formatCurrentAge(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
+              <span class="lineup-score" v-if="animals.find(a => a.animalId === row.animalId)?.latestScore">{{ getScoreLabel(animals.find(a => a.animalId === row.animalId)?.latestScore) }}</span>
+            </div>
+            <div class="lineup-notes-row">
+              <div class="lineup-note-block">
+                <span class="lineup-note-lbl">Feed Ration</span>
+                <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X…" />
+              </div>
+              <div class="lineup-note-block">
+                <span class="lineup-note-lbl">Feed Schedule / Notes</span>
+                <textarea v-model="row.feedNotes" rows="2" class="lineup-textarea" placeholder="Show-week timing, special instructions" />
+              </div>
+              <div class="lineup-note-block">
+                <span class="lineup-note-lbl">Ring Directions</span>
+                <textarea v-model="row.ringDirections" rows="2" class="lineup-textarea" placeholder="Lead side, clipping cues, prep notes, blanketing" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Section: Heifers & Youngstock -->
+      <template v-if="showStringYoungstock.length > 0">
+        <div class="lineup-section-hd">
+          <span class="lineup-section-icon">🌱</span>
+          Heifers &amp; Youngstock <span class="lineup-section-ct">{{ showStringYoungstock.length }}</span>
+        </div>
+        <div v-for="(row, idx) in showStringYoungstock" :key="row.id" class="lineup-card">
+          <div class="lineup-pos heifer-pos">{{ idx + 1 }}</div>
+          <div class="lineup-main">
+            <div class="lineup-name">
+              {{ row.animalId ? (animals.find(a => a.animalId === row.animalId)?.barnName || animals.find(a => a.animalId === row.animalId)?.registeredName || `#${row.animalId}`) : '—' }}
+              <button type="button" class="lineup-remove" @click="removeShowStringRow(row.id)" title="Remove">✕</button>
+            </div>
+            <div class="lineup-meta-row">
+              <span class="lineup-class-pill heifer-pill">{{ row.animalId ? getShowClassLabel(animals.find(a => a.animalId === row.animalId)?.birthDate, animals.find(a => a.animalId === row.animalId)?.animalStage) : '' }}</span>
+              <span class="lineup-age" v-if="row.animalId">{{ formatCurrentAge(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
+            </div>
+            <div class="lineup-notes-row">
+              <div class="lineup-note-block">
+                <span class="lineup-note-lbl">Feed Ration</span>
+                <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X…" />
+              </div>
+              <div class="lineup-note-block">
+                <span class="lineup-note-lbl">Feed Schedule / Notes</span>
+                <textarea v-model="row.feedNotes" rows="2" class="lineup-textarea" placeholder="Show-week timing, special instructions" />
+              </div>
+              <div class="lineup-note-block">
+                <span class="lineup-note-lbl">Ring Directions</span>
+                <textarea v-model="row.ringDirections" rows="2" class="lineup-textarea" placeholder="Lead side, clipping cues, prep notes, blanketing" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Unassigned / blank rows -->
+      <template v-if="showStringUnassigned.length > 0">
+        <div class="lineup-section-hd">
+          <span class="lineup-section-icon">📌</span>
+          Unassigned Slots <span class="lineup-section-ct">{{ showStringUnassigned.length }}</span>
+        </div>
+        <div v-for="row in showStringUnassigned" :key="row.id" class="lineup-card lineup-card-empty">
+          <div class="lineup-pos empty-pos">?</div>
+          <div class="lineup-main">
+            <label class="lineup-note-lbl" style="margin-bottom:6px">Animal
+              <select v-model.number="row.animalId" class="lineup-input" style="min-height:42px;margin-top:4px">
+                <option :value="null">— Select animal —</option>
+                <option v-for="a in animalOptions" :key="a.animalId" :value="a.animalId">{{ getAnimalLabel(a.animalId) }}</option>
+              </select>
+            </label>
+            <button type="button" class="lineup-remove" style="margin-top:8px" @click="removeShowStringRow(row.id)">✕ Remove</button>
+          </div>
+        </div>
+      </template>
     </section>
 
     <!-- HERD LISTS -->
@@ -496,6 +607,210 @@ textarea { min-height: 72px; resize: vertical; }
 .add-str-btn:hover { background: #254520; }
 .in-str-tag { font-size: 0.78rem; font-weight: 800; color: #166534; flex-shrink: 0; }
 .lineup-label { font-weight: 900; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: #5d6f63; margin: 6px 0 8px; }
+
+/* ── Lineup cards ── */
+.lineup-section-hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #f0f7f1;
+  border-left: 4px solid #31572c;
+  border-radius: 6px;
+  margin: 18px 0 10px;
+  font-weight: 900;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0f2318;
+}
+
+.lineup-section-icon { font-size: 1.1rem; }
+
+.lineup-section-ct {
+  margin-left: auto;
+  background: #31572c;
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 0.75rem;
+}
+
+.lineup-card {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #e0e8e1;
+  border-radius: 10px;
+  background: #fff;
+  margin: 8px 0;
+  align-items: flex-start;
+}
+
+.lineup-card-empty {
+  background: #fafbfa;
+  border-style: dashed;
+}
+
+.lineup-pos {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #31572c;
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heifer-pos {
+  background: #6d28d9;
+}
+
+.empty-pos {
+  background: #9ca3af;
+  font-size: 1.2rem;
+}
+
+.lineup-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.lineup-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #0f1f16;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.lineup-remove {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: #dc2626;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.lineup-remove:hover { background: #fee2e2; }
+
+.lineup-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.lineup-class-pill {
+  background: #dcfce7;
+  color: #14532d;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.heifer-pill {
+  background: #ede9fe;
+  color: #4c1d95;
+}
+
+.lineup-age {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #5d6f63;
+}
+
+.lineup-score {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #d97706;
+  background: #fef3c7;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.lineup-notes-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.lineup-note-block {
+  display: grid;
+  gap: 4px;
+}
+
+.lineup-note-lbl {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8a9b8e;
+}
+
+.lineup-input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #e0e8e1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #f8fbf8;
+  color: #0f1f16;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.lineup-input:focus {
+  outline: none;
+  border-color: #31572c;
+  background: #fff;
+}
+
+.lineup-textarea {
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid #e0e8e1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #f8fbf8;
+  color: #0f1f16;
+  box-sizing: border-box;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+
+.lineup-textarea:focus {
+  outline: none;
+  border-color: #31572c;
+  background: #fff;
+}
+
+.lineup-input::placeholder,
+.lineup-textarea::placeholder { color: #b4c2b8; }
+
+@media (max-width: 700px) {
+  .lineup-notes-row {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* herd lists */
 .rp-group { border: 1px solid #e0e8e1; border-radius: 10px; padding: 16px; margin: 12px 0; background: #f8fbf8; }

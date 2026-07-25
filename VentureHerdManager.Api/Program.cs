@@ -220,6 +220,76 @@ static async Task InitializeDatabaseAsync(WebApplication app)
         Console.WriteLine($"Database migration warning: {ex.Message}");
     }
 
+    // ── ShowAchievements table ────────────────────────────────────────────────
+    try
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            @"IF OBJECT_ID(N'dbo.ShowAchievements', N'U') IS NULL
+              BEGIN
+                CREATE TABLE [ShowAchievements] (
+                    [ShowAchievementId] INT NOT NULL IDENTITY(1,1) PRIMARY KEY,
+                    [AnimalId]          INT NOT NULL,
+                    [ShowName]          NVARCHAR(400) NULL,
+                    [ShowDate]          DATE NULL,
+                    [Bagged]            NVARCHAR(500) NULL,
+                    [Placed]            NVARCHAR(500) NULL,
+                    [Notes]             NVARCHAR(2000) NULL,
+                    [CreatedBy]         NVARCHAR(200) NULL,
+                    [UpdatedBy]         NVARCHAR(200) NULL,
+                    [CreatedAt]         DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                    [UpdatedAt]         DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                    CONSTRAINT [FK_ShowAchievements_Animals]
+                        FOREIGN KEY ([AnimalId]) REFERENCES [Animals]([AnimalId])
+                        ON DELETE CASCADE
+                );
+                CREATE INDEX [IX_ShowAchievements_AnimalId]  ON [ShowAchievements]([AnimalId]);
+                CREATE INDEX [IX_ShowAchievements_ShowDate]  ON [ShowAchievements]([ShowDate]);
+              END");
+        Console.WriteLine("ShowAchievements table ensured.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"ShowAchievements table warning: {ex.Message}");
+    }
+
+    // ── EmbryoRecords table ───────────────────────────────────────────────────
+    try
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            @"IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NULL
+              BEGIN
+                CREATE TABLE [EmbryoRecords] (
+                    [EmbryoRecordId]        INT NOT NULL IDENTITY(1,1) PRIMARY KEY,
+                    [Code]                  NVARCHAR(200) NULL,
+                    [Sire]                  NVARCHAR(200) NULL,
+                    [Donor]                 NVARCHAR(200) NULL,
+                    [Grade]                 NVARCHAR(100) NULL,
+                    [Status]                INT NOT NULL DEFAULT 0,
+                    [RecipientAnimalId]     INT NULL,
+                    [ImplantDate]           DATE NULL,
+                    [LinkedBreedingNote]    NVARCHAR(500) NULL,
+                    [FailureNotes]          NVARCHAR(2000) NULL,
+                    [Notes]                 NVARCHAR(2000) NULL,
+                    [CollectionLocation]    NVARCHAR(200) NULL,
+                    [StorageLocation]       NVARCHAR(200) NULL,
+                    [CreatedBy]             NVARCHAR(200) NULL,
+                    [UpdatedBy]             NVARCHAR(200) NULL,
+                    [CreatedAt]             DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                    [UpdatedAt]             DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                    CONSTRAINT [FK_EmbryoRecords_Animals]
+                        FOREIGN KEY ([RecipientAnimalId]) REFERENCES [Animals]([AnimalId])
+                        ON DELETE SET NULL
+                );
+                CREATE INDEX [IX_EmbryoRecords_Status]              ON [EmbryoRecords]([Status]);
+                CREATE INDEX [IX_EmbryoRecords_RecipientAnimalId]   ON [EmbryoRecords]([RecipientAnimalId]);
+              END");
+        Console.WriteLine("EmbryoRecords table ensured.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"EmbryoRecords table warning: {ex.Message}");
+    }
+
     try
     {
         // Ensure LutalyseEvents table exists and has all required columns

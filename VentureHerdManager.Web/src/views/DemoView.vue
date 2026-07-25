@@ -43,11 +43,6 @@ async function launchDemo(withReset: boolean) {
         shared place—built around the way a crew actually works.
       </p>
 
-      <div class="photo-strip" aria-label="Venture Holsteins">
-        <img src="/Palace_heifer.jpg" alt="Venture Holsteins heifer in the show ring">
-        <img src="/Seashell_cow.jpg" alt="Venture Holsteins cow in the show ring">
-      </div>
-
       <div class="capability-row" aria-label="Demo features">
         <span>Animal records</span>
         <span>Breeding &amp; embryos</span>
@@ -111,29 +106,6 @@ async function launchDemo(withReset: boolean) {
   max-width: 520px;
   width: 100%;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-}
-
-.photo-strip {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin: 0 0 22px;
-}
-
-.photo-strip img {
-  width: 100%;
-  height: 112px;
-  display: block;
-  object-fit: cover;
-  border-radius: 7px;
-}
-
-.photo-strip img:first-child {
-  object-position: center 42%;
-}
-
-.photo-strip img:last-child {
-  object-position: center 48%;
 }
 
 .demo-tag {
@@ -272,8 +244,5 @@ h1 {
     font-size: clamp(1.85rem, 8.5vw, 2.4rem);
   }
 
-  .photo-strip img {
-    height: 90px;
-  }
 }
 </style>

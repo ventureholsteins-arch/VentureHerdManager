@@ -457,16 +457,16 @@ onMounted(async () => {
   margin: 0 auto;
   padding: 0 0 60px;
   font-family: 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif;
-  background: #0d1117;
+  background: #f5f7f2;
   min-height: 100vh;
 }
 
 /* ── Hero header ── */
 .hero {
   position: relative;
-  background: linear-gradient(135deg, #0d1f14 0%, #142b1c 60%, #1a3522 100%);
+  background: linear-gradient(135deg, #0f2318 0%, #1a3d22 60%, #244f2f 100%);
   padding: 22px 24px 18px;
-  border-bottom: 3px solid #22c55e;
+  border-bottom: 3px solid #31572c;
 }
 
 .hero-top {
@@ -517,8 +517,8 @@ onMounted(async () => {
   display: flex;
   overflow-x: auto;
   gap: 0;
-  background: #111820;
-  border-bottom: 2px solid #1e2a22;
+  background: #fff;
+  border-bottom: 2px solid #e0e8e1;
   padding: 0 16px;
 }
 
@@ -529,10 +529,10 @@ onMounted(async () => {
   border: none;
   border-bottom: 3px solid transparent;
   background: transparent;
-  color: #8a9ba8;
+  color: #5d6f63;
   font-weight: 800;
   font-size: 0.82rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 14px 18px 11px;
   cursor: pointer;
@@ -541,19 +541,19 @@ onMounted(async () => {
 }
 
 .tabs button:hover {
-  color: #e2e8f0;
+  color: #0f1f16;
 }
 
 .tabs button.active {
-  color: #22c55e;
-  border-bottom-color: #22c55e;
+  color: #31572c;
+  border-bottom-color: #31572c;
 }
 
 /* ── Panel wrapper ── */
 .panel {
   margin: 20px 16px;
-  background: #141c1a;
-  border: 1px solid #1e2d24;
+  background: #fff;
+  border: 1px solid #d9e3dc;
   border-radius: 12px;
   padding: 20px;
 }
@@ -566,13 +566,13 @@ onMounted(async () => {
   gap: 12px;
   margin-bottom: 18px;
   padding-bottom: 14px;
-  border-bottom: 1px solid #1e2d24;
+  border-bottom: 1px solid #e0e8e1;
 }
 
 .panel-header h2 {
   margin: 0;
-  color: #f0faf3;
-  font-size: 1.15rem;
+  color: #0f1f16;
+  font-size: 1.1rem;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -581,8 +581,8 @@ onMounted(async () => {
 .panel-header button,
 .add-btn {
   border: none;
-  background: #22c55e;
-  color: #071207;
+  background: #31572c;
+  color: #fff;
   border-radius: 6px;
   min-height: 38px;
   padding: 0 14px;
@@ -595,14 +595,14 @@ onMounted(async () => {
 
 .panel-header button:hover,
 .add-btn:hover {
-  background: #16a34a;
+  background: #254520;
 }
 
 /* ── Row card (show string / embryo / achievement) ── */
 .row-card {
-  background: #0d1117;
-  border: 1px solid #1e2d24;
-  border-left: 3px solid #22c55e;
+  background: #f8fbf8;
+  border: 1px solid #e0e8e1;
+  border-left: 3px solid #31572c;
   border-radius: 8px;
   padding: 16px;
   margin: 10px 0;
@@ -629,8 +629,8 @@ onMounted(async () => {
 
 /* ── Group card (herd lists) ── */
 .group-card {
-  background: #0d1117;
-  border: 1px solid #1e2d24;
+  background: #f8fbf8;
+  border: 1px solid #e0e8e1;
   border-radius: 8px;
   padding: 16px;
   margin: 12px 0;
@@ -638,7 +638,7 @@ onMounted(async () => {
 
 .group-card h3 {
   margin: 0 0 12px;
-  color: #22c55e;
+  color: #31572c;
   font-size: 0.8rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -649,7 +649,7 @@ onMounted(async () => {
 label {
   display: grid;
   gap: 6px;
-  color: #8fa898;
+  color: #5d6f63;
   font-weight: 700;
   font-size: 0.8rem;
   letter-spacing: 0.06em;
@@ -660,13 +660,13 @@ input,
 select,
 textarea {
   min-height: 44px;
-  border: 1px solid #253328;
+  border: 1px solid #c8d4cb;
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 0.98rem;
   font-family: inherit;
-  background: #141c1a;
-  color: #e2e8f0;
+  background: #fff;
+  color: #0f1f16;
   transition: border-color 0.15s;
 }
 
@@ -674,12 +674,13 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: #22c55e;
+  border-color: #31572c;
+  box-shadow: 0 0 0 3px rgba(49, 87, 44, 0.1);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #3d5448;
+  color: #9caba2;
 }
 
 textarea {
@@ -696,10 +697,10 @@ textarea {
 }
 
 .chip {
-  border: 1px solid #253328;
+  border: 1px solid #c8d4cb;
   border-radius: 999px;
-  background: #141c1a;
-  color: #8fa898;
+  background: #fff;
+  color: #5d6f63;
   min-height: 34px;
   padding: 0 14px;
   font-weight: 700;
@@ -709,14 +710,14 @@ textarea {
 }
 
 .chip:hover {
-  border-color: #22c55e;
-  color: #e2e8f0;
+  border-color: #31572c;
+  color: #0f1f16;
 }
 
 .chip.selected {
-  border-color: #22c55e;
-  background: #14331e;
-  color: #22c55e;
+  border-color: #31572c;
+  background: #e8f5ea;
+  color: #17331f;
   font-weight: 900;
 }
 
@@ -733,35 +734,35 @@ textarea {
   gap: 10px;
   padding: 6px 8px;
   border-radius: 6px;
-  background: #0d1117;
-  border: 1px solid #1e2d24;
+  background: #f8fbf8;
+  border: 1px solid #e0e8e1;
 }
 
 .check-item input[type='checkbox'] {
   width: 20px;
   height: 20px;
   margin: 0;
-  accent-color: #22c55e;
+  accent-color: #31572c;
 }
 
 .check-item input[type='text'] {
   min-height: 40px;
   border: none;
   background: transparent;
-  color: #e2e8f0;
+  color: #0f1f16;
 }
 
 .check-item input[type='text']:focus {
   outline: none;
-  border-bottom: 1px solid #22c55e;
+  border-bottom: 1px solid #31572c;
   border-radius: 0;
 }
 
 /* ── Danger button ── */
 .danger {
-  border: 1px solid #7f1d1d;
-  background: transparent;
-  color: #f87171;
+  border: 1px solid #fca5a5;
+  background: #fff1f2;
+  color: #991b1b;
   border-radius: 6px;
   min-height: 36px;
   padding: 0 12px;
@@ -774,22 +775,22 @@ textarea {
 }
 
 .danger:hover {
-  background: #7f1d1d;
-  color: #fff;
+  background: #fee2e2;
+  border-color: #f87171;
 }
 
 /* ── Empty / hint ── */
 .empty {
-  border: 1px dashed #253328;
+  border: 1px dashed #c8d4cb;
   border-radius: 8px;
   padding: 24px;
-  color: #3d5448;
+  color: #8a9b8e;
   text-align: center;
   font-size: 0.92rem;
 }
 
 .hint {
-  color: #5a7266;
+  color: #5d6f63;
   margin: 0 0 14px;
   font-size: 0.87rem;
   line-height: 1.5;

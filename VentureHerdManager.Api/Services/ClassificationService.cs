@@ -21,6 +21,7 @@ public class ClassificationService
             .AsNoTracking()
             .Where(cr => cr.AnimalId == animalId && cr.ClassificationDate.HasValue)
             .OrderByDescending(cr => cr.ClassificationDate)
+            .ThenByDescending(cr => cr.CreatedAt)
             .ThenByDescending(cr => cr.ClassificationRecordId)
             .FirstOrDefault();
     }
@@ -53,6 +54,29 @@ public class ClassificationService
 
     public ClassificationRecord AddClassification(ClassificationRecord record)
     {
+        // Duplicate protection: check if a record already exists with same animal, score, and date
+        if (record.ClassificationDate.HasValue)
+        {
+            var existingRecord = _context.ClassificationRecords
+                .FirstOrDefault(cr =>
+                    cr.AnimalId == record.AnimalId &&
+                    cr.Score == record.Score &&
+                    cr.ClassificationDate == record.ClassificationDate);
+
+            if (existingRecord != null)
+            {
+                // Update existing record instead of creating duplicate
+                existingRecord.Baa = record.Baa ?? existingRecord.Baa;
+                existingRecord.ClassificationLabel = record.ClassificationLabel ?? existingRecord.ClassificationLabel;
+                existingRecord.Notes = record.Notes ?? existingRecord.Notes;
+                existingRecord.AgeInMonthsAtScoring = record.AgeInMonthsAtScoring ?? existingRecord.AgeInMonthsAtScoring;
+                existingRecord.UpdatedAt = DateTime.UtcNow;
+                existingRecord.UpdatedBy = record.UpdatedBy;
+                _context.SaveChanges();
+                return existingRecord;
+            }
+        }
+
         record.CreatedAt = DateTime.UtcNow;
         _context.ClassificationRecords.Add(record);
         _context.SaveChanges();
@@ -80,9 +104,13 @@ public class ClassificationService
 
     /// <summary>
     /// Get latest classifications for multiple milking cows
+    /// Returns exactly ONE record per animal, ordered by most recent
     /// </summary>
     public List<CurrentClassificationDto> GetLatestClassificationsForAnimals(List<int> animalIds)
     {
+        if (!animalIds.Any())
+            return new List<CurrentClassificationDto>();
+
         // Materialize to client first, then group - LINQ-to-SQL can't handle complex grouping
         var records = _context.ClassificationRecords
             .AsNoTracking()
@@ -91,7 +119,9 @@ public class ClassificationService
 
         var latest = records
             .GroupBy(cr => cr.AnimalId)
-            .Select(g => g.OrderByDescending(cr => cr.ClassificationDate ?? DateTime.MinValue)
+            .Select(g => g
+                .OrderByDescending(cr => cr.ClassificationDate ?? DateTime.MinValue)
+                .ThenByDescending(cr => cr.CreatedAt)
                 .ThenByDescending(cr => cr.ClassificationRecordId)
                 .First())
             .ToList();

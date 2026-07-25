@@ -51,6 +51,8 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 "http://localhost:5173",
+                "http://localhost:5174",
+                "http://localhost:5175",
                 "https://ashy-sand-0956e200f.azurestaticapps.net",
                 "https://delightful-sky-0c402ac0f.7.azurestaticapps.net"
             )

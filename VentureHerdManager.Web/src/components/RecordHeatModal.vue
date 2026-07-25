@@ -88,7 +88,7 @@ const openModal = async () => {
   isOpen.value = true
   // Load animals list
   try {
-    const response = await fetch('/api/Animals')
+    const response = await fetch(`${API_BASE}/Animals`)
     if (response.ok) {
       animals.value = await response.json()
     }

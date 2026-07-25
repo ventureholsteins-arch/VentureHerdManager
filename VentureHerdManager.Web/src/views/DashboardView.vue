@@ -265,6 +265,7 @@ const onRecordLUT = async (data: any) => {
 const openEditModal = (animal: Animal) => {
   selectedAnimalForEdit.value = animal
   editAnimalModalRef.value?.openModal()
+  await nextTick()
 }
 
 // Handle saving edited animal

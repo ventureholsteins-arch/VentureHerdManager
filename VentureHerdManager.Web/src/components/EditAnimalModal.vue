@@ -193,21 +193,27 @@ const closeModal = () => {
 }
 
 const handleSubmit = async () => {
-  if (!props.animal) return
+  const populateFormData = (animal: Animal) => {
+    formData.value = {
+      barnName: animal.barnName || '',
+      registeredName: animal.registeredName || '',
+      breed: animal.breed || '',
+      sireName: animal.sireName || '',
+      currentLactation: animal.currentLactation || null,
+      notes: animal.notes || '',
+      isFavorite: animal.isFavorite || false,
+      scoreValue: animal.latestScore || null,
+      baa: animal.latestBaa || null,
+      classificationNotes: ''
+    }
+  }
 
-  isSaving.value = true
-  try {
-    const updatedAnimal = await updateAnimal(props.animal.animalId, {
-      barnName: formData.value.barnName || null,
-      registeredName: formData.value.registeredName || null,
-      breed: formData.value.breed || null,
-      sireName: formData.value.sireName || null,
-      currentLactation: formData.value.currentLactation,
-      notes: formData.value.notes || null,
-      isFavorite: formData.value.isFavorite
-    })
+  const openModal = () => {
+    if (!props.animal) return
 
-    // If a score was provided, save the classification
+    populateFormData(props.animal)
+    isOpen.value = true
+  }
     if (formData.value.scoreValue !== null && formData.value.scoreValue !== undefined) {
       await addClassification({
         animalId: props.animal.animalId,

@@ -57,6 +57,10 @@ public class DemoController : ControllerBase
         await using var transaction =
             await _context.Database.BeginTransactionAsync(cancellationToken);
 
+        // Disable FK constraints to allow deletion
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] NOCHECK CONSTRAINT ALL", cancellationToken);
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] NOCHECK CONSTRAINT ALL", cancellationToken);
+
         await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
         await _context.AnimalProductionSnapshots.ExecuteDeleteAsync(cancellationToken);
         await _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken);
@@ -357,6 +361,11 @@ public class DemoController : ControllerBase
             });
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Re-enable FK constraints
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] CHECK CONSTRAINT ALL", cancellationToken);
+        await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] CHECK CONSTRAINT ALL", cancellationToken);
+
         await transaction.CommitAsync(cancellationToken);
 
         return Ok(new DemoSeedResult

@@ -16,7 +16,7 @@ jobs:
         uses: Azure/static-web-apps-deploy@v1
         env:
           VITE_DEMO_ONLY: "true"
-          VITE_API_URL: "https://Demo-API-123.azurewebsites.net/api"
+          VITE_API_URL: "https://ventureherdmanager-api-gkgscwf2e6dte8dg.centralus-01.azurewebsites.net/api"
           VITE_DEMO_RESET_ENABLED: "false"
           VITE_DEMO_KEY: ${{ secrets.DEMO_SEED_KEY }}
         with:

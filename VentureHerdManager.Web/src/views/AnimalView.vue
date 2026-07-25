@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
-import { getAnimal } from '../api/animals'
+import { getAnimal, setAnimalFavorite } from '../api/animals'
 import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
@@ -73,8 +73,43 @@ const dryOffEvents = ref<DryOffEvent[]>([])
 const lutEvents = ref<LutalyseEvent[]>([])
 const animalNotes = ref<AnimalNote[]>([])
 const timelineEntries = ref<AnimalTimelineEntry[]>([])
+const timelineExpanded = ref(false)
+const visibleTimelineEntries = computed(() =>
+  timelineExpanded.value
+    ? timelineEntries.value
+    : timelineEntries.value.slice(0, 6)
+)
+const expandedHistories = ref<Record<string, boolean>>({})
+
+function visibleHistory<T>(items: T[], history: string): T[] {
+  return expandedHistories.value[history] ? items : items.slice(0, 6)
+}
+
+function toggleHistory(history: string) {
+  expandedHistories.value = {
+    ...expandedHistories.value,
+    [history]: !expandedHistories.value[history]
+  }
+}
 
 const loading = ref(true)
+const savingFavorite = ref(false)
+
+async function toggleFavorite() {
+  if (!animal.value || savingFavorite.value) return
+
+  savingFavorite.value = true
+  try {
+    animal.value = await setAnimalFavorite(
+      animal.value.animalId,
+      !animal.value.isFavorite
+    )
+  } catch (error) {
+    console.error('Failed to update favorite:', error)
+  } finally {
+    savingFavorite.value = false
+  }
+}
 
 const showHeatForm = ref(false)
 const heatNotes = ref('')
@@ -793,6 +828,16 @@ const scoreLabel = computed(() => {
             Reg #: {{ animal.registrationNumber || 'None' }}
           </small>
         </div>
+
+        <button
+          type="button"
+          class="favorite-button"
+          :class="{ active: animal.isFavorite }"
+          :disabled="savingFavorite"
+          @click="toggleFavorite"
+        >
+          {{ animal.isFavorite ? '★ Favorited' : '☆ Add to Favorites' }}
+        </button>
       </section>
 
       <section class="info-grid">
@@ -1239,7 +1284,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="entry in timelineEntries"
+          v-for="entry in visibleTimelineEntries"
           :key="`${entry.eventType}-${entry.eventId}`"
           class="timeline-card"
         >
@@ -1266,6 +1311,15 @@ const scoreLabel = computed(() => {
             alt="Timeline photo"
           >
         </div>
+
+        <button
+          v-if="timelineEntries.length > 6"
+          type="button"
+          class="timeline-toggle"
+          @click="timelineExpanded = !timelineExpanded"
+        >
+          {{ timelineExpanded ? 'Show Less' : `Show More (${timelineEntries.length - 6})` }}
+        </button>
       </section>
 
       <section class="panel">
@@ -1283,7 +1337,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="calving in calvingEvents"
+          v-for="calving in visibleHistory(calvingEvents, 'calvings')"
           :key="calving.calvingEventId"
           class="timeline-card"
         >
@@ -1335,6 +1389,15 @@ const scoreLabel = computed(() => {
             {{ calving.notes }}
           </p>
         </div>
+
+        <button
+          v-if="calvingEvents.length > 6"
+          type="button"
+          class="timeline-toggle"
+          @click="toggleHistory('calvings')"
+        >
+          {{ expandedHistories.calvings ? 'Show Less' : `Show More (${calvingEvents.length - 6})` }}
+        </button>
       </section>
 
       <section class="panel">
@@ -1352,7 +1415,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="dry in dryOffEvents"
+          v-for="dry in visibleHistory(dryOffEvents, 'dryOffs')"
           :key="dry.dryOffEventId"
           class="timeline-card"
         >
@@ -1376,6 +1439,15 @@ const scoreLabel = computed(() => {
             {{ dry.notes }}
           </p>
         </div>
+
+        <button
+          v-if="dryOffEvents.length > 6"
+          type="button"
+          class="timeline-toggle"
+          @click="toggleHistory('dryOffs')"
+        >
+          {{ expandedHistories.dryOffs ? 'Show Less' : `Show More (${dryOffEvents.length - 6})` }}
+        </button>
       </section>
 
       <section class="panel">
@@ -1393,7 +1465,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="breeding in breedingEvents"
+          v-for="breeding in visibleHistory(breedingEvents, 'breedings')"
           :key="breeding.breedingEventId"
           class="timeline-card"
         >
@@ -1448,6 +1520,15 @@ const scoreLabel = computed(() => {
             {{ breeding.notes }}
           </p>
         </div>
+
+        <button
+          v-if="breedingEvents.length > 6"
+          type="button"
+          class="timeline-toggle"
+          @click="toggleHistory('breedings')"
+        >
+          {{ expandedHistories.breedings ? 'Show Less' : `Show More (${breedingEvents.length - 6})` }}
+        </button>
       </section>
 
       <section class="panel">
@@ -1465,7 +1546,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="lut in lutEvents"
+          v-for="lut in visibleHistory(lutEvents, 'lut')"
           :key="lut.lutalyseEventId"
           class="timeline-card"
         >
@@ -1497,6 +1578,15 @@ const scoreLabel = computed(() => {
             {{ lut.notes }}
           </p>
         </div>
+
+        <button
+          v-if="lutEvents.length > 6"
+          type="button"
+          class="timeline-toggle"
+          @click="toggleHistory('lut')"
+        >
+          {{ expandedHistories.lut ? 'Show Less' : `Show More (${lutEvents.length - 6})` }}
+        </button>
       </section>
 
       <section class="panel">
@@ -1514,7 +1604,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="heat in heatEvents"
+          v-for="heat in visibleHistory(heatEvents, 'heats')"
           :key="heat.heatEventId"
           class="timeline-card"
         >
@@ -1543,6 +1633,15 @@ const scoreLabel = computed(() => {
             {{ heat.notes || 'No notes' }}
           </p>
         </div>
+
+        <button
+          v-if="heatEvents.length > 6"
+          type="button"
+          class="timeline-toggle"
+          @click="toggleHistory('heats')"
+        >
+          {{ expandedHistories.heats ? 'Show Less' : `Show More (${heatEvents.length - 6})` }}
+        </button>
       </section>
     </div>
   </div>
@@ -1624,6 +1723,29 @@ const scoreLabel = computed(() => {
 .hero p {
   margin: 6px 0;
   color: #64748b;
+}
+
+.favorite-button {
+  margin-left: auto;
+  padding: 10px 14px;
+  border: 1px solid #b8c5ba;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #31572c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.favorite-button.active {
+  border-color: #d9a514;
+  background: #fff8dc;
+  color: #795b00;
+}
+
+.favorite-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 
 .info-grid {
@@ -1776,6 +1898,22 @@ const scoreLabel = computed(() => {
   background: linear-gradient(180deg, #f8fafc, #f1f5f9);
 }
 
+.timeline-toggle {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #31572c;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #31572c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timeline-toggle:hover {
+  background: #f3f7f1;
+}
+
 .timeline-actions {
   position: absolute;
   top: 10px;
@@ -1883,6 +2021,15 @@ const scoreLabel = computed(() => {
 
   .hero h1 {
     font-size: 32px;
+  }
+
+  .hero {
+    flex-wrap: wrap;
+  }
+
+  .favorite-button {
+    width: 100%;
+    margin-left: 0;
   }
 }
 </style>

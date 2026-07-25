@@ -146,10 +146,10 @@ public class AnalyticsController : ControllerBase
             .ToListAsync(cancellationToken))
             .Select(x => new MonthCount(x.Year, x.Month, x.Count)).ToList();
 
-        // Get monthly embryos that resulted in pregnancy (EmbryoRecords in Implanted status)
+        // Get monthly embryos with a confirmed pregnancy outcome.
         var successfulPregnancies = (await _context.EmbryoRecords
             .AsNoTracking()
-            .Where(e => e.Status == EmbryoStatus.Implanted && e.ImplantDate.HasValue)
+            .Where(e => e.Status == EmbryoStatus.Successful && e.ImplantDate.HasValue)
             .GroupBy(e => new { e.ImplantDate!.Value.Year, e.ImplantDate!.Value.Month })
             .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
             .ToListAsync(cancellationToken))

@@ -209,6 +209,34 @@ const selectedDateTitle = computed(() => {
   })
 })
 
+const selectedWeekDays = computed<CalendarDay[]>(() => {
+  if (!selectedDay.value) return []
+
+  const start = new Date(selectedDay.value.date)
+  start.setDate(start.getDate() - start.getDay())
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    const key = getDateKey(date)
+    return {
+      key,
+      date,
+      dayNumber: date.getDate(),
+      isCurrentMonth: date.getMonth() === currentMonth.value.getMonth(),
+      isToday: key === getDateKey(new Date()),
+      events: eventsByDate.value.get(key) ?? []
+    }
+  })
+})
+
+const selectedWeekTitle = computed(() => {
+  if (!selectedWeekDays.value.length) return ''
+  const first = selectedWeekDays.value[0].date
+  const last = selectedWeekDays.value[6].date
+  return `${first.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${last.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+})
+
 const monthEventCount = computed(() => {
   return events.value.filter(event => {
     const date = parseApiDate(event.eventDate)
@@ -669,6 +697,31 @@ onMounted(async () => {
             </button>
           </div>
         </template>
+
+        <section v-if="selectedWeekDays.length" class="week-details">
+          <div class="details-heading">
+            <div>
+              <p>SELECTED WEEK</p>
+              <h3>{{ selectedWeekTitle }}</h3>
+            </div>
+          </div>
+
+          <div class="week-list">
+            <button
+              v-for="day in selectedWeekDays"
+              :key="`week-${day.key}`"
+              type="button"
+              class="week-day-row"
+              @click="selectDay(day)"
+            >
+              <span>
+                <strong>{{ day.date.toLocaleDateString('en-US', { weekday: 'short' }) }}</strong>
+                {{ day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }}
+              </span>
+              <span>{{ day.events.length }} event{{ day.events.length === 1 ? '' : 's' }}</span>
+            </button>
+          </div>
+        </section>
       </aside>
     </section>
   </main>
@@ -1323,6 +1376,35 @@ onMounted(async () => {
   }
 }
 
+.week-details {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #dce5de;
+}
+
+.week-list {
+  display: grid;
+  gap: 7px;
+}
+
+.week-day-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #e1e8e2;
+  border-radius: 7px;
+  background: #fff;
+  color: #405b48;
+  text-align: left;
+  cursor: pointer;
+}
+
+.week-day-row:hover {
+  background: #f3f7f1;
+}
+
 @media (max-width: 720px) {
   .calendar-page {
     padding: 16px 12px 42px;
@@ -1350,13 +1432,27 @@ onMounted(async () => {
     justify-content: space-between;
   }
 
-  .calendar-card {
-    overflow-x: auto;
-  }
-
   .weekday-row,
   .calendar-grid {
-    min-width: 720px;
+    min-width: 0;
+  }
+
+  .calendar-day {
+    min-height: 68px;
+    padding: 6px 3px;
+  }
+
+  .calendar-event {
+    justify-content: center;
+    padding: 2px;
+  }
+
+  .event-animal {
+    display: none;
+  }
+
+  .more-events {
+    font-size: 9px;
   }
 
   .legend {

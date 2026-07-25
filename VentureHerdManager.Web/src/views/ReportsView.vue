@@ -4,6 +4,18 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { getAnimals } from '../api/animals'
 import { getHerdActivity, getEmbryoImplants, type HerdActivityResponse, type EmbryoImplantResponse } from '../api/analytics'
+import {
+  createEmbryo,
+  deleteEmbryo,
+  getAllEmbryos,
+  getRecentHeatRecipients,
+  implantEmbryo,
+  recordEmbryoOutcome,
+  updateEmbryo,
+  EMBRYO_STATUS_LABELS,
+  type EmbryoRecord,
+  type RecentHeatRecipient
+} from '../api/embryoRecords'
 import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 
@@ -30,20 +42,6 @@ interface ChecklistItem {
   id: number
   text: string
   done: boolean
-}
-
-export interface EmbryoRecord {
-  id: number
-  code: string
-  sire: string
-  donor: string
-  grade: string
-  status: 'In Storage' | 'Assigned' | 'Implanted' | 'Failed'
-  recipientAnimalId: number | null
-  implantDate: string
-  linkedBreedingNote: string
-  failureNotes: string
-  notes: string
 }
 
 interface AchievementRecord {
@@ -100,7 +98,6 @@ const showStringSearch = ref('')
 const listKey = 'venture-herd-lists-v2'
 const showStringKey = 'venture-herd-show-string-v2'
 const checklistKey = 'venture-herd-checklist-v1'
-const embryoKey = 'venture-herd-embryos-v2'
 const achievementsKey = 'venture-herd-achievements-v1'
 
 const defaultLists: AnimalGroupList[] = [
@@ -125,10 +122,13 @@ const groupLists = ref<AnimalGroupList[]>(defaultLists.map(l => ({ ...l })))
 const showStringRows = ref<ShowStringRow[]>([])
 const checklistItems = ref<ChecklistItem[]>(defaultChecklist.map(i => ({ ...i })))
 const embryoRecords = ref<EmbryoRecord[]>([])
+const recentHeatRecipients = ref<RecentHeatRecipient[]>([])
+const recipientSearch = ref<Record<number, string>>({})
+const embryoMessage = ref('')
+const embryoSavingId = ref<number | null>(null)
 const achievements = ref<AchievementRecord[]>([])
 
 const nextRowId = ref(1)
-const nextEmbryoId = ref(1)
 const nextAchievementId = ref(1)
 
 function parseStored<T>(k: string, fallback: T): T {
@@ -144,10 +144,8 @@ function loadData() {
   groupLists.value = parseStored<AnimalGroupList[]>(listKey, defaultLists.map(l => ({ ...l }))).map(l => ({ searchQuery: '', ...l }))
   showStringRows.value = parseStored<ShowStringRow[]>(showStringKey, []).map(r => ({ feedRation: '', ...r }))
   checklistItems.value = parseStored<ChecklistItem[]>(checklistKey, defaultChecklist.map(i => ({ ...i })))
-  embryoRecords.value = parseStored<EmbryoRecord[]>(embryoKey, []).map(e => ({ implantDate: '', failureNotes: '', ...e }))
   achievements.value = parseStored<AchievementRecord[]>(achievementsKey, [])
   nextRowId.value = Math.max(1, ...showStringRows.value.map(r => r.id + 1), 1)
-  nextEmbryoId.value = Math.max(1, ...embryoRecords.value.map(e => e.id + 1), 1)
   nextAchievementId.value = Math.max(1, ...achievements.value.map(a => a.id + 1), 1)
 }
 
@@ -155,11 +153,10 @@ function saveData() {
   localStorage.setItem(listKey, JSON.stringify(groupLists.value))
   localStorage.setItem(showStringKey, JSON.stringify(showStringRows.value))
   localStorage.setItem(checklistKey, JSON.stringify(checklistItems.value))
-  localStorage.setItem(embryoKey, JSON.stringify(embryoRecords.value))
   localStorage.setItem(achievementsKey, JSON.stringify(achievements.value))
 }
 
-watch([groupLists, showStringRows, checklistItems, embryoRecords, achievements], saveData, { deep: true })
+watch([groupLists, showStringRows, checklistItems, achievements], saveData, { deep: true })
 
 const animalOptions = computed(() =>
   [...animals.value].sort((a, b) =>
@@ -216,8 +213,10 @@ const showStringYoungstock = computed(() =>
 const showStringUnassigned = computed(() =>
   showStringSorted.value.filter(row => !row.animalId)
 )
-const embryosActive = computed(() => embryoRecords.value.filter(e => e.status !== 'Failed'))
-const embryosFailed = computed(() => embryoRecords.value.filter(e => e.status === 'Failed'))
+const embryosAvailable = computed(() => embryoRecords.value.filter(e => e.status === 0 || e.status === 1))
+const embryosImplanted = computed(() => embryoRecords.value.filter(e => e.status === 2))
+const embryosFailed = computed(() => embryoRecords.value.filter(e => e.status === 3))
+const embryosSuccessful = computed(() => embryoRecords.value.filter(e => e.status === 4))
 
 function getAnimalLabel(animalId: number | null): string {
   if (!animalId) return 'Unassigned'
@@ -268,11 +267,90 @@ function toggleAnimalInList(key: string, animalId: number) {
 
 function addChecklistItem() { checklistItems.value.push({ id: Date.now(), text: 'New item', done: false }) }
 
-function addEmbryoRecord() {
-  embryoRecords.value.push({ id: nextEmbryoId.value++, code: '', sire: '', donor: '', grade: '', status: 'In Storage', recipientAnimalId: null, implantDate: '', linkedBreedingNote: '', failureNotes: '', notes: '' })
+async function loadEmbryoRecords() {
+  embryoRecords.value = await getAllEmbryos()
+  recentHeatRecipients.value = await getRecentHeatRecipients()
 }
 
-function removeEmbryoRecord(id: number) { embryoRecords.value = embryoRecords.value.filter(e => e.id !== id) }
+async function addEmbryoRecord() {
+  const created = await createEmbryo({
+    code: null,
+    sire: null,
+    donor: null,
+    grade: null,
+    status: 0,
+    recipientAnimalId: null,
+    implantDate: null,
+    linkedBreedingNote: null,
+    failureNotes: null,
+    notes: null,
+    collectionLocation: null,
+    storageLocation: null
+  })
+  embryoRecords.value.unshift(created)
+}
+
+async function saveEmbryoRecord(record: EmbryoRecord) {
+  embryoSavingId.value = record.embryoRecordId
+  embryoMessage.value = ''
+  try {
+    await updateEmbryo(record.embryoRecordId, record)
+    embryoMessage.value = 'Embryo record saved.'
+  } finally {
+    embryoSavingId.value = null
+  }
+}
+
+async function removeEmbryoRecord(id: number) {
+  if (!window.confirm('Delete this embryo record?')) return
+  await deleteEmbryo(id)
+  embryoRecords.value = embryoRecords.value.filter(e => e.embryoRecordId !== id)
+}
+
+function filteredRecipients(record: EmbryoRecord): Animal[] {
+  const query = (recipientSearch.value[record.embryoRecordId] ?? '').trim().toLowerCase()
+  if (!query) return animalOptions.value.slice(0, 8)
+  return animalOptions.value
+    .filter(animal =>
+      (animal.barnName || '').toLowerCase().includes(query)
+      || (animal.registeredName || '').toLowerCase().includes(query)
+      || (animal.registrationNumber || '').toLowerCase().includes(query))
+    .slice(0, 12)
+}
+
+async function confirmImplant(record: EmbryoRecord, animalId: number) {
+  const animalName = getAnimalLabel(animalId)
+  if (!window.confirm(`Are you sure embryo ${record.code || `#${record.embryoRecordId}`} was implanted in ${animalName}?`)) return
+
+  embryoSavingId.value = record.embryoRecordId
+  try {
+    const updated = await implantEmbryo(record.embryoRecordId, animalId)
+    embryoRecords.value = embryoRecords.value.map(item =>
+      item.embryoRecordId === updated.embryoRecordId ? updated : item)
+    embryoMessage.value = 'Implant recorded. The embryo is no longer available.'
+  } finally {
+    embryoSavingId.value = null
+  }
+}
+
+async function confirmOutcome(record: EmbryoRecord, successful: boolean) {
+  const action = successful ? 'confirm this recipient pregnant' : 'record that the embryo did not stick'
+  if (!window.confirm(`Are you sure you want to ${action}?`)) return
+
+  const notes = successful ? '' : (window.prompt('Optional failure or vet notes:') ?? '')
+  embryoSavingId.value = record.embryoRecordId
+  try {
+    const updated = await recordEmbryoOutcome(record.embryoRecordId, successful, notes)
+    embryoRecords.value = embryoRecords.value.map(item =>
+      item.embryoRecordId === updated.embryoRecordId ? updated : item)
+    embryoMessage.value = successful
+      ? 'Pregnancy confirmed and the recipient record was updated.'
+      : 'Failed implant recorded and the recipient remains open.'
+    await loadEmbryoImplants()
+  } finally {
+    embryoSavingId.value = null
+  }
+}
 
 function addAchievement() {
   achievements.value.push({ id: nextAchievementId.value++, animalId: null, showName: '', showDate: '', bagged: '', placed: '', notes: '' })
@@ -287,6 +365,7 @@ onMounted(async () => {
     activeTab.value = tabParam as HubTab
   }
   try { animals.value = await getAnimals() } catch (e) { console.error('Failed to load animals:', e) } finally { loading.value = false }
+  try { await loadEmbryoRecords() } catch (e) { console.error('Failed to load embryo records:', e) }
   loadAnalytics()
   loadEmbryoImplants()
 })
@@ -306,7 +385,7 @@ onMounted(async () => {
 
     <nav class="rp-tabs">
       <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'">🧬 Embryos</button>
-      <button :class="{ active: activeTab === 'embryoImplants' }" @click="activeTab = 'embryoImplants'">🤰 Implants</button>
+      <button :class="{ active: activeTab === 'embryoImplants' }" @click="activeTab = 'embryoImplants'">🤰 Implanted</button>
       <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'">🐄 Show String</button>
       <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'">📋 Herd Lists</button>
       <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'">✅ Checklist</button>
@@ -451,16 +530,16 @@ onMounted(async () => {
       </div>
       <p class="rp-hint">Track storage, assign recipients, log implants. Mark Failed when it didn't stick — those show below.</p>
 
-      <div v-if="embryosActive.length === 0" class="rp-empty">No embryos in storage. Add your first record.</div>
+      <p v-if="embryoMessage" class="rp-success">{{ embryoMessage }}</p>
+      <div v-if="embryosAvailable.length === 0" class="rp-empty">No embryos are currently available.</div>
 
-      <div v-for="rec in embryosActive" :key="rec.id" class="emb-card" :class="`emb-${rec.status.toLowerCase().replace(' ', '-')}`">
+      <div v-for="rec in embryosAvailable" :key="rec.embryoRecordId" class="emb-card">
         <div class="emb-hd">
           <div class="emb-id">
             <span class="emb-code">{{ rec.code || 'No Code' }}</span>
-            <span class="emb-badge" :class="`ebadge-${rec.status.toLowerCase().replace(' ', '-')}`">{{ rec.status }}</span>
-            <span v-if="rec.implantDate && rec.status === 'Implanted'" class="emb-date">{{ rec.implantDate }}</span>
+            <span class="emb-badge">{{ EMBRYO_STATUS_LABELS[rec.status] }}</span>
           </div>
-          <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.id)">✕</button>
+          <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.embryoRecordId)">✕</button>
         </div>
         <div class="emb-grid">
           <label>Code / ID<input v-model="rec.code" type="text" placeholder="ET-2026-001"></label>
@@ -468,42 +547,78 @@ onMounted(async () => {
           <label>Donor Cow<input v-model="rec.donor" type="text" placeholder="Donor name"></label>
           <label>Grade<input v-model="rec.grade" type="text" placeholder="Grade 1, Excellent…"></label>
           <label>Status
-            <select v-model="rec.status">
-              <option value="In Storage">In Storage</option>
-              <option value="Assigned">Assigned to Recipient</option>
-              <option value="Implanted">Implanted</option>
-              <option value="Failed">Failed / Not Confirmed</option>
+            <select v-model.number="rec.status">
+              <option :value="0">In Storage</option>
+              <option :value="1">Assigned to Recipient</option>
             </select>
           </label>
-          <label>Recipient Animal
-            <select v-model.number="rec.recipientAnimalId">
-              <option :value="null">No recipient yet</option>
-              <option v-for="a in animalOptions" :key="`r-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option>
-            </select>
-          </label>
-          <label v-if="rec.status === 'Implanted'">Implant Date<input v-model="rec.implantDate" type="date"></label>
           <label>Breeding Link Note<input v-model="rec.linkedBreedingNote" type="text" placeholder="Breeding date or event ref"></label>
           <label class="emb-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Tank, straw info, vet notes" /></label>
         </div>
+
+        <div class="recipient-picker">
+          <strong>Recent heat recipients</strong>
+          <small>Animals recorded in heat 6–8 days ago</small>
+
+          <div v-if="recentHeatRecipients.length" class="recipient-suggestions">
+            <button
+              v-for="candidate in recentHeatRecipients"
+              :key="`${rec.embryoRecordId}-${candidate.animalId}`"
+              type="button"
+              @click="confirmImplant(rec, candidate.animalId)"
+            >
+              {{ candidate.animalName }} · {{ candidate.daysSinceHeat }} days
+            </button>
+          </div>
+          <p v-else class="rp-hint">No recent-heat candidates right now.</p>
+
+          <label class="recipient-search">
+            Search another animal
+            <input
+              v-model="recipientSearch[rec.embryoRecordId]"
+              type="search"
+              placeholder="Name or registration number"
+            >
+          </label>
+          <div class="recipient-results">
+            <button
+              v-for="animalOption in filteredRecipients(rec)"
+              :key="`${rec.embryoRecordId}-animal-${animalOption.animalId}`"
+              type="button"
+              @click="confirmImplant(rec, animalOption.animalId)"
+            >
+              {{ animalOption.barnName || animalOption.registeredName }}
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="rp-add-btn"
+          :disabled="embryoSavingId === rec.embryoRecordId"
+          @click="saveEmbryoRecord(rec)"
+        >
+          {{ embryoSavingId === rec.embryoRecordId ? 'Saving…' : 'Save Details' }}
+        </button>
       </div>
 
       <template v-if="embryosFailed.length > 0">
         <div class="rp-divider rp-divider-failed">Failed / Not Confirmed ({{ embryosFailed.length }})</div>
         <p class="rp-hint">Embryos that didn't stick — kept for your records.</p>
-        <div v-for="rec in embryosFailed" :key="`f-${rec.id}`" class="emb-card emb-failed">
+        <div v-for="rec in embryosFailed" :key="`f-${rec.embryoRecordId}`" class="emb-card emb-failed">
           <div class="emb-hd">
             <div class="emb-id">
               <span class="emb-code">{{ rec.code || 'No Code' }}</span>
               <span class="emb-badge ebadge-failed">Failed</span>
             </div>
-            <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.id)">✕</button>
+            <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.embryoRecordId)">✕</button>
           </div>
           <div class="emb-summary"><span>Sire: <strong>{{ rec.sire || '—' }}</strong></span><span>Donor: <strong>{{ rec.donor || '—' }}</strong></span><span>Recipient: <strong>{{ rec.recipientAnimalId ? getAnimalLabel(rec.recipientAnimalId) : '—' }}</strong></span></div>
           <label class="emb-full mt8">Failure Notes<textarea v-model="rec.failureNotes" rows="2" placeholder="Reason, vet notes, recheck date" /></label>
           <label class="emb-full mt8">Status
-            <select v-model="rec.status">
-              <option value="Failed">Failed / Not Confirmed</option>
-              <option value="In Storage">Back to Storage</option>
+            <select v-model.number="rec.status">
+              <option :value="3">Failed / Not Confirmed</option>
+              <option :value="0">Back to Storage</option>
             </select>
           </label>
         </div>
@@ -513,10 +628,36 @@ onMounted(async () => {
     <!-- EMBRYO IMPLANTS -->
     <section v-else-if="activeTab === 'embryoImplants'" class="rp-panel">
       <div class="rp-ph">
-        <h2>Embryo Implants vs Results</h2>
+        <h2>Currently Implanted</h2>
         <button type="button" class="rp-add-btn" @click="loadEmbryoImplants" :disabled="embryoImplantsLoading">{{ embryoImplantsLoading ? 'Loading…' : '↻ Refresh' }}</button>
       </div>
-      <p class="rp-hint">Monthly breakdown of embryos implanted vs. failed outcomes.</p>
+      <p class="rp-hint">Record the pregnancy-check result for each implanted embryo.</p>
+
+      <div v-if="embryosImplanted.length === 0" class="rp-empty">No embryos are waiting for an outcome.</div>
+      <div v-for="rec in embryosImplanted" :key="`implanted-${rec.embryoRecordId}`" class="emb-card emb-implanted">
+        <div class="emb-hd">
+          <div class="emb-id">
+            <span class="emb-code">{{ rec.code || `Embryo #${rec.embryoRecordId}` }}</span>
+            <span class="emb-badge ebadge-implanted">Implanted</span>
+          </div>
+        </div>
+        <div class="emb-summary">
+          <span>Recipient: <strong>{{ getAnimalLabel(rec.recipientAnimalId) }}</strong></span>
+          <span>Implanted: <strong>{{ rec.implantDate || 'Date not recorded' }}</strong></span>
+          <span>Sire: <strong>{{ rec.sire || '—' }}</strong></span>
+        </div>
+        <div class="outcome-actions">
+          <button type="button" class="outcome-success" @click="confirmOutcome(rec, true)">Confirmed Pregnant</button>
+          <button type="button" class="outcome-failed" @click="confirmOutcome(rec, false)">Did Not Stick</button>
+        </div>
+      </div>
+
+      <div v-if="embryosSuccessful.length || embryosFailed.length" class="rp-divider">
+        Recorded outcomes: {{ embryosSuccessful.length }} pregnant · {{ embryosFailed.length }} failed
+      </div>
+
+      <h3 class="implant-report-title">Implant Report</h3>
+      <p class="rp-hint">Monthly implant and outcome history.</p>
 
       <template v-if="embryoImplantsError">
         <div class="rp-error">{{ embryoImplantsError }} <button type="button" @click="loadEmbryoImplants">Try Again</button></div>
@@ -759,7 +900,7 @@ onMounted(async () => {
 .rp-hero { background: linear-gradient(135deg, #0f2318 0%, #1a3d22 60%, #244f2f 100%); padding: 22px 24px 18px; border-bottom: 3px solid #31572c; }
 .rp-hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .rp-brand { color: #7dd3a0; font-size: 0.75rem; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
-.rp-title { margin: 0; font-size: 1.85rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; text-transform: uppercase; }
+.rp-title { margin: 0; font-size: 1.85rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; }
 .rp-sub { margin: 6px 0 0; color: rgba(255,255,255,0.6); font-size: 0.88rem; }
 .rp-powered { margin: 10px 0 0; color: rgba(255,255,255,0.3); font-size: 0.72rem; letter-spacing: 0.04em; }
 .rp-powered strong { color: rgba(255,255,255,0.55); font-weight: 900; }
@@ -768,13 +909,13 @@ onMounted(async () => {
 
 .rp-tabs { display: flex; overflow-x: auto; gap: 0; background: #fff; border-bottom: 2px solid #e0e8e1; padding: 0 16px; }
 .rp-tabs::-webkit-scrollbar { height: 0; }
-.rp-tabs button { flex-shrink: 0; border: none; border-bottom: 3px solid transparent; background: transparent; color: #5d6f63; font-weight: 800; font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 14px 16px 11px; cursor: pointer; white-space: nowrap; transition: color 0.15s, border-color 0.15s; }
+.rp-tabs button { flex-shrink: 0; border: none; border-bottom: 3px solid transparent; background: transparent; color: #5d6f63; font-weight: 800; font-size: 0.82rem; letter-spacing: 0.01em; padding: 14px 16px 11px; cursor: pointer; white-space: nowrap; transition: color 0.15s, border-color 0.15s; }
 .rp-tabs button:hover { color: #0f1f16; }
 .rp-tabs button.active { color: #31572c; border-bottom-color: #31572c; }
 
 .rp-panel { margin: 20px 16px; background: #fff; border: 1px solid #d9e3dc; border-radius: 12px; padding: 20px; }
 .rp-ph { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #e0e8e1; }
-.rp-ph h2 { margin: 0; color: #0f1f16; font-size: 1.1rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; }
+.rp-ph h2 { margin: 0; color: #0f1f16; font-size: 1.1rem; font-weight: 900; letter-spacing: 0.01em; }
 .rp-add-btn { border: none; background: #31572c; color: #fff; border-radius: 6px; min-height: 38px; padding: 0 14px; font-weight: 900; font-size: 0.85rem; letter-spacing: 0.04em; cursor: pointer; }
 .rp-add-btn:hover { background: #254520; }
 .rp-hint { color: #5d6f63; margin: 0 0 14px; font-size: 0.87rem; line-height: 1.5; }
@@ -798,6 +939,19 @@ onMounted(async () => {
 .ebadge-failed { background: #fee2e2; color: #991b1b; }
 .emb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .emb-full { grid-column: 1 / -1; }
+.rp-success { padding: 10px 12px; border-radius: 7px; background: #ecfdf3; color: #166534; font-weight: 700; }
+.recipient-picker { display: grid; gap: 9px; margin: 14px 0; padding: 12px; border-radius: 8px; background: #f5f8f5; }
+.recipient-picker > small { color: #64748b; }
+.recipient-suggestions, .recipient-results { display: flex; flex-wrap: wrap; gap: 7px; }
+.recipient-suggestions button, .recipient-results button { border: 1px solid #b9c9bc; border-radius: 999px; background: #fff; color: #264b2b; padding: 8px 11px; font-weight: 700; cursor: pointer; }
+.recipient-suggestions button:hover, .recipient-results button:hover { background: #eaf4eb; }
+.recipient-search { display: grid; gap: 5px; color: #405b48; font-weight: 700; }
+.recipient-search input { width: 100%; padding: 10px; border: 1px solid #c8d4cb; border-radius: 6px; }
+.outcome-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
+.outcome-actions button { border: 0; border-radius: 7px; padding: 10px 13px; color: #fff; font-weight: 800; cursor: pointer; }
+.outcome-success { background: #2f6d3a; }
+.outcome-failed { background: #a33a32; }
+.implant-report-title { margin: 24px 0 6px; color: #18351f; }
 .mt8 { margin-top: 8px; }
 .emb-summary { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.9rem; color: #5d6f63; }
 .rp-x { border: 1px solid #fca5a5; background: #fff1f2; color: #991b1b; border-radius: 4px; width: 28px; height: 28px; font-size: 0.85rem; font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }

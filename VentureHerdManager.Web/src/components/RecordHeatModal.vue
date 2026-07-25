@@ -54,8 +54,14 @@
         </div>
 
         <div class="form-group">
-          <label>Picture URL:</label>
-          <input v-model="pictureUrl" type="text" class="form-input" placeholder="https://..." />
+          <label>Heat Photo:</label>
+          <input
+            type="file"
+            accept="image/*"
+            class="form-input file-input"
+            @change="selectPhoto"
+          />
+          <small class="photo-help">Choose from Photos, Files, or Camera on iPhone.</small>
         </div>
 
         <div class="form-group">
@@ -71,7 +77,9 @@
         </div>
 
         <div class="form-group">
-          <button @click="recordHeat" class="btn-primary">Record Heat</button>
+          <button :disabled="uploadingPhoto" @click="recordHeat" class="btn-primary">
+            {{ uploadingPhoto ? 'Uploading Photo…' : 'Record Heat' }}
+          </button>
           <button @click="goToBreedingTab" class="btn-secondary">Record Heat & Breed</button>
         </div>
       </div>
@@ -81,6 +89,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { uploadPhoto } from '../api/photos'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -108,6 +117,8 @@ const animalSearch = ref('')
 const heatStrength = ref('2')
 const standingHeat = ref(false)
 const pictureUrl = ref('')
+const photoFile = ref<File | null>(null)
+const uploadingPhoto = ref(false)
 const notes = ref('')
 const hasEmbryoTransfer = ref(false)
 const animals = ref<Animal[]>([])
@@ -156,8 +167,13 @@ const resetForm = () => {
   heatStrength.value = '2'
   standingHeat.value = false
   pictureUrl.value = ''
+  photoFile.value = null
   notes.value = ''
   hasEmbryoTransfer.value = false
+}
+
+function selectPhoto(event: Event) {
+  photoFile.value = (event.target as HTMLInputElement).files?.[0] ?? null
 }
 
 const recordHeat = async () => {
@@ -166,16 +182,25 @@ const recordHeat = async () => {
     return
   }
 
-  emit('recordHeat', {
+  uploadingPhoto.value = true
+  try {
+    if (photoFile.value) {
+      pictureUrl.value = await uploadPhoto(photoFile.value, 'heat-events')
+    }
+
+    emit('recordHeat', {
     animalId: parseInt(selectedAnimalId.value),
     heatStrength: parseInt(heatStrength.value),
     standingHeat: standingHeat.value,
     pictureUrl: pictureUrl.value || null,
     notes: notes.value || null,
     hasEmbryoTransfer: hasEmbryoTransfer.value
-  })
+    })
 
-  closeModal()
+    closeModal()
+  } finally {
+    uploadingPhoto.value = false
+  }
 }
 
 const goToBreedingTab = () => {
@@ -268,6 +293,16 @@ defineExpose({
   outline: none;
   border-color: #31572c;
   box-shadow: 0 0 0 3px rgba(49, 87, 44, 0.1);
+}
+
+.file-input {
+  background: #fff;
+}
+
+.photo-help {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
 }
 
 textarea.form-input {

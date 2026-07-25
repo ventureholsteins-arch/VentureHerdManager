@@ -101,21 +101,23 @@ const filteredAnimals = computed(() => {
 
   // Apply search query
   const query = searchQuery.value.trim()
-  if (!query) {
-    return result
+  if (query) {
+    result = result.filter(animal => {
+      // Check barn name, registered name, registration number
+      if (fuzzyMatch(query, animal.barnName || '')) return true
+      if (fuzzyMatch(query, animal.registeredName || '')) return true
+      if (fuzzyMatch(query, animal.registrationNumber || '')) return true
+      // Check sire/dam/breed
+      if (fuzzyMatch(query, animal.sireName || '')) return true
+      if (fuzzyMatch(query, animal.damName || '')) return true
+      if (fuzzyMatch(query, animal.breed || '')) return true
+      return false
+    })
   }
 
-  return result.filter(animal => {
-    // Check barn name, registered name, registration number
-    if (fuzzyMatch(query, animal.barnName || '')) return true
-    if (fuzzyMatch(query, animal.registeredName || '')) return true
-    if (fuzzyMatch(query, animal.registrationNumber || '')) return true
-    // Check sire/dam/breed
-    if (fuzzyMatch(query, animal.sireName || '')) return true
-    if (fuzzyMatch(query, animal.damName || '')) return true
-    if (fuzzyMatch(query, animal.breed || '')) return true
-    return false
-  })
+  return [...result].sort(
+    (a, b) => Number(!!b.isFavorite) - Number(!!a.isFavorite)
+  )
 })
 
 const formattedLastUpdated = computed(() => {
@@ -656,7 +658,10 @@ onMounted(() => {
               <div class="player-meta">
                 <span>{{ animal.breed || 'Unknown' }}</span>
                 <span v-if="animal.sireName" class="meta-sep">·</span>
-                <span v-if="animal.sireName">{{ animal.sireName }}</span>
+                <span v-if="animal.sireName" class="player-sire">
+                  <span class="player-sire-label">Sire:</span>
+                  {{ animal.sireName }}
+                </span>
               </div>
 
               <!-- Stat row -->
@@ -1642,6 +1647,17 @@ onMounted(() => {
 
 .meta-sep {
   color: #c8d4cc;
+}
+
+.player-sire {
+  color: #6b7c70;
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.player-sire-label {
+  color: #405b48;
+  font-weight: 700;
 }
 
 /* Stat rail */

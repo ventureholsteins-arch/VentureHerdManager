@@ -116,3 +116,19 @@ export async function updateAnimal(animalId: number, data: UpdateAnimalRequest):
 
   return await response.json()
 }
+
+export async function setAnimalFavorite(
+  animalId: number,
+  isFavorite: boolean
+): Promise<Animal> {
+  const response = await fetch(
+    `${API_BASE}/Animals/${animalId}/favorite?isFavorite=${isFavorite}`,
+    { method: 'PUT' }
+  )
+
+  if (!response.ok) {
+    throw new Error('Failed to update favorite')
+  }
+
+  return await response.json()
+}

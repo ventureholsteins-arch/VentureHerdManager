@@ -1,7 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using VentureHerdManager.Api.Data;
-using VentureHerdManager.Api.Models;
 
 namespace VentureHerdManager.Api.Controllers;
 
@@ -9,59 +6,22 @@ namespace VentureHerdManager.Api.Controllers;
 [Route("api/[controller]")]
 public class DemoController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IConfiguration _configuration;
-
-    public DemoController(
-        ApplicationDbContext context,
-        IConfiguration configuration)
+    /// <summary>
+    /// CRITICAL: Demo endpoint is permanently disabled.
+    /// Demo must use a separate database to avoid production data loss.
+    /// </summary>
+    
+    [HttpPost("reset")]
+    public ActionResult<object> Reset()
     {
-        _context = context;
-        _configuration = configuration;
+        return StatusCode(403, new { error = "Demo reset endpoint is permanently disabled. Demo mode requires a separate database." });
     }
 
     [HttpGet("status")]
-    public async Task<ActionResult<object>> Status(CancellationToken cancellationToken)
+    public ActionResult<object> Status()
     {
-        var enabled = _configuration.GetValue<bool>("DemoMode:Enabled");
-
-        var animalCount = await _context.Animals.CountAsync(cancellationToken);
-        var heatCount = await _context.HeatEvents.CountAsync(cancellationToken);
-        var breedingCount = await _context.BreedingEvents.CountAsync(cancellationToken);
-        var calvingCount = await _context.CalvingEvents.CountAsync(cancellationToken);
-
-        return Ok(new
-        {
-            enabled,
-            counts = new
-            {
-                animals = animalCount,
-                heats = heatCount,
-                breedings = breedingCount,
-                calvings = calvingCount
-            }
-        });
+        return StatusCode(403, new { error = "Demo is disabled. Use separate demo database instead." });
     }
-
-    [HttpPost("reset")]
-    public async Task<ActionResult<DemoSeedResult>> Reset(
-        [FromHeader(Name = "X-Demo-Key")] string? demoKey,
-        CancellationToken cancellationToken)
-    {
-        var guardResult = ValidateDemoAccess(demoKey);
-        if (guardResult != null)
-        {
-            return guardResult;
-        }
-
-        try
-        {
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync(cancellationToken);
-
-            // Disable FK constraints to allow deletion
-            await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [AnimalProductionSnapshots] NOCHECK CONSTRAINT ALL", cancellationToken);
-            await _context.Database.ExecuteSqlRawAsync("ALTER TABLE [Animals] NOCHECK CONSTRAINT ALL", cancellationToken);
 
             await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
             await _context.AnimalProductionSnapshots.ExecuteDeleteAsync(cancellationToken);

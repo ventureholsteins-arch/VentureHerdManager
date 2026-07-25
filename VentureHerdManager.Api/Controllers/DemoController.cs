@@ -78,67 +78,115 @@ public class DemoController : ControllerBase
 
         var utcNow = DateTime.UtcNow;
         const string seedUser = "DemoSeeder";
+        var random = new Random(20260724);
 
-        var aurora = new Animal
+        static string MakeRegistration(string prefix, int number) => $"{prefix}-{number:000}";
+
+        int NextInt(int minInclusive, int maxExclusive) => random.Next(minInclusive, maxExclusive);
+
+        var demoCows = new List<Animal>
         {
-            BarnName = "Venture Aurora",
-            RegisteredName = "Venture Aurora 501",
-            RegistrationNumber = "DEMO-501",
+            new()
+            {
+                BarnName = "Venture Aurora",
+                RegisteredName = "Venture Aurora 501",
+                RegistrationNumber = MakeRegistration("DEMO", 501),
+                Sex = AnimalSex.Female,
+                AnimalStage = AnimalStage.Milking,
+                AnimalStatus = AnimalStatus.Active,
+                Breed = "Holstein",
+                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-4)),
+                CurrentLactation = NextInt(2, 5),
+                IsFavorite = true,
+                Notes = "Top producing cow",
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser
+            },
+            new()
+            {
+                BarnName = "Venture Nova",
+                RegisteredName = "Venture Nova 327",
+                RegistrationNumber = MakeRegistration("DEMO", 327),
+                Sex = AnimalSex.Female,
+                AnimalStage = AnimalStage.Milking,
+                AnimalStatus = AnimalStatus.Active,
+                Breed = "Jersey",
+                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-5)),
+                CurrentLactation = NextInt(1, 5),
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser
+            },
+            new()
+            {
+                BarnName = "Venture Daisy",
+                RegisteredName = "Venture Daisy 214",
+                RegistrationNumber = MakeRegistration("DEMO", 214),
+                Sex = AnimalSex.Female,
+                AnimalStage = AnimalStage.Dry,
+                AnimalStatus = AnimalStatus.Active,
+                Breed = "Holstein",
+                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-3).AddMonths(-4)),
+                CurrentLactation = NextInt(2, 5),
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser
+            },
+            new()
+            {
+                BarnName = "Venture Clover",
+                RegisteredName = "Venture Clover 198",
+                RegistrationNumber = MakeRegistration("DEMO", 198),
+                Sex = AnimalSex.Female,
+                AnimalStage = AnimalStage.Heifer,
+                AnimalStatus = AnimalStatus.Active,
+                Breed = "Holstein",
+                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-2)),
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser
+            },
+            new()
+            {
+                BarnName = "Venture Ember",
+                RegisteredName = "Venture Ember 612",
+                RegistrationNumber = MakeRegistration("DEMO", 612),
+                Sex = AnimalSex.Female,
+                AnimalStage = AnimalStage.Milking,
+                AnimalStatus = AnimalStatus.Active,
+                Breed = "Ayrshire",
+                BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-4).AddMonths(-8)),
+                CurrentLactation = NextInt(1, 4),
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser
+            }
+        };
+
+        _context.Animals.AddRange(demoCows);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var aurora = demoCows[0];
+        var nova = demoCows[1];
+        var daisy = demoCows[2];
+        var clover = demoCows[3];
+        var ember = demoCows[4];
+
+        var demoCalf = new Animal
+        {
+            BarnName = "Venture Spark",
+            RegisteredName = "Venture Spark 001",
+            RegistrationNumber = "DEMO-CALF-001",
             Sex = AnimalSex.Female,
-            AnimalStage = AnimalStage.Milking,
+            AnimalStage = AnimalStage.Calf,
             AnimalStatus = AnimalStatus.Active,
             Breed = "Holstein",
-            BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-4)),
-            CurrentLactation = 2,
-            IsFavorite = true,
+            BirthDate = DateOnly.FromDateTime(utcNow.AddDays(-2)),
+            SireName = ember.RegisteredName ?? ember.BarnName,
+            DamId = aurora.AnimalId,
+            DamName = aurora.RegisteredName ?? aurora.BarnName,
+            ProfilePictureUrl = "/Seashell_cow.jpg",
             CreatedBy = seedUser,
             UpdatedBy = seedUser
         };
 
-        var nova = new Animal
-        {
-            BarnName = "Venture Nova",
-            RegisteredName = "Venture Nova 327",
-            RegistrationNumber = "DEMO-327",
-            Sex = AnimalSex.Female,
-            AnimalStage = AnimalStage.Milking,
-            AnimalStatus = AnimalStatus.Active,
-            Breed = "Holstein",
-            BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-5)),
-            CurrentLactation = 3,
-            CreatedBy = seedUser,
-            UpdatedBy = seedUser
-        };
-
-        var daisy = new Animal
-        {
-            BarnName = "Venture Daisy",
-            RegisteredName = "Venture Daisy 214",
-            RegistrationNumber = "DEMO-214",
-            Sex = AnimalSex.Female,
-            AnimalStage = AnimalStage.Heifer,
-            AnimalStatus = AnimalStatus.Active,
-            Breed = "Holstein",
-            BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-2)),
-            CreatedBy = seedUser,
-            UpdatedBy = seedUser
-        };
-
-        var titan = new Animal
-        {
-            BarnName = "Venture Titan",
-            RegisteredName = "Venture Titan 900",
-            RegistrationNumber = "DEMO-900",
-            Sex = AnimalSex.Male,
-            AnimalStage = AnimalStage.Bull,
-            AnimalStatus = AnimalStatus.Active,
-            Breed = "Holstein",
-            BirthDate = DateOnly.FromDateTime(utcNow.AddYears(-3)),
-            CreatedBy = seedUser,
-            UpdatedBy = seedUser
-        };
-
-        _context.Animals.AddRange(aurora, nova, daisy, titan);
+        _context.Animals.Add(demoCalf);
         await _context.SaveChangesAsync(cancellationToken);
 
         _context.HeatEvents.AddRange(
@@ -148,6 +196,8 @@ public class DemoController : ControllerBase
                 HeatDateTime = utcNow.AddDays(-3),
                 HeatStrength = HeatStrength.Strong,
                 StandingHeat = true,
+                HasEmbryoTransfer = true,
+                EmbryoImplantDate = utcNow.AddDays(1),
                 Notes = "Demo heat event",
                 CreatedBy = seedUser,
                 UpdatedBy = seedUser
@@ -167,14 +217,61 @@ public class DemoController : ControllerBase
         {
             AnimalId = nova.AnimalId,
             BreedingDate = utcNow.AddDays(-30),
-            SireUsed = titan.RegisteredName ?? titan.BarnName ?? "Demo Sire",
+            SireUsed = ember.RegisteredName ?? ember.BarnName ?? "Demo Sire",
             BreedingType = BreedingType.AI,
             PregnancyStatus = PregnancyStatus.Pregnant,
+            PregnancyCheckDueDate = utcNow.AddDays(-2),
             ExpectedDueDate = utcNow.AddDays(250),
+            RecommendedDryOffDate = utcNow.AddDays(220),
+            CloseUpDate = utcNow.AddDays(235),
             Notes = "Demo breeding event",
             CreatedBy = seedUser,
             UpdatedBy = seedUser
         });
+
+        _context.DryOffEvents.Add(new DryOffEvent
+        {
+            AnimalId = ember.AnimalId,
+            DryOffDate = utcNow.AddDays(-8),
+            Reason = "Upcoming calving prep",
+            Notes = "Demo dry-off event",
+            CreatedBy = seedUser,
+            UpdatedBy = seedUser
+        });
+
+        _context.LutalyseEvents.Add(new LutalyseEvent
+        {
+            AnimalId = clover.AnimalId,
+            AdministrationDate = utcNow.AddDays(-5),
+            ExpectedHeatWatchStart = utcNow.AddDays(-4),
+            ExpectedHeatWatchEnd = utcNow.AddDays(-2),
+            HeatObserved = true,
+            HeatObservedDate = utcNow.AddDays(-3),
+            Notes = "Demo LUT tracking event",
+            CreatedBy = seedUser,
+            UpdatedBy = seedUser
+        });
+
+        var calvingEvent = new CalvingEvent
+        {
+            AnimalId = aurora.AnimalId,
+            CalvingDate = utcNow.AddDays(-2),
+            CalfSex = CalfSex.Heifer,
+            CalfBarnName = demoCalf.BarnName,
+            CalfRegisteredName = demoCalf.RegisteredName,
+            CalfAnimalId = demoCalf.AnimalId,
+            CalvingEase = CalvingEase.Unassisted,
+            NumberOfCalves = 1,
+            Twins = false,
+            Stillborn = false,
+            BirthWeight = Math.Round((decimal)(70 + random.NextDouble() * 25), 1),
+            PictureUrl = "/Seashell_cow.jpg",
+            Notes = "Healthy demo calf",
+            CreatedBy = seedUser,
+            UpdatedBy = seedUser
+        };
+
+        _context.CalvingEvents.Add(calvingEvent);
 
         _context.AnimalNotes.Add(new AnimalNote
         {
@@ -185,18 +282,53 @@ public class DemoController : ControllerBase
             CreatedBy = seedUser
         });
 
-        _context.ClassificationRecords.Add(new ClassificationRecord
-        {
-            AnimalId = aurora.AnimalId,
-            ClassificationDate = utcNow.AddMonths(-2),
-            Score = 91m,
-            Baa = 109.4m,
-            ClassificationLabel = "EX",
-            Notes = "Demo classification",
-            CreatedBy = seedUser,
-            UpdatedBy = seedUser,
-            UpdatedAt = utcNow
-        });
+        _context.ClassificationRecords.AddRange(
+            new ClassificationRecord
+            {
+                AnimalId = aurora.AnimalId,
+                ClassificationDate = utcNow.AddMonths(-2),
+                Score = 91m,
+                Baa = 109.4m,
+                AgeInMonthsAtScoring = 52,
+                ClassificationLabel = "EX",
+                Notes = "Demo classification",
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser,
+                UpdatedAt = utcNow
+            },
+            new ClassificationRecord
+            {
+                AnimalId = nova.AnimalId,
+                ClassificationDate = utcNow.AddMonths(-3),
+                Score = 88m,
+                Baa = 104.2m,
+                AgeInMonthsAtScoring = 60,
+                ClassificationLabel = "VG",
+                Notes = "Demo classification",
+                CreatedBy = seedUser,
+                UpdatedBy = seedUser,
+                UpdatedAt = utcNow
+            });
+
+        _context.AnimalPhotos.AddRange(
+            new AnimalPhoto
+            {
+                AnimalId = aurora.AnimalId,
+                PhotoUrl = "/Seashell_cow.jpg",
+                PhotoType = AnimalPhotoType.Profile,
+                Caption = "Demo cow profile photo",
+                CreatedBy = seedUser
+            },
+            new AnimalPhoto
+            {
+                AnimalId = demoCalf.AnimalId,
+                PhotoUrl = "/Seashell_cow.jpg",
+                PhotoType = AnimalPhotoType.Calf,
+                RelatedEventId = calvingEvent.CalvingEventId,
+                RelatedEventType = nameof(CalvingEvent),
+                Caption = "Demo calf profile photo",
+                CreatedBy = seedUser
+            });
 
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

@@ -35,8 +35,9 @@ async function launchDemo(withReset: boolean) {
       <p class="demo-tag">DEMO</p>
       <h1>Venture Herd Manager</h1>
       <h2 class="demo-promise">
-        Your operation should not have to fit
-        <span>somebody else's software.</span>
+        <span class="promise-setup">Your operation</span>
+        <span class="promise-main">should not have to fit</span>
+        <span class="promise-accent">somebody else's software.</span>
       </h2>
       <p class="subtitle">
         Try animal records, breeding, embryos, alerts, and reports in one
@@ -134,6 +135,25 @@ h1 {
 
 .demo-promise span {
   display: block;
+}
+
+.promise-setup {
+  margin-bottom: 7px;
+  color: #6f7d70;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 0.38em;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.promise-main {
+  color: #17281a;
+  font-weight: 700;
+}
+
+.promise-accent {
   margin-top: 5px;
   color: #31572c;
   font-style: italic;

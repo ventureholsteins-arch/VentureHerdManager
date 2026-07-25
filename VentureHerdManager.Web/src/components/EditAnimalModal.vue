@@ -170,22 +170,28 @@ const formData = ref({
   classificationNotes: ''
 })
 
-const openModal = () => {
-  if (props.animal) {
-    formData.value = {
-      barnName: props.animal.barnName || '',
-      registeredName: props.animal.registeredName || '',
-      breed: props.animal.breed || '',
-      sireName: props.animal.sireName || '',
-      currentLactation: props.animal.currentLactation || null,
-      notes: props.animal.notes || '',
-      isFavorite: props.animal.isFavorite || false,
-      scoreValue: props.animal.latestScore || null,
-      baa: props.animal.latestBaa || null,
-      classificationNotes: ''
-    }
-    isOpen.value = true
+const populateFormData = (sourceAnimal: Animal) => {
+  formData.value = {
+    barnName: sourceAnimal.barnName || '',
+    registeredName: sourceAnimal.registeredName || '',
+    breed: sourceAnimal.breed || '',
+    sireName: sourceAnimal.sireName || '',
+    currentLactation: sourceAnimal.currentLactation || null,
+    notes: sourceAnimal.notes || '',
+    isFavorite: sourceAnimal.isFavorite || false,
+    scoreValue: sourceAnimal.latestScore || null,
+    baa: sourceAnimal.latestBaa || null,
+    classificationNotes: ''
   }
+}
+
+const openModal = () => {
+  if (!props.animal) {
+    return
+  }
+
+  populateFormData(props.animal)
+  isOpen.value = true
 }
 
 const closeModal = () => {
@@ -193,27 +199,23 @@ const closeModal = () => {
 }
 
 const handleSubmit = async () => {
-  const populateFormData = (animal: Animal) => {
-    formData.value = {
-      barnName: animal.barnName || '',
-      registeredName: animal.registeredName || '',
-      breed: animal.breed || '',
-      sireName: animal.sireName || '',
-      currentLactation: animal.currentLactation || null,
-      notes: animal.notes || '',
-      isFavorite: animal.isFavorite || false,
-      scoreValue: animal.latestScore || null,
-      baa: animal.latestBaa || null,
-      classificationNotes: ''
-    }
+  if (!props.animal) {
+    return
   }
 
-  const openModal = () => {
-    if (!props.animal) return
+  isSaving.value = true
 
-    populateFormData(props.animal)
-    isOpen.value = true
-  }
+  try {
+    const updatedAnimal = await updateAnimal(props.animal.animalId, {
+      barnName: formData.value.barnName || null,
+      registeredName: formData.value.registeredName || null,
+      breed: formData.value.breed || null,
+      sireName: formData.value.sireName || null,
+      currentLactation: formData.value.currentLactation,
+      notes: formData.value.notes || null,
+      isFavorite: formData.value.isFavorite
+    })
+
     if (formData.value.scoreValue !== null && formData.value.scoreValue !== undefined) {
       await addClassification({
         animalId: props.animal.animalId,

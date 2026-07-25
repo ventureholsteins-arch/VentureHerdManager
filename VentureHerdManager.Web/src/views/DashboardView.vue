@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { getAnimals } from '../api/animals'
@@ -262,10 +262,10 @@ const onRecordLUT = async (data: any) => {
 }
 
 // Handle opening edit animal modal
-const openEditModal = (animal: Animal) => {
+const openEditModal = async (animal: Animal) => {
   selectedAnimalForEdit.value = animal
-  editAnimalModalRef.value?.openModal()
   await nextTick()
+  editAnimalModalRef.value?.openModal()
 }
 
 // Handle saving edited animal

@@ -58,6 +58,7 @@ import {
 } from '../api/heats'
 
 import { uploadPhoto } from '../api/photos'
+import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 
 const route = useRoute()
 const router = useRouter()
@@ -677,6 +678,25 @@ const sexLabel = computed(() => {
 
   return sexes[animal.value.sex] ?? 'Unknown'
 })
+
+const ageLabel = computed(() => {
+  if (!animal.value) return 'Unknown'
+  return formatCurrentAge(animal.value.birthDate)
+})
+
+const showClassLabel = computed(() => {
+  if (!animal.value) return 'Class TBD'
+  return getShowClassLabel(animal.value.birthDate, animal.value.animalStage)
+})
+
+const scoreLabel = computed(() => {
+  if (!animal.value?.latestScore) return 'Not scored'
+
+  const score = animal.value.latestScore
+  if (score >= 90) return `EX ${Math.round(score)}`
+  if (score >= 85) return `VG ${Math.round(score)}`
+  return `GP ${Math.round(score)}`
+})
 </script>
 
 <template>
@@ -735,6 +755,21 @@ const sexLabel = computed(() => {
         <div class="info-card">
           <span>Birth Date</span>
           <strong>{{ animal.birthDate || 'Unknown' }}</strong>
+        </div>
+
+        <div class="info-card">
+          <span>Age</span>
+          <strong>{{ ageLabel }}</strong>
+        </div>
+
+        <div class="info-card">
+          <span>Show Class</span>
+          <strong>{{ showClassLabel }}</strong>
+        </div>
+
+        <div class="info-card">
+          <span>Score</span>
+          <strong>{{ scoreLabel }}</strong>
         </div>
       </section>
 

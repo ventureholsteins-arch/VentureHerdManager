@@ -542,8 +542,8 @@ onMounted(() => {
       <section class="quick-actions-bar">
         <button @click="openHeatModal" class="quick-btn heat-btn">💉 Record Heat</button>
         <button @click="openLUTModal()" class="quick-btn lut-btn">💉 LUT Injection</button>
+        <button @click="router.push('/reports?tab=embryos')" class="quick-btn embryo-btn">🧬 Embryo Inventory</button>
         <button @click="openReports" class="quick-btn report-btn">📋 Reports</button>
-        <button class="quick-btn add-btn" @click="openAddAnimal">➕ Add Animal</button>
       </section>
 
       <div class="mobile-fab-wrap">
@@ -560,8 +560,9 @@ onMounted(() => {
         <div v-if="mobileQuickOpen" class="mobile-fab-menu">
           <button type="button" class="mobile-fab-action heat" @click="openHeatModal">Heat</button>
           <button type="button" class="mobile-fab-action lut" @click="openLUTModal()">LUT</button>
+          <button type="button" class="mobile-fab-action embryo" @click="router.push('/reports?tab=embryos')">Embryos</button>
           <button type="button" class="mobile-fab-action report" @click="openReports">Reports</button>
-          <button type="button" class="mobile-fab-action add" @click="openAddAnimal">Add</button>
+          <button type="button" class="mobile-fab-action add" @click="openAddAnimal">+ Animal</button>
         </div>
       </div>
 
@@ -623,6 +624,8 @@ onMounted(() => {
               class="search-input-large"
               placeholder="🔎 Search name, sire, dam, breed, or registration..."
             >
+
+            <button class="add-animal-inline" type="button" @click="openAddAnimal">➕ Add New Animal</button>
           </div>
         </div>
 
@@ -1372,13 +1375,33 @@ onMounted(() => {
 
 .mobile-fab-action.heat { color: #7f1d1d; }
 .mobile-fab-action.lut { color: #1d4ed8; }
-.mobile-fab-action.report { color: #1d4ed8; }
+.mobile-fab-action.embryo { color: #6d28d9; }
+.mobile-fab-action.report { color: #0369a1; }
 .mobile-fab-action.add { color: #065f46; }
 
 .heat-btn:hover { background: #ff6b6b; border-color: #ff6b6b; color: white; }
 .lut-btn:hover { background: #2563eb; border-color: #2563eb; color: white; }
-.report-btn:hover { background: #1d4ed8; border-color: #1d4ed8; color: white; }
+.embryo-btn:hover { background: #7c3aed; border-color: #7c3aed; color: white; }
+.report-btn:hover { background: #0284c7; border-color: #0284c7; color: white; }
 .add-btn:hover { background: #10b981; border-color: #10b981; color: white; }
+
+.add-animal-inline {
+  border: 1px solid #c8d4cb;
+  background: white;
+  color: #31572c;
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  align-self: start;
+}
+
+.add-animal-inline:hover {
+  background: #f0f7f1;
+  border-color: #31572c;
+}
 
 @media (max-width: 640px) {
   .quick-actions-bar {

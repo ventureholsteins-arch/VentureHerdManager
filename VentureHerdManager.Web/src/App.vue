@@ -1,7 +1,6 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { getAppearance, type AppearanceSetting } from './api/appearance'
-import { resetDemo } from './api/demo'
 
 const appearance = ref<AppearanceSetting | null>(null)
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
@@ -29,7 +28,8 @@ const appStyle = computed(() => ({
 async function handleDemoReset() {
   demoResetting.value = true
   try {
-    await resetDemo()
+    // Keep demo mode safe while sharing production DB: no backend reset call.
+    sessionStorage.removeItem('demo-launched')
     window.location.href = '/'
   } finally {
     demoResetting.value = false
@@ -42,9 +42,9 @@ async function handleDemoReset() {
     <div class="app-background" />
 
     <div v-if="isDemoOnly" class="demo-banner">
-      <span>DEMO MODE - data resets on each launch</span>
+      <span>DEMO MODE - backend reset is disabled for data safety</span>
       <button type="button" :disabled="demoResetting" @click="handleDemoReset">
-        {{ demoResetting ? 'Resetting...' : 'Reset Demo' }}
+        {{ demoResetting ? 'Opening...' : 'Reopen Demo' }}
       </button>
     </div>
 

@@ -34,16 +34,46 @@ public class DemoController : ControllerBase
         var breedingCount = await _context.BreedingEvents.CountAsync(cancellationToken);
         var calvingCount = await _context.CalvingEvents.CountAsync(cancellationToken);
 
+        var activeCount = await _context.Animals
+            .CountAsync(a => a.AnimalStatus == AnimalStatus.Active, cancellationToken);
+
+        var stageCounts = await _context.Animals
+            .GroupBy(a => a.AnimalStage)
+            .Select(group => new
+            {
+                stage = group.Key.ToString(),
+                count = group.Count()
+            })
+            .ToListAsync(cancellationToken);
+
+        var previewAnimals = await _context.Animals
+            .OrderBy(a => a.BarnName)
+            .Take(8)
+            .Select(a => new
+            {
+                a.AnimalId,
+                name = a.BarnName ?? a.RegisteredName ?? $"Animal {a.AnimalId}",
+                stage = a.AnimalStage.ToString(),
+                a.Breed
+            })
+            .ToListAsync(cancellationToken);
+
         return Ok(new
         {
             enabled = true,
             counts = new
             {
                 animals = animalCount,
+                activeAnimals = activeCount,
                 heats = heatCount,
                 breedings = breedingCount,
-                calvings = calvingCount
-            }
+                calvings = calvingCount,
+                lutalyseEvents = await _context.LutalyseEvents.CountAsync(cancellationToken),
+                notes = await _context.AnimalNotes.CountAsync(cancellationToken),
+                photos = await _context.AnimalPhotos.CountAsync(cancellationToken)
+            },
+            stageCounts,
+            previewAnimals
         });
     }
 

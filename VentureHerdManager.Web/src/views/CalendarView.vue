@@ -35,6 +35,7 @@ const loading = ref(true)
 const refreshing = ref(false)
 const errorMessage = ref('')
 const selectedDateKey = ref<string | null>(null)
+const highlightingToday = ref(false)
 
 const weekDays = [
   'Sun',
@@ -329,6 +330,11 @@ async function changeMonth(monthDifference: number) {
 
 async function goToToday() {
   const today = new Date()
+  const todayKey = getDateKey(today)
+
+  const monthChanged =
+    currentMonth.value.getFullYear() !== today.getFullYear() ||
+    currentMonth.value.getMonth() !== today.getMonth()
 
   currentMonth.value = new Date(
     today.getFullYear(),
@@ -336,7 +342,17 @@ async function goToToday() {
     1
   )
 
-  selectedDateKey.value = getDateKey(today)
+  selectedDateKey.value = todayKey
+  highlightingToday.value = true
+
+  window.setTimeout(() => {
+    highlightingToday.value = false
+  }, 900)
+
+  if (!monthChanged) {
+    await refreshCalendar()
+    return
+  }
 
   await loadCalendar()
 }
@@ -537,7 +553,8 @@ onMounted(async () => {
             :class="{
               'other-month': !day.isCurrentMonth,
               'today': day.isToday,
-              'selected': selectedDateKey === day.key
+              'selected': selectedDateKey === day.key,
+              'today-jump': highlightingToday && selectedDateKey === day.key
             }"
             type="button"
             @click="selectDay(day)"
@@ -952,6 +969,10 @@ onMounted(async () => {
   box-shadow: inset 0 0 0 2px #31572c;
 }
 
+.calendar-day.today-jump {
+  animation: todayPulse 0.9s ease;
+}
+
 .day-number {
   display: grid;
   width: 28px;
@@ -1256,6 +1277,23 @@ onMounted(async () => {
 
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes todayPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: inset 0 0 0 2px #31572c, 0 0 0 0 rgba(49, 87, 44, 0.35);
+  }
+
+  50% {
+    transform: scale(1.01);
+    box-shadow: inset 0 0 0 2px #31572c, 0 0 0 8px rgba(49, 87, 44, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: inset 0 0 0 2px #31572c, 0 0 0 0 rgba(49, 87, 44, 0);
   }
 }
 

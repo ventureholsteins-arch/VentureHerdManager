@@ -10,6 +10,7 @@ import { recordCalving } from '../api/calving'
 import { addNote } from '../api/notes'
 import { recordLUT } from '../api/lut'
 import type { Animal } from '../models/Animal'
+import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 import DashboardSummary from '../components/DashboardSummary.vue'
 import RecordHeatModal from '../components/RecordHeatModal.vue'
 import RecordBreedingModal from '../components/RecordBreedingModal.vue'
@@ -24,9 +25,19 @@ const animals = ref<Animal[]>([])
 const appearance = ref<AppearanceSetting | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
+const warningMessage = ref('')
 const refreshing = ref(false)
 const dashboardRefreshKey = ref(0)
 const mobileQuickOpen = ref(false)
+const lastUpdatedAt = ref<string | null>(null)
+
+const DASHBOARD_CACHE_KEY = 'venture-herd-dashboard-cache-v1'
+
+interface DashboardCachePayload {
+  savedAt: string
+  animals: Animal[]
+  latestPregnancyStatuses: Record<number, number>
+}
 
 const searchQuery = ref('')
 const stageFilter = ref<number | null>(null)
@@ -108,7 +119,19 @@ const filteredAnimals = computed(() => {
 })
 
 const formattedLastUpdated = computed(() => {
-  return null
+  if (!lastUpdatedAt.value) {
+    return null
+  }
+
+  const parsed = new Date(lastUpdatedAt.value)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+
+  return parsed.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit'
+  })
 })
 
 const getStageLabel = (stage: number): string => {
@@ -138,8 +161,9 @@ const getBaaLabel = (baa: number | null | undefined): string => {
 }
 
 async function loadAnimals() {
-  loading.value = true
+  loading.value = animals.value.length === 0
   errorMessage.value = ''
+  warningMessage.value = ''
 
   try {
     const [appearanceResponse, animalsResponse, latestStatuses] = await Promise.all([
@@ -151,20 +175,60 @@ async function loadAnimals() {
     appearance.value = appearanceResponse
     animals.value = Array.isArray(animalsResponse) ? animalsResponse : []
     latestPregnancyStatuses.value = latestStatuses
+    lastUpdatedAt.value = new Date().toISOString()
+
+    const payload: DashboardCachePayload = {
+      savedAt: lastUpdatedAt.value,
+      animals: animals.value,
+      latestPregnancyStatuses: latestPregnancyStatuses.value
+    }
+
+    localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(payload))
   } catch (error) {
     console.error('Failed to load dashboard information:', error)
-    errorMessage.value =
-      error instanceof Error
-        ? error.message
-        : 'The dashboard could not be loaded.'
+
+    if (animals.value.length > 0) {
+      warningMessage.value = 'Live refresh failed. Showing last loaded herd data.'
+    } else {
+      errorMessage.value =
+        error instanceof Error
+          ? error.message
+          : 'The dashboard could not be loaded.'
+    }
   } finally {
     loading.value = false
     refreshing.value = false
   }
 }
 
+function loadDashboardCache() {
+  const cached = localStorage.getItem(DASHBOARD_CACHE_KEY)
+  if (!cached) {
+    return
+  }
+
+  try {
+    const payload = JSON.parse(cached) as DashboardCachePayload
+    if (Array.isArray(payload.animals)) {
+      animals.value = payload.animals
+    }
+    if (payload.latestPregnancyStatuses && typeof payload.latestPregnancyStatuses === 'object') {
+      latestPregnancyStatuses.value = payload.latestPregnancyStatuses
+    }
+    if (payload.savedAt) {
+      lastUpdatedAt.value = payload.savedAt
+    }
+  } catch (error) {
+    console.warn('Invalid dashboard cache payload:', error)
+  }
+}
+
 function openCalendar() {
   router.push('/calendar')
+}
+
+function openReports() {
+  router.push('/reports')
 }
 
 async function refreshDashboard() {
@@ -320,6 +384,7 @@ const goToBreedingTab = (animalId: number) => {
 }
 
 onMounted(() => {
+  loadDashboardCache()
   loadAnimals()
 })
 </script>
@@ -469,9 +534,14 @@ onMounted(() => {
     </section>
 
     <template v-else>
+      <section v-if="warningMessage" class="card warning-card">
+        <strong>Using cached data</strong>
+        <p>{{ warningMessage }}</p>
+      </section>
+
       <section class="quick-actions-bar">
         <button @click="openHeatModal" class="quick-btn heat-btn">💉 Record Heat</button>
-        <button @click="openLUTModal()" class="quick-btn lut-btn">💊 LUT Injection</button>
+        <button @click="openReports" class="quick-btn report-btn">📋 Reports</button>
         <button class="quick-btn add-btn" @click="openAddAnimal">➕ Add Animal</button>
       </section>
 
@@ -488,7 +558,7 @@ onMounted(() => {
 
         <div v-if="mobileQuickOpen" class="mobile-fab-menu">
           <button type="button" class="mobile-fab-action heat" @click="openHeatModal">Heat</button>
-          <button type="button" class="mobile-fab-action lut" @click="openLUTModal()">LUT</button>
+          <button type="button" class="mobile-fab-action report" @click="openReports">Reports</button>
           <button type="button" class="mobile-fab-action add" @click="openAddAnimal">Add</button>
         </div>
       </div>
@@ -504,12 +574,6 @@ onMounted(() => {
           </div>
 
           <div class="herd-actions">
-            <input
-              v-model="searchQuery"
-              type="search"
-              class="search-input-large"
-              placeholder="🔎 Search name, sire, dam, breed, or registration..."
-            >
             <div class="filter-row">
               <label>
                 Stage
@@ -550,6 +614,13 @@ onMounted(() => {
                 Favorites only
               </label>
             </div>
+
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input-large"
+              placeholder="🔎 Search name, sire, dam, breed, or registration..."
+            >
           </div>
         </div>
 
@@ -584,6 +655,14 @@ onMounted(() => {
                   <span>{{ animal.sireName || '—' }}</span>
                 </div>
                 <div class="detail-row">
+                  <span class="label">Show Age:</span>
+                  <span>{{ formatCurrentAge(animal.birthDate) }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="label">Show Class:</span>
+                  <span>{{ getShowClassLabel(animal.birthDate, animal.animalStage) }}</span>
+                </div>
+                <div class="detail-row">
                   <span class="label">Lactation:</span>
                   <span>{{ animal.currentLactation || '—' }}</span>
                 </div>
@@ -609,25 +688,10 @@ onMounted(() => {
                 title="Edit Animal"
               >✏️ Edit</button>
               <button 
-                @click.stop="openHeatModal" 
-                class="action-btn heat"
-                title="Record Heat"
-              >💉 Heat</button>
-              <button 
-                @click.stop="openBreedingModal(animal.animalId, animal.barnName || animal.registeredName || `#${animal.animalId}`)"
-                class="action-btn breed"
-                title="Record Breeding"
-              >🐂 Breed</button>
-              <button 
-                @click.stop="openCalvingModal(animal.animalId, animal.barnName || animal.registeredName || `#${animal.animalId}`)"
-                class="action-btn calving"
-                title="Record Calving"
-              >👶 Calving</button>
-              <button 
-                @click.stop="openNoteModal(animal.animalId, animal.barnName || animal.registeredName || `#${animal.animalId}`)"
-                class="action-btn note"
-                title="Add Note"
-              >📝 Note</button>
+                @click.stop="router.push(`/animals/${animal.animalId}`)"
+                class="action-btn view"
+                title="Open Animal"
+              >👁 Open</button>
             </div>
           </div>
         </div>
@@ -873,6 +937,12 @@ onMounted(() => {
 
 .error-card {
   color: #7a2020;
+}
+
+.warning-card {
+  color: #6b4f00;
+  background: #fff9e6;
+  border-color: #f3d98a;
 }
 
 @media (max-width: 860px) {
@@ -1312,11 +1382,11 @@ onMounted(() => {
 }
 
 .mobile-fab-action.heat { color: #7f1d1d; }
-.mobile-fab-action.lut { color: #92400e; }
+.mobile-fab-action.report { color: #1d4ed8; }
 .mobile-fab-action.add { color: #065f46; }
 
 .heat-btn:hover { background: #ff6b6b; border-color: #ff6b6b; color: white; }
-.lut-btn:hover { background: #f59e0b; border-color: #f59e0b; color: white; }
+.report-btn:hover { background: #1d4ed8; border-color: #1d4ed8; color: white; }
 .add-btn:hover { background: #10b981; border-color: #10b981; color: white; }
 
 @media (max-width: 640px) {

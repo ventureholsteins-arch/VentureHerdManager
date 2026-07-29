@@ -111,6 +111,16 @@ public class ShowAchievementsController : ControllerBase
         }
 
         existing.ShowName = achievement.ShowName;
+        if (existing.AnimalId != achievement.AnimalId)
+        {
+            var animalExists = await _context.Animals
+                .AnyAsync(a => a.AnimalId == achievement.AnimalId);
+            if (!animalExists)
+            {
+                return NotFound($"Animal {achievement.AnimalId} was not found.");
+            }
+            existing.AnimalId = achievement.AnimalId;
+        }
         existing.ShowDate = achievement.ShowDate;
         existing.Placed = achievement.Placed;
         existing.Bagged = achievement.Bagged;

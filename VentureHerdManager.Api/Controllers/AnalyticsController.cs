@@ -128,11 +128,11 @@ public class AnalyticsController : ControllerBase
         var cutoff = DateTime.Today.AddMonths(-months + 1);
         var cutoffStart = new DateTime(cutoff.Year, cutoff.Month, 1);
 
-        // Get monthly embryos implanted (from HeatEvents with EmbryoImplantDate)
-        var implanted = (await _context.HeatEvents
+        // Inventory records are the source of truth for embryo transfers.
+        var implanted = (await _context.EmbryoRecords
             .AsNoTracking()
-            .Where(e => e.HasEmbryoTransfer && e.EmbryoImplantDate.HasValue)
-            .GroupBy(e => new { e.EmbryoImplantDate!.Value.Year, e.EmbryoImplantDate!.Value.Month })
+            .Where(e => e.ImplantDate.HasValue)
+            .GroupBy(e => new { e.ImplantDate!.Value.Year, e.ImplantDate!.Value.Month })
             .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
             .ToListAsync(cancellationToken))
             .Select(x => new MonthCount(x.Year, x.Month, x.Count)).ToList();

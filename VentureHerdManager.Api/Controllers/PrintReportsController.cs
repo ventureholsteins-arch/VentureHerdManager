@@ -15,6 +15,7 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
         var today = DateTime.UtcNow.Date;
         var monthAgo = today.AddMonths(-1);
         var eightMonths = today.AddMonths(8);
+        var sevenMonthsAgo = DateOnly.FromDateTime(today.AddMonths(-7));
 
         var animals = await context.Animals.AsNoTracking()
             .Where(a => a.AnimalStatus == AnimalStatus.Active)
@@ -52,10 +53,29 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
                     e.RecipientAnimal.BarnName ?? e.RecipientAnimal.RegisteredName
             }).ToListAsync();
 
+        var bredAnimalIds = breedings.Select(b => b.AnimalId).ToHashSet();
+        var missingAnimalIdentification = animals.Where(a =>
+            string.IsNullOrWhiteSpace(a.BarnName)
+            || string.IsNullOrWhiteSpace(a.RegistrationNumber));
+        var oldEnoughNotBred = animals.Where(a =>
+            a.BirthDate <= sevenMonthsAgo
+            && !bredAnimalIds.Contains(a.AnimalId));
+        var milkingNotBred = animals.Where(a =>
+            a.AnimalStage == AnimalStage.Milking
+            && !bredAnimalIds.Contains(a.AnimalId));
+        var pregnancyChecksDue = breedings.Where(b =>
+            b.PregnancyCheckDueDate <= today
+            && (b.PregnancyStatus == PregnancyStatus.Unconfirmed
+                || b.PregnancyStatus == PregnancyStatus.Recheck));
+
         return Ok(new {
             GeneratedAt = DateTime.UtcNow,
             Animals = animals,
             MissingRegistration = animals.Where(a => string.IsNullOrWhiteSpace(a.RegistrationNumber)),
+            MissingAnimalIdentification = missingAnimalIdentification,
+            OldEnoughNotBred = oldEnoughNotBred,
+            MilkingNotBred = milkingNotBred,
+            PregnancyChecksDue = pregnancyChecksDue,
             DueWithinEightMonths = breedings.Where(b =>
                 b.PregnancyStatus == PregnancyStatus.Pregnant &&
                 b.ExpectedDueDate >= today && b.ExpectedDueDate <= eightMonths),

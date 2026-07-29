@@ -53,7 +53,7 @@ export async function recordBreeding(breedingData: {
   })
 
   if (!response.ok) {
-    throw new Error('Failed to record breeding')
+    throw new Error(await response.text() || 'Failed to record breeding')
   }
 }
 
@@ -73,7 +73,7 @@ export async function updatePregnancyStatus(
   )
 
   if (!response.ok) {
-    throw new Error('Failed to update pregnancy status')
+    throw new Error(await response.text() || 'Failed to update pregnancy status')
   }
 }
 
@@ -103,7 +103,7 @@ export async function updateBreedingEvent(
   })
 
   if (!response.ok) {
-    throw new Error('Failed to update breeding')
+    throw new Error(await response.text() || 'Failed to update breeding')
   }
 }
 

@@ -13,6 +13,10 @@ const report = ref('missingRegistration')
 
 const options = [
   ['missingRegistration', 'Missing registration numbers'],
+  ['missingAnimalIdentification', 'Missing barn names or registration numbers'],
+  ['oldEnoughNotBred', '7 months+ and not bred'],
+  ['milkingNotBred', 'Milking cows not bred'],
+  ['pregnancyChecksDue', 'All pregnancy checks due'],
   ['animals', 'All active animals'],
   ['calves', 'Calves'],
   ['heifers', 'Heifers'],
@@ -36,7 +40,16 @@ const rows = computed(() => {
 })
 
 const title = computed(() => options.find(x => x[0] === report.value)?.[1] ?? 'Report')
-const isAnimalReport = computed(() => ['missingRegistration', 'animals', 'calves', 'heifers', 'cows'].includes(report.value))
+const isAnimalReport = computed(() => [
+  'missingRegistration',
+  'missingAnimalIdentification',
+  'oldEnoughNotBred',
+  'milkingNotBred',
+  'animals',
+  'calves',
+  'heifers',
+  'cows'
+].includes(report.value))
 const fmt = (value: string | null) => value ? new Date(value).toLocaleDateString() : '—'
 const printReport = () => window.print()
 
@@ -65,13 +78,13 @@ onMounted(async () => {
       <table>
         <thead><tr v-if="isAnimalReport"><th>Animal</th><th>Registered name</th><th>Registration #</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
         <tr v-else-if="report === 'lastMonthHeats'"><th>Animal</th><th>Heat date</th><th>Notes</th></tr>
-        <tr v-else-if="['dueWithinEightMonths','breedings','heiferPregChecks','cowPregChecks'].includes(report)"><th>Animal</th><th>Bred</th><th>Sire</th><th>Due / Check</th><th>Status</th><th>Working notes</th></tr>
+        <tr v-else-if="['dueWithinEightMonths','breedings','pregnancyChecksDue','heiferPregChecks','cowPregChecks'].includes(report)"><th>Animal</th><th>Bred</th><th>Sire</th><th>Due / Check</th><th>Status</th><th>Working notes</th></tr>
         <tr v-else><th>Code</th><th>Donor × Sire</th><th>Grade</th><th>Recipient</th><th>Implant date</th><th>Status</th></tr></thead>
         <tbody>
           <tr v-for="row in rows" :key="row.animalId ?? row.heatEventId ?? row.breedingEventId ?? row.embryoRecordId">
-            <template v-if="isAnimalReport"><td>{{ row.barnName || `Animal #${row.animalId}` }}</td><td>{{ row.registeredName || '—' }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
+            <template v-if="isAnimalReport"><td>{{ row.barnName || row.registeredName || [row.sireName, row.damName].filter(Boolean).join(' × ') || `Animal #${row.animalId}` }}</td><td>{{ row.registeredName || '—' }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
             <template v-else-if="report === 'lastMonthHeats'"><td>{{ row.animalName }}</td><td>{{ fmt(row.heatDateTime) }}</td><td>{{ row.notes || '—' }}</td></template>
-            <template v-else-if="['dueWithinEightMonths','breedings','heiferPregChecks','cowPregChecks'].includes(report)"><td>{{ row.animalName }}</td><td>{{ fmt(row.breedingDate) }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td>{{ row.pregnancyStatus }}</td><td class="write-field"></td></template>
+            <template v-else-if="['dueWithinEightMonths','breedings','pregnancyChecksDue','heiferPregChecks','cowPregChecks'].includes(report)"><td>{{ row.animalName }}</td><td>{{ fmt(row.breedingDate) }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td>{{ row.pregnancyStatus }}</td><td class="write-field"></td></template>
             <template v-else><td>{{ row.code || `#${row.embryoRecordId}` }}</td><td>{{ row.donor || '—' }} × {{ row.sire || '—' }}</td><td>{{ row.grade || '—' }}</td><td>{{ row.recipientName || '—' }}</td><td>{{ fmt(row.implantDate) }}</td><td>{{ row.status }}</td></template>
           </tr>
           <tr v-if="rows.length === 0"><td colspan="6">No records in this report.</td></tr>

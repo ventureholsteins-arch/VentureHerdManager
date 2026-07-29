@@ -484,8 +484,6 @@ async function saveBreeding() {
     alert('Please select the embryo being transferred.')
     return
   }
-  if (breedingType.value !== 2 && !sireUsed.value.trim()) return
-
   try {
     if (breedingType.value === 2 && selectedEmbryoId.value) {
       await implantEmbryo(
@@ -497,7 +495,7 @@ async function saveBreeding() {
       await recordBreeding({
         animalId: animal.value.animalId,
         breedingDate: breedingDate.value,
-        sireUsed: sireUsed.value.trim(),
+        sireUsed: sireUsed.value.trim() || 'Service information pending',
         breedingType: breedingType.value,
         pregnancyStatus: 0,
         notes: breedingNotes.value
@@ -515,6 +513,7 @@ async function saveBreeding() {
     )
   } catch (error) {
     console.error('Failed to save breeding:', error)
+    alert(error instanceof Error ? error.message : 'Failed to save breeding record.')
   }
 }
 

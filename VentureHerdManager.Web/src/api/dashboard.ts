@@ -8,6 +8,7 @@ export interface DashboardPregCheck {
   breedingDate: string
   pregnancyCheckDueDate: string
   pregnancyStatus: number
+  animalStage: number
 }
 
 export interface DashboardDueSoon {

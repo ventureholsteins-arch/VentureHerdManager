@@ -1476,24 +1476,24 @@ onMounted(async () => {
 
   .legend {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 7px 5px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
     overflow: visible;
-    padding: 9px 7px;
+    padding: 10px;
   }
 
   .legend-item {
     min-width: 0;
-    gap: 4px;
-    font-size: 10px;
-    line-height: 1.1;
+    gap: 6px;
+    font-size: 11px;
+    line-height: 1.2;
   }
 
   .legend-dot {
-    width: 20px;
-    height: 20px;
-    flex: 0 0 20px;
-    font-size: 10px;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    font-size: 11px;
   }
 
   .weekday {

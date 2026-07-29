@@ -50,14 +50,11 @@ public sealed class PaperRecordImportService
                 continue;
             }
 
-            var paperStatus = row.Get("Stage / Status from Notes");
-            var sourceNote = row.Get("Source Note");
-            if (paperStatus.Contains('/', StringComparison.Ordinal)
-                || sourceNote.Contains("unclear", StringComparison.OrdinalIgnoreCase)
-                || Normalize(name) == "pixie")
+            if (Normalize(name) == "pixie")
             {
-                report.Conflicts.Add(
-                    $"Animal '{name}' has questionable paper status/details: {paperStatus}; {sourceNote}");
+                report.IgnoredRows.Add(
+                    "Pixie animal row was intentionally ignored for manual correction.");
+                continue;
             }
 
             var match = FindAnimal(animalLookup, name);
@@ -72,6 +69,7 @@ public sealed class PaperRecordImportService
             {
                 report.AnimalMatches++;
                 PreservePaperNote(match.Animal, row);
+                ApplyConfirmedAnimalState(match.Animal, name, report);
                 continue;
             }
 
@@ -98,6 +96,7 @@ public sealed class PaperRecordImportService
             {
                 report.RecipientsCreated++;
             }
+            ApplyConfirmedAnimalState(created, name, report);
 
         }
 
@@ -106,9 +105,37 @@ public sealed class PaperRecordImportService
         var existingBreedings = await _context.BreedingEvents
             .ToListAsync(cancellationToken);
 
+        foreach (var confirmedPregnantName in new[] { "Casanova", "Missy" })
+        {
+            var confirmedAnimal = FindAnimal(animalLookup, confirmedPregnantName).Animal;
+            if (confirmedAnimal == null)
+            {
+                continue;
+            }
+            var latestBreeding = existingBreedings
+                .Where(b => b.AnimalId == confirmedAnimal.AnimalId)
+                .OrderByDescending(b => b.BreedingDate)
+                .ThenByDescending(b => b.BreedingEventId)
+                .FirstOrDefault();
+            if (latestBreeding != null
+                && latestBreeding.PregnancyStatus != PregnancyStatus.Pregnant)
+            {
+                latestBreeding.PregnancyStatus = PregnancyStatus.Pregnant;
+                latestBreeding.UpdatedBy = "Paper record import";
+                latestBreeding.UpdatedAt = DateTime.UtcNow;
+                report.RecordsUpdated++;
+            }
+        }
+
         foreach (var row in breedingRows)
         {
             var name = row.Get("Animal Name");
+            if (Normalize(name) == "pixie")
+            {
+                report.IgnoredRows.Add(
+                    "Pixie breeding row was intentionally ignored for manual correction.");
+                continue;
+            }
             var match = FindAnimal(animalLookup, name);
             if (match.IsAmbiguous || match.Animal == null)
             {
@@ -148,21 +175,13 @@ public sealed class PaperRecordImportService
             }
 
             var paperStatus = row.Get("Paper Status");
-            var conflict = Normalize(name) == "pixie"
-                || paperStatus.Contains("Dry", StringComparison.OrdinalIgnoreCase)
-                || row.Get("Record Type").Contains("?", StringComparison.Ordinal);
-            if (conflict)
-            {
-                report.Conflicts.Add(
-                    $"Breeding for '{name}' on {bredDate:yyyy-MM-dd}: paper status '{paperStatus}' requires review.");
-            }
 
             var breeding = CreateBreeding(
                 match.Animal.AnimalId,
                 bredDate,
                 sire,
                 BreedingType.Unknown,
-                !conflict && paperStatus.Contains("PG", StringComparison.OrdinalIgnoreCase)
+                paperStatus.Contains("PG", StringComparison.OrdinalIgnoreCase)
                     ? PregnancyStatus.Pregnant
                     : PregnancyStatus.Unconfirmed,
                 BuildBreedingNote(row));
@@ -463,6 +482,24 @@ public sealed class PaperRecordImportService
         animal.UpdatedAt = DateTime.UtcNow;
     }
 
+    private static void ApplyConfirmedAnimalState(
+        Animal animal,
+        string paperName,
+        PaperImportReport report)
+    {
+        var normalizedName = Normalize(paperName);
+        if (normalizedName is not ("missy" or "emmy")
+            || animal.AnimalStage == AnimalStage.Dry)
+        {
+            return;
+        }
+
+        animal.AnimalStage = AnimalStage.Dry;
+        animal.UpdatedBy = "Paper record import";
+        animal.UpdatedAt = DateTime.UtcNow;
+        report.RecordsUpdated++;
+    }
+
     private static string BuildPaperNote(CsvRow row) =>
         $"[Paper import] Status: {ValueOrUnknown(row.Get("Stage / Status from Notes"))}; Source: {ValueOrUnknown(row.Get("Source Note"))}.";
 
@@ -588,6 +625,8 @@ public sealed class PaperImportReport
     public int EmbryosAdded { get; set; }
     public int DuplicateBreedingsSkipped { get; set; }
     public int DuplicateEmbryosSkipped { get; set; }
+    public int RecordsUpdated { get; set; }
     public List<string> MissingAnimals { get; } = [];
     public List<string> Conflicts { get; } = [];
+    public List<string> IgnoredRows { get; } = [];
 }

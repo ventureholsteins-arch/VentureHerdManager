@@ -132,6 +132,40 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AppliesConfirmedPregnancyAndDryStates()
+    {
+        var casanova = new Animal { BarnName = "Casanova" };
+        var missy = new Animal { BarnName = "Missy", AnimalStage = AnimalStage.Milking };
+        var emmy = new Animal { BarnName = "Emmy", AnimalStage = AnimalStage.Heifer };
+        _context.Animals.AddRange(casanova, missy, emmy);
+        await _context.SaveChangesAsync();
+        _context.BreedingEvents.Add(new BreedingEvent
+        {
+            AnimalId = casanova.AnimalId,
+            BreedingDate = new DateTime(2026, 2, 21),
+            SireUsed = "Paldwyn",
+            PregnancyStatus = PregnancyStatus.Unconfirmed
+        });
+        await _context.SaveChangesAsync();
+        WriteSources(
+            [
+                "Casanova,Pregnant noted,,,PG confirmed,Yes",
+                "Missy,Dry / Pregnant noted,,,Dry and pregnant confirmed,Yes",
+                "Emmy,Dry noted,,,Dry and bred pending confirmation,Yes"
+            ],
+            [],
+            []);
+
+        await _service.ReconcileAsync(_sourceDirectory, true);
+
+        Assert.Equal(
+            PregnancyStatus.Pregnant,
+            (await _context.BreedingEvents.SingleAsync()).PregnancyStatus);
+        Assert.Equal(AnimalStage.Dry, missy.AnimalStage);
+        Assert.Equal(AnimalStage.Dry, emmy.AnimalStage);
+    }
+
+    [Fact]
     public async Task ReconcilesAllProvidedPaperFilesOnAnEmptyDatabase()
     {
         var source = Path.GetFullPath(Path.Combine(
@@ -141,14 +175,28 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
 
         var report = await _service.ReconcileAsync(source, true);
 
-        Assert.Equal(37, report.AnimalsCreated);
+        Assert.Equal(36, report.AnimalsCreated);
         Assert.Equal(3, report.RecipientsCreated);
-        Assert.Equal(30, report.BreedingsAdded);
+        Assert.Equal(29, report.BreedingsAdded);
         Assert.Equal(3, report.EmbryosAdded);
-        Assert.Equal(7, report.Conflicts.Count);
-        Assert.Equal(37, await _context.Animals.CountAsync());
-        Assert.Equal(30, await _context.BreedingEvents.CountAsync());
+        Assert.Empty(report.Conflicts);
+        Assert.Equal(2, report.IgnoredRows.Count);
+        Assert.Equal(36, await _context.Animals.CountAsync());
+        Assert.Equal(29, await _context.BreedingEvents.CountAsync());
         Assert.Equal(3, await _context.EmbryoRecords.CountAsync());
+        Assert.DoesNotContain(
+            await _context.Animals.ToListAsync(),
+            animal => animal.BarnName == "Pixie");
+        var bandi = await _context.Animals.SingleAsync(animal => animal.BarnName == "Bandi");
+        var carmella = await _context.Animals.SingleAsync(animal => animal.BarnName == "Carmella");
+        Assert.Contains(
+            await _context.EmbryoRecords.ToListAsync(),
+            embryo => embryo.RecipientAnimalId == bandi.AnimalId
+                && embryo.Status == EmbryoStatus.Implanted);
+        Assert.Contains(
+            await _context.EmbryoRecords.ToListAsync(),
+            embryo => embryo.RecipientAnimalId == carmella.AnimalId
+                && embryo.Status == EmbryoStatus.Implanted);
     }
 
     private void WriteSources(

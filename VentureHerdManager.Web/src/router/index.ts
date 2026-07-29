@@ -10,6 +10,7 @@ import AnimalCreateView from '../views/AnimalCreateView.vue'
 import ReportsView from '../views/ReportsView.vue'
 import PrintReportsView from '../views/PrintReportsView.vue'
 import DemoView from '../views/DemoView.vue'
+import SharedHerdView from '../views/SharedHerdView.vue'
 
 import SettingsView from '../views/SettingsView.vue'
 
@@ -55,6 +56,11 @@ const router = createRouter({
       component: SettingsView
     },
     {
+      path: '/shared/:token',
+      name: 'shared-herd',
+      component: SharedHerdView
+    },
+    {
       path: '/animals/:animalId',
       name: 'animal',
       component: AnimalView,
@@ -70,7 +76,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (isDemoOnly && to.path !== '/demo' && !sessionStorage.getItem('demo-launched')) {
+  if (isDemoOnly && to.path !== '/demo' && !to.path.startsWith('/shared/') && !sessionStorage.getItem('demo-launched')) {
     return '/demo'
   }
 

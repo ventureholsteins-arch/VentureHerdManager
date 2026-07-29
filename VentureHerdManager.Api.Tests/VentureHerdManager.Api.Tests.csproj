@@ -16,4 +16,10 @@
   <ItemGroup>
     <ProjectReference Include="..\VentureHerdManager.Api\VentureHerdManager.Api.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\docs\paper-record-import\*.csv">
+      <Link>paper-record-import\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

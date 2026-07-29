@@ -64,10 +64,11 @@
         <div class="form-group">
           <label>Pregnancy Status:</label>
           <select v-model="pregnancyStatus" class="form-input">
-            <option value="0">Unknown</option>
+            <option value="0">Unconfirmed</option>
             <option value="1">Pregnant</option>
-            <option value="2">Not Pregnant</option>
-            <option value="3">Pending Check</option>
+            <option value="2">Open / Not Pregnant</option>
+            <option value="3">Recheck</option>
+            <option value="4">Aborted</option>
           </select>
         </div>
 
@@ -93,7 +94,7 @@ const breedingType = ref('1')
 const selectedEmbryoId = ref('')
 const availableEmbryos = ref<EmbryoRecord[]>([])
 const notes = ref('')
-const pregnancyStatus = ref('3')
+const pregnancyStatus = ref('0')
 const recentSires = ref<string[]>(['Seashore', 'Robust', 'Elevation'])
 
 const emit = defineEmits<{
@@ -110,7 +111,7 @@ const openModal = async (id: number, name: string) => {
   breedingType.value = '0'
   selectedEmbryoId.value = ''
   notes.value = ''
-  pregnancyStatus.value = '3'
+  pregnancyStatus.value = '0'
   isOpen.value = true
   try {
     availableEmbryos.value = (await getAllEmbryos())

@@ -68,10 +68,6 @@ const duplicateRegistrationWarning = computed(() => {
 })
 
 const barnNameError = computed(() => {
-  if (!trimmedBarnName.value) {
-    return 'Barn name is required.'
-  }
-
   if (trimmedBarnName.value.length > 100) {
     return 'Barn name must be 100 characters or less.'
   }
@@ -152,7 +148,7 @@ async function saveAnimal() {
 
   try {
     const created = await createAnimal({
-      barnName: trimmedBarnName.value,
+      barnName: trimmedBarnName.value || null,
       registeredName: form.value.registeredName.trim() || null,
       registrationNumber: trimmedRegistration.value || null,
       birthDate: form.value.birthDate.trim() || null,
@@ -187,9 +183,13 @@ async function saveAnimal() {
 
       <div class="grid">
         <label>
-          Barn Name *
+          Barn Name (optional)
           <input v-model="form.barnName" type="text" maxlength="100" />
           <small v-if="barnNameError" class="error-text">{{ barnNameError }}</small>
+          <small v-else class="field-hint">
+            Leave blank if she does not have one yet. Her registered name,
+            pedigree, or animal number will identify her.
+          </small>
         </label>
 
         <label>
@@ -357,6 +357,12 @@ textarea {
 .warn-text {
   color: #92400e;
   font-weight: 600;
+}
+
+.field-hint {
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.35;
 }
 
 .actions {

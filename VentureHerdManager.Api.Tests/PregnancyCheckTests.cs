@@ -87,6 +87,54 @@ public sealed class PregnancyCheckTests
         Assert.NotNull(embryo.FailureNotes);
     }
 
+    [Fact]
+    public async Task EditingEmbryoTransferKeepsEmbryoSireAndMatingSeparate()
+    {
+        await using var context = CreateContext();
+        var recipient = new Animal { BarnName = "Recipient" };
+        context.Animals.Add(recipient);
+        await context.SaveChangesAsync();
+        var breeding = new BreedingEvent
+        {
+            AnimalId = recipient.AnimalId,
+            BreedingDate = new DateTime(2026, 7, 15),
+            SireUsed = "Polly x Goldwyn",
+            BreedingType = BreedingType.EmbryoTransfer
+        };
+        context.BreedingEvents.Add(breeding);
+        await context.SaveChangesAsync();
+        var embryo = new EmbryoRecord
+        {
+            Donor = "Polly",
+            Sire = "Goldwyn",
+            Mating = "Polly x Goldwyn",
+            RecipientAnimalId = recipient.AnimalId,
+            ImplantDate = new DateOnly(2026, 7, 15),
+            BreedingEventId = breeding.BreedingEventId,
+            Status = EmbryoStatus.Implanted
+        };
+        context.EmbryoRecords.Add(embryo);
+        await context.SaveChangesAsync();
+        var controller = new BreedingEventsController(context);
+
+        await controller.Update(
+            breeding.BreedingEventId,
+            new UpdateBreedingEventRequest
+            {
+                BreedingDate = new DateTime(2026, 7, 16),
+                SireUsed = "Polly x Corrected Goldwyn",
+                BreedingType = BreedingType.EmbryoTransfer,
+                PregnancyStatus = PregnancyStatus.Unconfirmed
+            });
+
+        Assert.Equal("Goldwyn", embryo.Sire);
+        Assert.Equal("Polly x Corrected Goldwyn", embryo.Mating);
+        Assert.Equal(new DateOnly(2026, 7, 16), embryo.ImplantDate);
+        Assert.Equal(
+            new DateTime(2026, 7, 16).AddDays(273),
+            breeding.ExpectedDueDate);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var configuration = new ConfigurationBuilder()

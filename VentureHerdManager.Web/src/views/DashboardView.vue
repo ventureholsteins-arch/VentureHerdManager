@@ -12,6 +12,7 @@ import { addNote } from '../api/notes'
 import { recordLUT } from '../api/lut'
 import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
+import { animalDisplayName } from '../utils/animalDisplay'
 import DashboardSummary from '../components/DashboardSummary.vue'
 import RecordHeatModal from '../components/RecordHeatModal.vue'
 import RecordBreedingModal from '../components/RecordBreedingModal.vue'
@@ -31,7 +32,6 @@ const errorMessage = ref('')
 const warningMessage = ref('')
 const refreshing = ref(false)
 const dashboardRefreshKey = ref(0)
-const mobileQuickOpen = ref(false)
 const lastUpdatedAt = ref<string | null>(null)
 
 const DASHBOARD_CACHE_KEY = 'venture-herd-dashboard-cache-v1'
@@ -84,13 +84,7 @@ const animalCounts = computed(() => ({
 }))
 
 function dashboardAnimalName(animal: Animal): string {
-  return animal.barnName
-    || animal.registeredName
-    || (
-      animal.damName || animal.sireName
-        ? `${animal.damName || 'Unknown dam'} x ${animal.sireName || 'Unknown sire'}`
-        : `Animal #${animal.animalId}`
-    )
+  return animalDisplayName(animal)
 }
 
 const filteredAnimals = computed(() => {
@@ -271,24 +265,17 @@ async function refreshDashboard() {
 
 // Modal event handlers
 const openHeatModal = () => {
-  mobileQuickOpen.value = false
   heatModalRef.value?.openModal()
 }
 const openBreedingModal = (id: number, name: string) => breedingModalRef.value?.openModal(id, name)
 const openCalvingModal = (id: number, name: string) => calvingModalRef.value?.openModal(id, name)
 const openNoteModal = (id: number, name: string) => noteModalRef.value?.openModal(id, name)
 const openLUTModal = (id?: number, name?: string) => {
-  mobileQuickOpen.value = false
   lutModalRef.value?.openModal(id, name)
 }
 
 const openAddAnimal = () => {
-  mobileQuickOpen.value = false
   router.push('/animals/new')
-}
-
-const toggleMobileQuickActions = () => {
-  mobileQuickOpen.value = !mobileQuickOpen.value
 }
 
 // Handle heat recording
@@ -613,26 +600,6 @@ onMounted(() => {
         <button @click="router.push('/reports?tab=embryos')" class="quick-btn embryo-btn"><RetroIcon name="embryo" :size="28" /><span>Embryo Inventory</span></button>
         <button @click="openReports" class="quick-btn report-btn"><RetroIcon name="reports" :size="28" /><span>Reports</span></button>
       </section>
-
-      <div class="mobile-fab-wrap">
-        <button
-          class="mobile-fab"
-          type="button"
-          aria-label="Open quick actions"
-          :aria-expanded="mobileQuickOpen"
-          @click="toggleMobileQuickActions"
-        >
-          {{ mobileQuickOpen ? '✕' : '+' }}
-        </button>
-
-        <div v-if="mobileQuickOpen" class="mobile-fab-menu">
-          <button type="button" class="mobile-fab-action heat" @click="openHeatModal">Heat</button>
-          <button type="button" class="mobile-fab-action lut" @click="openLUTModal()">LUT</button>
-          <button type="button" class="mobile-fab-action embryo" @click="router.push('/reports?tab=embryos')">Embryos</button>
-          <button type="button" class="mobile-fab-action report" @click="openReports">Reports</button>
-          <button type="button" class="mobile-fab-action add" @click="openAddAnimal">+ Animal</button>
-        </div>
-      </div>
 
       <DashboardSummary :key="dashboardRefreshKey" :animals="animals" />
 
@@ -1501,46 +1468,6 @@ onMounted(() => {
   text-align: left;
 }
 
-.mobile-fab-wrap {
-  display: none;
-}
-
-.mobile-fab {
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  border: none;
-  background: #244f2f;
-  color: #fff;
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
-  box-shadow: 0 14px 28px rgba(11, 34, 17, 0.35);
-}
-
-.mobile-fab-menu {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.mobile-fab-action {
-  border: 1px solid #d1ddd5;
-  background: #fff;
-  border-radius: 999px;
-  min-height: 48px;
-  padding: 0 18px;
-  font-size: 1rem;
-  font-weight: 800;
-  box-shadow: 0 8px 16px rgba(10, 27, 14, 0.2);
-}
-
-.mobile-fab-action.heat { color: #7f1d1d; }
-.mobile-fab-action.lut { color: #1d4ed8; }
-.mobile-fab-action.embryo { color: #6d28d9; }
-.mobile-fab-action.report { color: #0369a1; }
-.mobile-fab-action.add { color: #065f46; }
-
 .heat-btn:hover { background: #ff6b6b; border-color: #ff6b6b; color: white; }
 .lut-btn:hover { background: #2563eb; border-color: #2563eb; color: white; }
 .embryo-btn:hover { background: #7c3aed; border-color: #7c3aed; color: white; }
@@ -1584,14 +1511,6 @@ onMounted(() => {
     font-size: 0.84rem;
   }
 
-  .mobile-fab-wrap {
-    display: block;
-    position: fixed;
-    right: 14px;
-    bottom: 14px;
-    z-index: 40;
-    text-align: right;
-  }
 }
 
 @media (max-width: 480px) {

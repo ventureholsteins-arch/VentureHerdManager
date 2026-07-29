@@ -3,7 +3,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
-import { getAnimal, setAnimalFavorite } from '../api/animals'
+import { getAnimalsBasic, setAnimalFavorite } from '../api/animals'
 import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
@@ -67,6 +67,7 @@ import {
 
 import { uploadPhoto } from '../api/photos'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
+import { animalDisplayName as getAnimalDisplayName } from '../utils/animalDisplay'
 import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 import RetroIcon from '../components/RetroIcon.vue'
 
@@ -90,14 +91,7 @@ const visibleTimelineEntries = computed(() =>
     : timelineEntries.value.slice(0, 6)
 )
 const animalDisplayName = computed(() =>
-  animal.value?.barnName
-  || animal.value?.registeredName
-  || (
-    animal.value?.damName || animal.value?.sireName
-      ? `${animal.value?.damName || 'Unknown dam'} x ${animal.value?.sireName || 'Unknown sire'}`
-      : null
-  )
-  || (animal.value ? `Animal #${animal.value.animalId}` : 'Animal')
+  animal.value ? getAnimalDisplayName(animal.value) : 'Animal'
 )
 const animalImageUrl = computed(() =>
   animal.value?.profilePictureUrl
@@ -158,6 +152,13 @@ const recipientEmbryos = ref<EmbryoRecord[]>([])
 const showPregCheckForm = ref(false)
 const selectedBreedingId = ref<number | null>(null)
 const pregnancyStatus = ref(1)
+const editingBreedingId = ref<number | null>(null)
+const editingBreedingDate = ref('')
+const editingSireUsed = ref('')
+const editingBreedingType = ref(0)
+const editingPregnancyStatus = ref(0)
+const editingBreedingNotes = ref('')
+const savingBreedingEdit = ref(false)
 
 const showCalvingForm = ref(false)
 const calfSex = ref(0)
@@ -206,6 +207,7 @@ const hasUnsavedFormChanges = computed(() => {
     showHeatForm.value ||
     showBreedingForm.value ||
     showPregCheckForm.value ||
+    editingBreedingId.value !== null ||
     showCalvingForm.value ||
     showDryOffForm.value ||
     showNoteForm.value
@@ -259,6 +261,7 @@ function closeAllForms() {
   showCalvingForm.value = false
   showDryOffForm.value = false
   showNoteForm.value = false
+  editingBreedingId.value = null
   hasEmbryoTransfer.value = false
 }
 
@@ -344,18 +347,56 @@ function openPendingAction() {
   sessionStorage.removeItem('pendingAnimalAction')
 }
 
-async function loadAnimalDetails() {
-  detailsLoading.value = true
+function settleWithin<T>(
+  request: Promise<T>,
+  label: string,
+  timeoutMs = 12_000
+): Promise<T | null> {
+  return new Promise(resolve => {
+    const timer = window.setTimeout(() => {
+        console.warn(`${label} is taking longer than expected.`)
+        resolve(null)
+    }, timeoutMs)
 
-  try {
-    const animalSnapshot = await getAnimalSnapshot(animalId.value)
+    request
+      .then(result => {
+        window.clearTimeout(timer)
+        resolve(result)
+      })
+      .catch(error => {
+        window.clearTimeout(timer)
+        console.warn(`${label} could not be loaded:`, error)
+        resolve(null)
+      })
+  })
+}
+
+async function loadAnimalSnapshot(): Promise<Animal | null> {
+  const animalSnapshot = await settleWithin(
+    getAnimalSnapshot(animalId.value),
+    'Animal summary'
+  )
+
+  if (animalSnapshot) {
     snapshot.value = animalSnapshot
     animal.value = animalSnapshot.animal
     timelineEntries.value = animalSnapshot.timeline
-  } catch (error) {
-    console.warn('Animal timeline is still loading:', error)
+    profileImageFailed.value = false
+    return animalSnapshot.animal
   }
 
+  const herd = await settleWithin(
+    getAnimalsBasic(),
+    'Herd list'
+  )
+  const basicAnimal = herd?.find(item => item.animalId === animalId.value) ?? null
+  if (basicAnimal) {
+    animal.value = basicAnimal
+  }
+  return basicAnimal
+}
+
+async function loadAnimalHistory() {
   const [
     loadedHeats,
     loadedBreedings,
@@ -365,13 +406,13 @@ async function loadAnimalDetails() {
     loadedNotes,
     loadedRecipientEmbryos
   ] = await Promise.all([
-    getHeatEvents(animalId.value).catch(() => null),
-    getBreedings(animalId.value).catch(() => null),
-    getCalvings(animalId.value).catch(() => null),
-    getDryOffEvents(animalId.value).catch(() => null),
-    getLutEvents(animalId.value).catch(() => null),
-    getAnimalNotes(animalId.value).catch(() => null),
-    getEmbryosForRecipient(animalId.value).catch(() => null)
+    settleWithin(getHeatEvents(animalId.value), 'Heat history'),
+    settleWithin(getBreedings(animalId.value), 'Breeding history'),
+    settleWithin(getCalvings(animalId.value), 'Calving history'),
+    settleWithin(getDryOffEvents(animalId.value), 'Dry-off history'),
+    settleWithin(getLutEvents(animalId.value), 'LUT history'),
+    settleWithin(getAnimalNotes(animalId.value), 'Animal notes'),
+    settleWithin(getEmbryosForRecipient(animalId.value), 'Embryo transfer history')
   ])
 
   if (loadedHeats) heatEvents.value = loadedHeats
@@ -381,6 +422,14 @@ async function loadAnimalDetails() {
   if (loadedLut) lutEvents.value = loadedLut
   if (loadedNotes) animalNotes.value = loadedNotes
   if (loadedRecipientEmbryos) recipientEmbryos.value = loadedRecipientEmbryos
+}
+
+async function loadAnimalDetails() {
+  detailsLoading.value = true
+  await Promise.all([
+    loadAnimalSnapshot(),
+    loadAnimalHistory()
+  ])
   detailsLoading.value = false
 }
 
@@ -392,23 +441,17 @@ onMounted(async () => {
     animal.value = cachedAnimal
     loading.value = false
     openPendingAction()
-
-    void getAnimal(animalId.value)
-      .then(freshAnimal => {
-        animal.value = freshAnimal
-        profileImageFailed.value = false
-      })
-      .catch(error => {
-        console.warn('Live animal refresh is still loading:', error)
-      })
-
     void loadAnimalDetails()
     return
   }
 
   try {
-    animal.value = await getAnimal(animalId.value)
-    openPendingAction()
+    const loadedAnimal = await loadAnimalSnapshot()
+    if (loadedAnimal) {
+      openPendingAction()
+    } else {
+      loadError.value = 'This animal record could not be loaded. Return to the herd and try again.'
+    }
   } catch (error) {
     console.error('Failed to load animal:', error)
     loadError.value = 'This animal record could not be loaded. Return to the herd and try again.'
@@ -417,7 +460,10 @@ onMounted(async () => {
   }
 
   if (animal.value) {
-    void loadAnimalDetails()
+    detailsLoading.value = true
+    void loadAnimalHistory().finally(() => {
+      detailsLoading.value = false
+    })
   }
 })
 
@@ -594,12 +640,11 @@ async function saveCalving() {
   }
 
   try {
-    const [updatedCalvings, updatedAnimal] = await Promise.all([
+    const [updatedCalvings] = await Promise.all([
       getCalvings(savedAnimalId),
-      getAnimal(savedAnimalId)
+      loadAnimalSnapshot()
     ])
     calvingEvents.value = updatedCalvings
-    animal.value = updatedAnimal
   } catch (error) {
     console.warn('Calving saved, but the refreshed animal record could not be loaded:', error)
   }
@@ -633,9 +678,7 @@ async function saveDryOff() {
       animal.value.animalId
     )
 
-    animal.value = await getAnimal(
-      animal.value.animalId
-    )
+    await loadAnimalSnapshot()
   } catch (error) {
     console.error('Failed to save dry off:', error)
   }
@@ -770,31 +813,49 @@ async function deleteHeat(heat: HeatEvent) {
   }
 }
 
-async function editBreeding(breeding: BreedingEvent) {
-  const nextDate = window.prompt(
-    'Edit breeding date/time (YYYY-MM-DDTHH:mm)',
-    toLocalDateTimeInput(breeding.breedingDate)
-  )
-  if (!nextDate) return
+function editBreeding(breeding: BreedingEvent) {
+  editingBreedingId.value = breeding.breedingEventId
+  editingBreedingDate.value = toLocalDateTimeInput(breeding.breedingDate)
+  editingSireUsed.value = breeding.sireUsed ?? ''
+  editingBreedingType.value = breeding.breedingType
+  editingPregnancyStatus.value = breeding.pregnancyStatus
+  editingBreedingNotes.value = breeding.notes ?? ''
+}
 
-  const nextIso = toIsoFromInput(nextDate)
+function cancelBreedingEdit() {
+  editingBreedingId.value = null
+  editingBreedingDate.value = ''
+  editingSireUsed.value = ''
+  editingBreedingType.value = 0
+  editingPregnancyStatus.value = 0
+  editingBreedingNotes.value = ''
+}
+
+async function saveBreedingEdit() {
+  if (editingBreedingId.value === null) return
+
+  const nextIso = toIsoFromInput(editingBreedingDate.value)
   if (!nextIso) {
     alert('Invalid breeding date/time format.')
     return
   }
 
+  savingBreedingEdit.value = true
   try {
-    await updateBreedingEvent(breeding.breedingEventId, {
+    await updateBreedingEvent(editingBreedingId.value, {
       breedingDate: nextIso,
-      sireUsed: breeding.sireUsed,
-      breedingType: breeding.breedingType,
-      pregnancyStatus: breeding.pregnancyStatus,
-      notes: breeding.notes ?? null
+      sireUsed: editingSireUsed.value.trim() || 'Service information pending',
+      breedingType: editingBreedingType.value,
+      pregnancyStatus: editingPregnancyStatus.value,
+      notes: editingBreedingNotes.value.trim() || null
     })
     breedingEvents.value = await getBreedings(animalId.value)
+    cancelBreedingEdit()
   } catch (error) {
     console.error('Failed to edit breeding:', error)
     alert('Failed to edit breeding event.')
+  } finally {
+    savingBreedingEdit.value = false
   }
 }
 
@@ -833,7 +894,8 @@ async function editCalving(calving: CalvingEvent) {
       calvingEase: calving.calvingEase,
       twins: calving.twins,
       stillborn: calving.stillborn,
-      notes: calving.notes ?? null
+      notes: calving.notes ?? null,
+      pictureUrl: calving.pictureUrl ?? null
     })
     calvingEvents.value = await getCalvings(animalId.value)
   } catch (error) {
@@ -1656,6 +1718,14 @@ const scoreLabel = computed(() => {
           <p v-if="calving.notes">
             {{ calving.notes }}
           </p>
+
+          <img
+            v-if="calving.pictureUrl"
+            :src="calving.pictureUrl"
+            class="timeline-photo"
+            alt="Calving record"
+            loading="lazy"
+          >
         </div>
 
         <button
@@ -1744,6 +1814,61 @@ const scoreLabel = computed(() => {
             <button class="mini-btn danger" @click="deleteBreeding(breeding)">
               Delete
             </button>
+          </div>
+
+          <div
+            v-if="editingBreedingId === breeding.breedingEventId"
+            class="breeding-edit-grid"
+          >
+            <label>
+              Breeding date and time
+              <input v-model="editingBreedingDate" type="datetime-local">
+            </label>
+            <label>
+              Sire or service
+              <input
+                v-model="editingSireUsed"
+                placeholder="Leave pending if service details are not known"
+              >
+            </label>
+            <label>
+              Breeding type
+              <select v-model.number="editingBreedingType">
+                <option :value="0">AI</option>
+                <option :value="1">Natural</option>
+                <option :value="2">Embryo Transfer</option>
+              </select>
+            </label>
+            <label>
+              Pregnancy status
+              <select v-model.number="editingPregnancyStatus">
+                <option :value="0">Unconfirmed</option>
+                <option :value="1">Pregnant</option>
+                <option :value="2">Open / Not Pregnant</option>
+                <option :value="3">Recheck</option>
+                <option :value="4">Aborted</option>
+              </select>
+            </label>
+            <label class="breeding-edit-notes">
+              Notes
+              <textarea
+                v-model="editingBreedingNotes"
+                rows="2"
+                placeholder="Service details can be completed later"
+              />
+            </label>
+            <div class="form-actions breeding-edit-actions">
+              <button
+                class="save"
+                :disabled="savingBreedingEdit"
+                @click="saveBreedingEdit"
+              >
+                {{ savingBreedingEdit ? 'Saving...' : 'Save Changes' }}
+              </button>
+              <button class="cancel" @click="cancelBreedingEdit">
+                Cancel
+              </button>
+            </div>
           </div>
 
           <strong>
@@ -2242,6 +2367,40 @@ const scoreLabel = computed(() => {
   gap: 8px;
 }
 
+.breeding-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 38px 0 16px;
+  padding: 14px;
+  border: 1px solid #c8d4cb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.breeding-edit-grid label {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.breeding-edit-grid input,
+.breeding-edit-grid select,
+.breeding-edit-grid textarea {
+  width: 100%;
+}
+
+.breeding-edit-notes,
+.breeding-edit-actions {
+  grid-column: 1 / -1;
+}
+
+.breeding-edit-actions {
+  margin-top: 0;
+}
+
 .mini-btn {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
@@ -2350,6 +2509,15 @@ const scoreLabel = computed(() => {
   .favorite-button {
     width: 100%;
     margin-left: 0;
+  }
+
+  .breeding-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .breeding-edit-notes,
+  .breeding-edit-actions {
+    grid-column: auto;
   }
 }
 </style>

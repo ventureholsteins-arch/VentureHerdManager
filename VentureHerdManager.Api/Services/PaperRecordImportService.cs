@@ -33,6 +33,15 @@ public sealed class PaperRecordImportService
             .Select(row => Normalize(row.Get("Recipient / Linked Animal")))
             .Where(name => name.Length > 0)
             .ToHashSet();
+        var paperPregnantAnimalNames = animalRows
+            .Where(row => IndicatesPregnant(
+                row.Get("Stage / Status from Notes")))
+            .Select(row => Normalize(row.Get("Animal Name")))
+            .Where(name =>
+                name.Length > 0
+                && name != "pixie")
+            .ToHashSet();
+        var pregnancyConfirmations = new List<BreedingEvent>();
 
         await using var transaction = _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(cancellationToken)
@@ -105,28 +114,6 @@ public sealed class PaperRecordImportService
         var existingBreedings = await _context.BreedingEvents
             .ToListAsync(cancellationToken);
 
-        foreach (var confirmedPregnantName in new[] { "Casanova", "Missy", "Ernest" })
-        {
-            var confirmedAnimal = FindAnimal(animalLookup, confirmedPregnantName).Animal;
-            if (confirmedAnimal == null)
-            {
-                continue;
-            }
-            var latestBreeding = existingBreedings
-                .Where(b => b.AnimalId == confirmedAnimal.AnimalId)
-                .OrderByDescending(b => b.BreedingDate)
-                .ThenByDescending(b => b.BreedingEventId)
-                .FirstOrDefault();
-            if (latestBreeding != null
-                && latestBreeding.PregnancyStatus != PregnancyStatus.Pregnant)
-            {
-                latestBreeding.PregnancyStatus = PregnancyStatus.Pregnant;
-                latestBreeding.UpdatedBy = "Paper record import";
-                latestBreeding.UpdatedAt = DateTime.UtcNow;
-                report.RecordsUpdated++;
-            }
-        }
-
         foreach (var row in breedingRows)
         {
             var name = row.Get("Animal Name");
@@ -164,12 +151,16 @@ public sealed class PaperRecordImportService
                 continue;
             }
 
-            var duplicate = existingBreedings.Any(b =>
+            var duplicate = existingBreedings.FirstOrDefault(b =>
                 b.AnimalId == match.Animal.AnimalId
                 && b.BreedingDate.Date == bredDate.Date
                 && Normalize(b.SireUsed) == Normalize(sire));
-            if (duplicate)
+            if (duplicate != null)
             {
+                if (IndicatesPregnant(row.Get("Paper Status")))
+                {
+                    pregnancyConfirmations.Add(duplicate);
+                }
                 report.DuplicateBreedingsSkipped++;
                 continue;
             }
@@ -187,6 +178,10 @@ public sealed class PaperRecordImportService
                 BuildBreedingNote(row));
             _context.BreedingEvents.Add(breeding);
             existingBreedings.Add(breeding);
+            if (breeding.PregnancyStatus == PregnancyStatus.Pregnant)
+            {
+                pregnancyConfirmations.Add(breeding);
+            }
             report.BreedingsAdded++;
         }
 
@@ -336,6 +331,80 @@ public sealed class PaperRecordImportService
             report.EmbryosAdded++;
         }
 
+        foreach (var pregnantName in paperPregnantAnimalNames)
+        {
+            var confirmedAnimal = FindAnimal(
+                animalLookup,
+                pregnantName).Animal;
+            if (confirmedAnimal == null)
+            {
+                continue;
+            }
+
+            var latestBreeding = existingBreedings
+                .Where(b =>
+                    b.AnimalId == confirmedAnimal.AnimalId)
+                .OrderByDescending(b => b.BreedingDate)
+                .ThenByDescending(b => b.BreedingEventId)
+                .FirstOrDefault();
+            if (latestBreeding == null)
+            {
+                report.Conflicts.Add(
+                    $"Paper marks '{confirmedAnimal.DisplayName}' pregnant, but no reliable breeding/implant exists to confirm.");
+                continue;
+            }
+
+            pregnancyConfirmations.Add(latestBreeding);
+        }
+
+        foreach (var breeding in pregnancyConfirmations.Distinct())
+        {
+            var linkedEmbryo = existingEmbryos.FirstOrDefault(embryo =>
+                embryo.BreedingEventId == breeding.BreedingEventId
+                || (
+                    embryo.RecipientAnimalId == breeding.AnimalId
+                    && embryo.ImplantDate.HasValue
+                    && embryo.ImplantDate.Value
+                        .ToDateTime(TimeOnly.MinValue).Date
+                        == breeding.BreedingDate.Date
+                    && breeding.BreedingType
+                        == BreedingType.EmbryoTransfer
+                ));
+            var isEmbryoTransfer =
+                breeding.BreedingType == BreedingType.EmbryoTransfer
+                || linkedEmbryo != null;
+            var changed = breeding.PregnancyStatus
+                != PregnancyStatus.Pregnant;
+            var expectedDueDate = breeding.BreedingDate.AddDays(
+                isEmbryoTransfer
+                    ? ReproductiveEventRules
+                        .EmbryoTransferGestationDays
+                    : ReproductiveEventRules
+                        .StandardGestationDays);
+            changed |= breeding.ExpectedDueDate != expectedDueDate;
+
+            ReproductiveEventRules.ApplyPregnancyStatus(
+                breeding,
+                PregnancyStatus.Pregnant,
+                isEmbryoTransfer,
+                breeding.PregnancyCheckDate);
+            breeding.UpdatedBy = "Paper record import";
+
+            if (linkedEmbryo != null)
+            {
+                changed |= linkedEmbryo.Status
+                    != EmbryoStatus.Successful;
+                ReproductiveEventRules.SynchronizeEmbryoOutcome(
+                    linkedEmbryo,
+                    PregnancyStatus.Pregnant);
+            }
+
+            if (changed)
+            {
+                report.RecordsUpdated++;
+            }
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
         if (apply)
         {
@@ -384,9 +453,12 @@ public sealed class PaperRecordImportService
         PregnancyStatus status,
         string? notes)
     {
-        var gestationStart = type == BreedingType.EmbryoTransfer
-            ? bredDate.AddDays(-7)
-            : bredDate;
+        var isEmbryoTransfer =
+            type == BreedingType.EmbryoTransfer;
+        var dueDate = bredDate.AddDays(
+            isEmbryoTransfer
+                ? ReproductiveEventRules.EmbryoTransferGestationDays
+                : ReproductiveEventRules.StandardGestationDays);
         return new BreedingEvent
         {
             AnimalId = animalId,
@@ -394,10 +466,17 @@ public sealed class PaperRecordImportService
             SireUsed = sire,
             BreedingType = type,
             PregnancyStatus = status,
-            PregnancyCheckDueDate = bredDate.AddDays(type == BreedingType.EmbryoTransfer ? 28 : 30),
-            ExpectedDueDate = gestationStart.AddDays(280),
-            RecommendedDryOffDate = gestationStart.AddDays(220),
-            CloseUpDate = gestationStart.AddDays(259),
+            PregnancyCheckDueDate = bredDate.AddDays(
+                isEmbryoTransfer
+                    ? ReproductiveEventRules
+                        .PregnancyCheckAfterTransferDays
+                    : ReproductiveEventRules
+                        .PregnancyCheckAfterBreedingDays),
+            ExpectedDueDate = dueDate,
+            RecommendedDryOffDate = dueDate.AddDays(
+                -ReproductiveEventRules.DryPeriodDays),
+            CloseUpDate = dueDate.AddDays(
+                -ReproductiveEventRules.CloseUpDays),
             Notes = notes,
             CreatedBy = "Paper record import",
             UpdatedBy = "Paper record import"
@@ -466,6 +545,20 @@ public sealed class PaperRecordImportService
         // unrelated animals are never joined by broad fuzzy matching.
         return normalized == "chaching" ? "cha ching" : normalized;
     }
+
+    private static bool IndicatesPregnant(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && (
+            value.Contains(
+                "pregnant",
+                StringComparison.OrdinalIgnoreCase)
+            || value.Split(
+                    [' ', '/', ',', ';', '-', '(', ')'],
+                    StringSplitOptions.RemoveEmptyEntries)
+                .Any(part => part.Equals(
+                    "PG",
+                    StringComparison.OrdinalIgnoreCase))
+        );
 
     private static void PreservePaperNote(Animal animal, CsvRow row)
     {

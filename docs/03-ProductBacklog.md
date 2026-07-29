@@ -64,9 +64,20 @@
 - Make the exposed fields configurable.
 - Use a private, read-only view rather than requiring access to the full Herd Manager application.
 
+## 9. Production accounts and security — required before broad client rollout
+
+- Add authenticated production accounts while keeping the public demo separate.
+- Add Owner, Manager, Employee, and Read-only roles with least-privilege access.
+- Record which signed-in operator creates, edits, confirms, or deletes each event.
+- Protect production API and Swagger access; do not rely on an unlisted URL as security.
+- Add account recovery, session expiration, and a way to revoke access promptly.
+- Keep this item on the release checklist. Authentication is intentionally deferred
+  for the current owner-only phase, not considered complete.
+
 ## Delivery order
 
 1. Embryo and breeding data integrity.
 2. Reporting and animal search.
 3. Achievements, shows, and calendar.
 4. Private shareable embryo portal.
+5. Production accounts, roles, and audit history before broad client access.

@@ -72,23 +72,21 @@ public class AnimalService
             .ToList();
     }
 
-    public Animal? GetAnimalById(int animalId)
+    public Task<Animal?> GetAnimalByIdAsync(
+        int animalId,
+        CancellationToken cancellationToken = default)
     {
+        // The animal page loads event histories through their dedicated
+        // endpoints. Loading every collection here created a very large graph
+        // with parent/child back-references that could not be serialized and
+        // caused GET /api/Animals/{id} to return 500. Keep this request small
+        // and return only the animal's scalar fields. SireName/DamName and
+        // SireId/DamId already provide the pedigree data used by the client.
         return _context.Animals
             .AsNoTracking()
-            .Include(animal => animal.Dam)
-            .Include(animal => animal.Sire)
-            .Include(animal => animal.HeatEvents)
-            .Include(animal => animal.BreedingEvents)
-            .Include(animal => animal.CalvingEvents)
-            .Include(animal => animal.DryOffEvents)
-            .Include(animal => animal.AnimalNotes)
-            .Include(animal => animal.ClassificationRecords)
-            .Include(animal => animal.LutalyseEvents)
-            .Include(animal => animal.Photos)
-            .AsSplitQuery()
-            .FirstOrDefault(animal =>
-                animal.AnimalId == animalId);
+            .FirstOrDefaultAsync(
+                animal => animal.AnimalId == animalId,
+                cancellationToken);
     }
 
     public List<Animal> SearchAnimals(string? searchText)

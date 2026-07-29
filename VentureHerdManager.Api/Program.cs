@@ -45,7 +45,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(
+        connectionString,
+        sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
+            maxRetryCount: 6,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null)));
 
 // Services
 builder.Services.AddScoped<AnimalService>();
@@ -57,6 +62,7 @@ builder.Services.AddScoped<CalendarService>();
 builder.Services.AddScoped<DemoSessionMaintenanceService>();
 builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
 builder.Services.AddScoped<PaperRecordImportService>();
+builder.Services.AddScoped<NaabSireCatalogService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -111,23 +117,39 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapControllers();
+app.MapGet(
+    "/health/live",
+    () => Results.Ok(new { status = "healthy" }));
+app.MapGet(
+    "/health/ready",
+    async (
+        ApplicationDbContext context,
+        CancellationToken cancellationToken) =>
+    {
+        var canConnect = await context.Database
+            .CanConnectAsync(cancellationToken);
 
-_ = Task.Run(async () =>
+        return canConnect
+            ? Results.Ok(new { status = "ready" })
+            : Results.StatusCode(
+                StatusCodes.Status503ServiceUnavailable);
+    });
+
+try
 {
-    try
-    {
-        // Repair the user-facing embryo schema first, but never hold up API
-        // startup while Azure SQL wakes or resumes.
-        await EnsureEmbryoRecordsReadyAsync(app);
-        await InitializeDatabaseAsync(app);
-    }
-    catch (Exception exception)
-    {
-        app.Logger.LogError(
-            exception,
-            "Background database initialization failed.");
-    }
-});
+    // Finish migrations/compatibility repairs before accepting requests.
+    // Serving traffic while schema work ran in the background was the source
+    // of intermittent first-request 500 responses after Azure woke up.
+    await EnsureEmbryoRecordsReadyAsync(app);
+    await InitializeDatabaseAsync(app);
+}
+catch (Exception exception)
+{
+    app.Logger.LogCritical(
+        exception,
+        "Database initialization failed; the API will not start with a partial schema.");
+    throw;
+}
 
 app.Run();
 
@@ -743,10 +765,21 @@ static async Task InitializeDatabaseAsync(WebApplication app)
         Console.WriteLine($"AnimalNotes table warning: {ex.Message}");
     }
 
+    var seedLocalSampleData =
+        app.Environment.IsDevelopment() &&
+        app.Configuration.GetValue<bool>(
+            "DatabaseInitialization:SeedLocalSampleData");
+
+    if (!seedLocalSampleData)
+    {
+        return;
+    }
+
     try
     {
         await context.Database.EnsureCreatedAsync();
-        Console.WriteLine("Database schema ensured for local development.");
+        Console.WriteLine(
+            "Database schema ensured for explicitly enabled local sample data.");
     }
     catch (Exception ex)
     {

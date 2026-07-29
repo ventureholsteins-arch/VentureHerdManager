@@ -29,7 +29,7 @@
               :class="{ selected: selectedAnimalId === String(animal.animalId) }"
               @click="selectAnimal(animal)"
             >
-              {{ animal.barnName }}
+              {{ animalDisplayName(animal) }}
               <span class="stage-tag">{{ stageLabel(animal.animalStage) }}</span>
             </button>
             <p v-if="filteredAnimals.length === 0" class="no-results">No animals match &quot;{{ animalSearch }}&quot;</p>
@@ -118,14 +118,10 @@
 import { ref, computed } from 'vue'
 import { uploadPhoto } from '../api/photos'
 import { getAllEmbryos, type EmbryoRecord } from '../api/embryoRecords'
+import type { Animal } from '../models/Animal'
+import { animalDisplayName, animalSearchText } from '../utils/animalDisplay'
 
 const API_BASE = import.meta.env.VITE_API_URL
-
-interface Animal {
-  animalId: number
-  barnName: string
-  animalStage: number
-}
 
 const stageLabel = (stage: number): string => {
   const labels: Record<number, string> = {
@@ -165,13 +161,13 @@ const filteredAnimals = computed(() => {
   const q = animalSearch.value.trim().toLowerCase()
   if (!q) return animals.value.slice(0, 30)
   return animals.value
-    .filter(a => (a.barnName || '').toLowerCase().includes(q))
+    .filter(a => animalSearchText(a).includes(q))
     .slice(0, 30)
 })
 
 function selectAnimal(animal: Animal) {
   selectedAnimalId.value = String(animal.animalId)
-  animalSearch.value = animal.barnName
+  animalSearch.value = animalDisplayName(animal)
 }
 
 const openModal = async () => {
@@ -220,12 +216,13 @@ const saveButtonText = computed(() => {
   return 'Record Heat'
 })
 
-const recordHeat = async () => {
+const submitHeat = async (openBreedingAfterSave = false) => {
   if (!selectedAnimalId.value) {
     alert('Please select an animal')
     return
   }
 
+  const savedAnimalId = parseInt(selectedAnimalId.value)
   saving.value = true
   saveError.value = ''
   try {
@@ -236,7 +233,7 @@ const recordHeat = async () => {
     }
 
     emit('recordHeat', {
-      animalId: parseInt(selectedAnimalId.value),
+      animalId: savedAnimalId,
       heatStrength: parseInt(heatStrength.value),
       standingHeat: standingHeat.value,
       pictureUrl: pictureUrl.value || null,
@@ -249,6 +246,9 @@ const recordHeat = async () => {
         saving.value = false
         if (success) {
           closeModal()
+          if (openBreedingAfterSave) {
+            emit('goToBreeding', savedAnimalId)
+          }
         } else {
           saveError.value = message || 'Heat could not be saved. Please try again.'
         }
@@ -264,15 +264,8 @@ const recordHeat = async () => {
   }
 }
 
-const goToBreedingTab = () => {
-  if (!selectedAnimalId.value) {
-    alert('Please select an animal')
-    return
-  }
-
-  emit('goToBreeding', parseInt(selectedAnimalId.value))
-  closeModal()
-}
+const recordHeat = () => submitHeat(false)
+const goToBreedingTab = () => submitHeat(true)
 
 defineExpose({
   openModal,

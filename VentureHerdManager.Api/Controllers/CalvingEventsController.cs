@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VentureHerdManager.Api.Data;
 using VentureHerdManager.Api.Models;
+using VentureHerdManager.Api.Services;
 
 namespace VentureHerdManager.Api.Controllers;
 
@@ -96,6 +97,30 @@ public class CalvingEventsController : ControllerBase
         _context.CalvingEvents.Add(calving);
 
         animal.AnimalStage = AnimalStage.Milking;
+
+        var completedBreeding = await _context.BreedingEvents
+            .Where(breeding =>
+                breeding.AnimalId == animal.AnimalId
+                && breeding.BreedingDate <= calving.CalvingDate)
+            .OrderByDescending(breeding => breeding.BreedingDate)
+            .ThenByDescending(breeding => breeding.BreedingEventId)
+            .FirstOrDefaultAsync();
+        if (completedBreeding != null)
+        {
+            ReproductiveEventRules.CompleteByCalving(
+                completedBreeding,
+                calving.CalvingDate);
+            var linkedEmbryo = await _context.EmbryoRecords
+                .FirstOrDefaultAsync(embryo =>
+                    embryo.BreedingEventId
+                        == completedBreeding.BreedingEventId);
+            if (linkedEmbryo != null)
+            {
+                ReproductiveEventRules.SynchronizeEmbryoOutcome(
+                    linkedEmbryo,
+                    PregnancyStatus.Pregnant);
+            }
+        }
 
         await _context.SaveChangesAsync();
 

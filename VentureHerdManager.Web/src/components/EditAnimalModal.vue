@@ -3,7 +3,7 @@
     <div v-if="isOpen" class="modal-overlay" @click.self="closeModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>Edit Animal: {{ animal?.barnName || animal?.registeredName || `#${animal?.animalId}` }}</h2>
+          <h2>Edit Animal: {{ animal ? animalDisplayName(animal) : 'Animal' }}</h2>
           <button type="button" class="close-btn" @click="closeModal">✕</button>
         </div>
 
@@ -145,6 +145,7 @@ import { ref } from 'vue'
 import type { Animal } from '../models/Animal'
 import { updateAnimal } from '../api/animals'
 import { addClassification } from '../api/classification'
+import { animalDisplayName } from '../utils/animalDisplay'
 
 const props = defineProps<{
   animal: Animal | null
@@ -157,6 +158,8 @@ const emit = defineEmits<{
 
 const isOpen = ref(false)
 const isSaving = ref(false)
+const initialScore = ref<number | null>(null)
+const initialBaa = ref<number | null>(null)
 const formData = ref({
   barnName: '',
   registeredName: '',
@@ -171,6 +174,8 @@ const formData = ref({
 })
 
 const populateFormData = (sourceAnimal: Animal) => {
+  initialScore.value = sourceAnimal.latestScore ?? null
+  initialBaa.value = sourceAnimal.latestBaa ?? null
   formData.value = {
     barnName: sourceAnimal.barnName || '',
     registeredName: sourceAnimal.registeredName || '',
@@ -209,14 +214,32 @@ const handleSubmit = async () => {
     const updatedAnimal = await updateAnimal(props.animal.animalId, {
       barnName: formData.value.barnName || null,
       registeredName: formData.value.registeredName || null,
+      registrationNumber: props.animal.registrationNumber,
+      birthDate: props.animal.birthDate,
+      sex: props.animal.sex,
+      animalStage: props.animal.animalStage,
+      animalStatus: props.animal.animalStatus ?? 0,
       breed: formData.value.breed || null,
+      sireId: props.animal.sireId,
       sireName: formData.value.sireName || null,
+      damId: props.animal.damId,
+      damName: props.animal.damName,
       currentLactation: formData.value.currentLactation,
       notes: formData.value.notes || null,
+      profilePictureUrl: props.animal.profilePictureUrl,
       isFavorite: formData.value.isFavorite
     })
 
-    if (formData.value.scoreValue !== null && formData.value.scoreValue !== undefined) {
+    const classificationChanged =
+      formData.value.scoreValue !== initialScore.value
+      || formData.value.baa !== initialBaa.value
+      || formData.value.classificationNotes.trim().length > 0
+
+    if (
+      classificationChanged
+      && formData.value.scoreValue !== null
+      && formData.value.scoreValue !== undefined
+    ) {
       await addClassification({
         animalId: props.animal.animalId,
         score: formData.value.scoreValue,
@@ -228,7 +251,10 @@ const handleSubmit = async () => {
 
     emit('saved', updatedAnimal)
     closeModal()
-    alert('Animal updated successfully!' + (formData.value.scoreValue ? ' Classification saved!' : ''))
+    alert(
+      'Animal updated successfully!'
+      + (classificationChanged ? ' Classification saved!' : '')
+    )
   } catch (error) {
     alert(`Error updating animal: ${error instanceof Error ? error.message : 'Unknown error'}`)
     console.error('Failed to update animal:', error)

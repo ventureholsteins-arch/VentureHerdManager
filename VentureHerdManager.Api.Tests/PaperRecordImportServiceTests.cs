@@ -279,6 +279,62 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ExactPaperBreedingMatchStillReconcilesPregnancyStatus()
+    {
+        var animal = new Animal { BarnName = "Colors" };
+        _context.Animals.Add(animal);
+        await _context.SaveChangesAsync();
+        var existing = new BreedingEvent
+        {
+            AnimalId = animal.AnimalId,
+            BreedingDate = new DateTime(2026, 4, 15),
+            SireUsed = "Venmo",
+            PregnancyStatus = PregnancyStatus.Unconfirmed
+        };
+        _context.BreedingEvents.Add(existing);
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Colors,Pregnant noted,Venmo,2026-04-15,PG confirmed,Yes"],
+            ["Colors,2026-04-15,Venmo,PG,Breeding,"],
+            []);
+
+        var report = await _service.ReconcileAsync(
+            _sourceDirectory,
+            true);
+
+        Assert.Equal(1, report.DuplicateBreedingsSkipped);
+        Assert.Equal(PregnancyStatus.Pregnant, existing.PregnancyStatus);
+        Assert.Equal(
+            existing.BreedingDate.AddDays(280),
+            existing.ExpectedDueDate);
+    }
+
+    [Fact]
+    public async Task PreservesBandiBreedingAndLinksSeparateImplantedEmbryo()
+    {
+        var bandi = new Animal { BarnName = "Bandi" };
+        _context.Animals.Add(bandi);
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Bandi,,Seashell x Eye Candy,2026-04-21,Existing recipient,Yes"],
+            ["Bandi,2026-04-21,Seashell x Eye Candy,,Breeding / ET?,"],
+            ["Bandi,2026-07-15,Polly,Goldwyn,Polly x Goldwyn,Yes,Yes,Paper section labeled Eggs"]);
+
+        await _service.ReconcileAsync(_sourceDirectory, true);
+
+        var history = await _context.BreedingEvents
+            .Where(breeding => breeding.AnimalId == bandi.AnimalId)
+            .OrderBy(breeding => breeding.BreedingDate)
+            .ToListAsync();
+        var embryo = await _context.EmbryoRecords.SingleAsync();
+        Assert.Equal(2, history.Count);
+        Assert.Equal("Seashell x Eye Candy", history[0].SireUsed);
+        Assert.Equal(BreedingType.EmbryoTransfer, history[1].BreedingType);
+        Assert.Equal(history[1].BreedingEventId, embryo.BreedingEventId);
+        Assert.Equal(EmbryoStatus.Implanted, embryo.Status);
+    }
+
+    [Fact]
     public async Task LinkingEmbryoDoesNotOverwriteExistingRecipientDetails()
     {
         var recipient = new Animal
@@ -314,10 +370,7 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
     [Fact]
     public async Task ReconcilesAllProvidedPaperFilesOnAnEmptyDatabase()
     {
-        var source = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..",
-            "docs", "paper-record-import"));
+        var source = Path.Combine(AppContext.BaseDirectory, "paper-record-import");
 
         var report = await _service.ReconcileAsync(source, true);
 
@@ -325,7 +378,7 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
         Assert.Equal(3, report.RecipientsCreated);
         Assert.Equal(29, report.BreedingsAdded);
         Assert.Equal(3, report.EmbryosAdded);
-        Assert.Empty(report.Conflicts);
+        Assert.Equal(3, report.Conflicts.Count);
         Assert.Equal(2, report.IgnoredRows.Count);
         Assert.Equal(36, await _context.Animals.CountAsync());
         Assert.Equal(29, await _context.BreedingEvents.CountAsync());
@@ -344,7 +397,7 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
         Assert.Contains(
             await _context.EmbryoRecords.ToListAsync(),
             embryo => embryo.RecipientAnimalId == carmella.AnimalId
-                && embryo.Status == EmbryoStatus.Implanted);
+                && embryo.Status == EmbryoStatus.Successful);
     }
 
     private void WriteSources(

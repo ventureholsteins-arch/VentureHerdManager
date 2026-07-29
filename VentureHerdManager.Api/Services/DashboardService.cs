@@ -208,7 +208,9 @@ public class DashboardService
         Dictionary<int, string> animalNameDict)
     {
         var items = await (
-            from breeding in _context.BreedingEvents.AsNoTracking()
+            from breeding in _context.BreedingEvents
+                .AsNoTracking()
+                .CurrentReproductiveEvents(_context)
             where
                 (
                     breeding.PregnancyStatus == PregnancyStatus.Unconfirmed
@@ -259,7 +261,9 @@ public class DashboardService
         Dictionary<int, string> animalNameDict)
     {
         var items = await (
-            from breeding in _context.BreedingEvents.AsNoTracking()
+            from breeding in _context.BreedingEvents
+                .AsNoTracking()
+                .CurrentReproductiveEvents(_context)
             where
                 breeding.PregnancyStatus == PregnancyStatus.Pregnant
                 && breeding.ExpectedDueDate.HasValue

@@ -1,13 +1,12 @@
 ﻿<script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ensureDemo, resetDemo } from '../api/demo'
+import { ensureDemo } from '../api/demo'
 import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 
 const router = useRouter()
 const loading = ref(false)
 const error = ref<string | null>(null)
-const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
 let demoReadyPromise: Promise<unknown> | null = null
 
 onMounted(() => {
@@ -16,15 +15,13 @@ onMounted(() => {
   void demoReadyPromise.catch(() => undefined)
 })
 
-async function launchDemo(withReset: boolean) {
+async function launchDemo() {
   loading.value = true
   error.value = null
 
   try {
     let result
-    if (withReset && demoResetEnabled) {
-      result = await resetDemo()
-    } else if (demoReadyPromise) {
+    if (demoReadyPromise) {
       try {
         result = await demoReadyPromise
       } catch {
@@ -59,7 +56,6 @@ async function launchDemo(withReset: boolean) {
   <main class="demo-launch">
     <div class="launch-card">
       <p class="demo-tag">DEMO</p>
-      <h1>Venture Herd Manager</h1>
       <h2 class="demo-promise">
         <span class="promise-setup">Your operation</span>
         <span class="promise-main">should not have to fit</span>
@@ -69,12 +65,6 @@ async function launchDemo(withReset: boolean) {
         Try animal records, breeding, embryos, alerts, and reports in one
         shared place—built around the way a crew actually works.
       </p>
-
-      <div class="capability-row" aria-label="Demo features">
-        <span>Animal records</span>
-        <span>Breeding &amp; embryos</span>
-        <span>Calendar &amp; alerts</span>
-      </div>
 
       <p v-if="error" class="error-msg">{{ error }}</p>
 
@@ -88,26 +78,11 @@ async function launchDemo(withReset: boolean) {
           class="launch-btn"
           type="button"
           :disabled="loading"
-          @click="launchDemo(false)"
+          @click="launchDemo"
         >
           {{ loading ? 'Opening demo...' : 'Explore the Demo' }}
         </button>
-
-        <button
-          v-if="demoResetEnabled"
-          class="launch-btn secondary"
-          type="button"
-          :disabled="loading"
-          @click="launchDemo(true)"
-        >
-          {{ loading ? 'Preparing demo...' : 'Start with Fresh Demo Data' }}
-        </button>
       </div>
-
-      <p v-if="demoResetEnabled" class="hint">
-        Choose “Explore the Demo” to continue where you left off, or choose
-        “Start with Fresh Demo Data” to restore the original sample records.
-      </p>
 
       <p class="powered-by">Custom application solutions by Venture Ag Marketing</p>
       <p class="rights-reserved">All rights reserved.</p>
@@ -146,12 +121,6 @@ async function launchDemo(withReset: boolean) {
   font-weight: 800;
   letter-spacing: 0.14em;
   font-size: 0.72rem;
-}
-
-h1 {
-  margin: 0 0 16px;
-  font-size: 1.75rem;
-  color: #1a2e1c;
 }
 
 .demo-promise {
@@ -197,23 +166,6 @@ h1 {
   line-height: 1.6;
 }
 
-.capability-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin: 0 0 24px;
-}
-
-.capability-row span {
-  padding: 7px 10px;
-  border: 1px solid #d9e5d5;
-  border-radius: 999px;
-  background: #f3f7f1;
-  color: #31572c;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
 .launch-buttons {
   display: grid;
   gap: 10px;
@@ -242,16 +194,6 @@ h1 {
   transition: background 0.15s;
 }
 
-.launch-btn.secondary {
-  background: #fff;
-  color: #31572c;
-  border: 1px solid #31572c;
-}
-
-.launch-btn.secondary:hover:not(:disabled) {
-  background: #f3f7f1;
-}
-
 .launch-btn:hover:not(:disabled) {
   background: #264822;
 }
@@ -276,12 +218,6 @@ h1 {
   text-align: center;
   font-size: 0.7rem;
   color: #9aa8b3;
-}
-
-.hint {
-  margin: 8px 0 0;
-  color: #5f6c7b;
-  font-size: 0.85rem;
 }
 
 @media (max-width: 560px) {

@@ -44,6 +44,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<DemoSession> DemoSessions => Set<DemoSession>();
 
+    public DbSet<SireReference> SireReferences => Set<SireReference>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -61,6 +63,7 @@ public class ApplicationDbContext : DbContext
         ConfigureEmbryoRecord(modelBuilder);
         ConfigureShowAchievement(modelBuilder);
         ConfigureDemoSession(modelBuilder);
+        ConfigureSireReference(modelBuilder);
 
         ConfigureDemoScope<Animal>(modelBuilder);
         ConfigureDemoScope<HeatEvent>(modelBuilder);
@@ -468,6 +471,37 @@ public class ApplicationDbContext : DbContext
         entity.Property(session => session.DemoSessionId)
             .HasMaxLength(DemoSessionContext.MaxSessionIdLength);
         entity.HasIndex(session => session.LastSeenAt);
+    }
+
+    private static void ConfigureSireReference(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<SireReference>();
+
+        entity.HasKey(sire => sire.SireReferenceId);
+        entity.HasIndex(sire => sire.ImportKey).IsUnique();
+        entity.HasIndex(sire => sire.NaabCode);
+        entity.HasIndex(sire => sire.RegistrationNumber);
+        entity.HasIndex(sire => sire.Name);
+        entity.HasIndex(sire => sire.ShortName);
+
+        entity.Property(sire => sire.PtaFatPercent).HasPrecision(7, 3);
+        entity.Property(sire => sire.PtaProteinPercent).HasPrecision(7, 3);
+        entity.Property(sire => sire.SomaticCellScore).HasPrecision(7, 3);
+        entity.Property(sire => sire.ProductiveLife).HasPrecision(7, 3);
+        entity.Property(sire => sire.DaughterPregnancyRate).HasPrecision(7, 3);
+        entity.Property(sire => sire.HeiferConceptionRate).HasPrecision(7, 3);
+        entity.Property(sire => sire.CowConceptionRate).HasPrecision(7, 3);
+        entity.Property(sire => sire.Livability).HasPrecision(7, 3);
+        entity.Property(sire => sire.SireCalvingEase).HasPrecision(7, 3);
+        entity.Property(sire => sire.DaughterCalvingEase).HasPrecision(7, 3);
+        entity.Property(sire => sire.PtaType).HasPrecision(7, 3);
+        entity.Property(sire => sire.UdderComposite).HasPrecision(7, 3);
+        entity.Property(sire => sire.FeetLegsComposite).HasPrecision(7, 3);
+
+        entity.Property(sire => sire.ImportedAt)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+        entity.Property(sire => sire.UpdatedAt)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
     }
 
     private void ConfigureDemoScope<TEntity>(ModelBuilder modelBuilder)

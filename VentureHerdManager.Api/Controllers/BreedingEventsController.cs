@@ -48,6 +48,9 @@ public class BreedingEventsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<BreedingEvent>> Create(BreedingEvent breeding)
     {
+        breeding.SireUsed = string.IsNullOrWhiteSpace(breeding.SireUsed)
+            ? "Service information pending"
+            : breeding.SireUsed.Trim();
         breeding.ExpectedDueDate = breeding.BreedingDate.AddDays(280);
         breeding.PregnancyCheckDueDate = breeding.BreedingDate.AddDays(30);
 
@@ -92,6 +95,16 @@ public class BreedingEventsController : ControllerBase
                 breeding.ExpectedDueDate = null;
                 breeding.RecommendedDryOffDate = null;
                 breeding.CloseUpDate = null;
+                linkedEmbryo.FailureNotes ??=
+                    $"Pregnancy check on {DateTime.UtcNow:d}: embryo did not establish a pregnancy.";
+            }
+            else if (status == PregnancyStatus.Pregnant)
+            {
+                var dueDate = breeding.BreedingDate.AddDays(273);
+                breeding.ExpectedDueDate = dueDate;
+                breeding.RecommendedDryOffDate = dueDate.AddDays(-60);
+                breeding.CloseUpDate = dueDate.AddDays(-21);
+                linkedEmbryo.FailureNotes = null;
             }
 
             linkedEmbryo.UpdatedAt = DateTime.UtcNow;
@@ -116,7 +129,9 @@ public class BreedingEventsController : ControllerBase
         }
 
         breeding.BreedingDate = request.BreedingDate;
-        breeding.SireUsed = request.SireUsed;
+        breeding.SireUsed = string.IsNullOrWhiteSpace(request.SireUsed)
+            ? "Service information pending"
+            : request.SireUsed.Trim();
         breeding.BreedingType = request.BreedingType;
         breeding.PregnancyStatus = request.PregnancyStatus;
         breeding.Notes = request.Notes;
@@ -167,6 +182,19 @@ public class BreedingEventsController : ControllerBase
         if (breeding == null)
         {
             return NotFound();
+        }
+
+        var linkedEmbryo = await _context.EmbryoRecords
+            .FirstOrDefaultAsync(e => e.BreedingEventId == breedingEventId);
+        if (linkedEmbryo != null)
+        {
+            linkedEmbryo.Status = EmbryoStatus.InStorage;
+            linkedEmbryo.RecipientAnimalId = null;
+            linkedEmbryo.ImplantDate = null;
+            linkedEmbryo.BreedingEventId = null;
+            linkedEmbryo.LinkedBreedingNote =
+                $"Implant/breeding entry deleted on {DateTime.UtcNow:d}; embryo returned to inventory.";
+            linkedEmbryo.UpdatedAt = DateTime.UtcNow;
         }
 
         _context.BreedingEvents.Remove(breeding);

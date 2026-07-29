@@ -46,6 +46,7 @@ public class EmbryoRecordsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<EmbryoRecord>> Create(EmbryoRecord record)
     {
+        NormalizeNewRecord(record);
         _context.EmbryoRecords.Add(record);
         await _context.SaveChangesAsync();
 
@@ -88,6 +89,11 @@ public class EmbryoRecordsController : ControllerBase
                 UpdatedBy = request.Embryo.UpdatedBy
             })
             .ToList();
+
+        foreach (var record in records)
+        {
+            NormalizeNewRecord(record);
+        }
 
         _context.EmbryoRecords.AddRange(records);
         await _context.SaveChangesAsync();
@@ -181,6 +187,16 @@ public class EmbryoRecordsController : ControllerBase
         if (record == null)
         {
             return NotFound();
+        }
+
+        if (record.BreedingEventId.HasValue)
+        {
+            var breeding = await _context.BreedingEvents
+                .FindAsync(record.BreedingEventId.Value);
+            if (breeding != null)
+            {
+                _context.BreedingEvents.Remove(breeding);
+            }
         }
 
         _context.EmbryoRecords.Remove(record);
@@ -290,7 +306,10 @@ public class EmbryoRecordsController : ControllerBase
             return NotFound();
         }
 
-        if (record.Status != EmbryoStatus.Implanted
+        if (record.Status is not (
+                EmbryoStatus.Implanted
+                or EmbryoStatus.Successful
+                or EmbryoStatus.Failed)
             || !record.RecipientAnimalId.HasValue
             || !record.ImplantDate.HasValue)
         {
@@ -345,6 +364,31 @@ public class EmbryoRecordsController : ControllerBase
         }
         return Ok(record);
     }
+
+    private static void NormalizeNewRecord(EmbryoRecord record)
+    {
+        record.Code = Clean(record.Code);
+        record.Sire = Clean(record.Sire);
+        record.Donor = Clean(record.Donor);
+        record.Grade = Clean(record.Grade);
+        record.GroupName = Clean(record.GroupName)
+            ?? BuildEmbryoName(record);
+        record.Status = EmbryoStatus.InStorage;
+        record.RecipientAnimalId = null;
+        record.ImplantDate = null;
+        record.BreedingEventId = null;
+        record.CreatedAt = DateTime.UtcNow;
+        record.UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static string? BuildEmbryoName(EmbryoRecord record)
+    {
+        if (record.Donor == null && record.Sire == null) return null;
+        return $"{record.Donor ?? "Unknown dam"} x {record.Sire ?? "Unknown sire"}";
+    }
+
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static void ApplyTransferDetails(
         BreedingEvent breeding,

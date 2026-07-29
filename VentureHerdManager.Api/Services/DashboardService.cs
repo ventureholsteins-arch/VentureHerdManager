@@ -226,6 +226,7 @@ public class DashboardService
                 breeding.BreedingDate,
                 breeding.PregnancyCheckDueDate,
                 breeding.PregnancyStatus,
+                AnimalStage = breeding.Animal!.AnimalStage,
                 DaysUntilCheck =
                     (breeding.PregnancyCheckDueDate.Value.Date - today).Days,
                 IsOverdue =
@@ -245,6 +246,7 @@ public class DashboardService
                 item.BreedingDate,
                 item.PregnancyCheckDueDate,
                 item.PregnancyStatus,
+                item.AnimalStage,
                 item.DaysUntilCheck,
                 item.IsOverdue
             } as dynamic)

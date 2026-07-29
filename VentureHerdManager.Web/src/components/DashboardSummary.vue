@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
@@ -47,6 +47,23 @@ const embryoSectionRef = ref<HTMLElement | null>(null)
 const expandedLists = ref<Record<string, boolean>>({})
 const summaryFailed = ref(false)
 const dueWithin60 = ref(false)
+type PregCheckStage = 'all' | 'milking' | 'heifers' | 'dry'
+const pregCheckStage = ref<PregCheckStage>('all')
+const pregCheckStageOptions: Array<[PregCheckStage, string]> = [
+  ['all', 'All'],
+  ['milking', 'Milking'],
+  ['heifers', 'Heifers'],
+  ['dry', 'Dry']
+]
+const filteredPregChecks = computed(() => {
+  const items = dashboard.value.pregChecksDue ?? []
+  const stage = {
+    milking: 3,
+    heifers: 2,
+    dry: 4
+  }[pregCheckStage.value]
+  return stage ? items.filter(item => item.animalStage === stage) : items
+})
 let retryTimer: number | null = null
 
 function applyAnimalFallback(animals: Animal[]) {
@@ -276,15 +293,26 @@ async function openReportSection(section: ReportSection) {
           <div>
             <p class="eyebrow">NEEDS ATTENTION</p>
             <h3>Preg checks due</h3>
+            <div class="preg-check-filters" aria-label="Filter pregnancy checks">
+              <button
+                v-for="option in pregCheckStageOptions"
+                :key="option[0]"
+                type="button"
+                :class="{ active: pregCheckStage === option[0] }"
+                @click="pregCheckStage = option[0]"
+              >
+                {{ option[1] }}
+              </button>
+            </div>
           </div>
 
           <span class="count-badge">
-            {{ dashboard.pregChecksDueCount }}
+            {{ filteredPregChecks.length }}
           </span>
         </div>
 
         <button
-          v-for="item in visibleItems(dashboard.pregChecksDue, 'pregChecks')"
+          v-for="item in visibleItems(filteredPregChecks, 'pregChecks')"
           :key="item.breedingEventId"
           class="event-row"
           @click="openAnimal(item.animalId)"
@@ -308,12 +336,12 @@ async function openReportSection(section: ReportSection) {
         </button>
 
         <button
-          v-if="dashboard.pregChecksDue.length > 6"
+          v-if="filteredPregChecks.length > 6"
           type="button"
           class="list-toggle"
           @click="toggleList('pregChecks')"
         >
-          {{ expandedLists.pregChecks ? 'Show Less' : `Show More (${dashboard.pregChecksDue.length - 6})` }}
+          {{ expandedLists.pregChecks ? 'Show Less' : `Show More (${filteredPregChecks.length - 6})` }}
         </button>
       </section>
 
@@ -746,6 +774,30 @@ async function openReportSection(section: ReportSection) {
   height: 17px;
   margin: 0;
   accent-color: #31572c;
+}
+
+.preg-check-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+
+.preg-check-filters button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #b8c8bb;
+  border-radius: 7px;
+  background: #fff;
+  color: #35543c;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.preg-check-filters button.active {
+  border-color: #31572c;
+  background: #31572c;
+  color: #fff;
 }
 
 .count-badge {

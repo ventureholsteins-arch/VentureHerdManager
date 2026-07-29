@@ -22,6 +22,12 @@ import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 import RetroIcon from '../components/RetroIcon.vue'
+import {
+  createAchievement,
+  deleteAchievement,
+  getAllAchievements,
+  updateAchievement
+} from '../api/showAchievements'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'lists' | 'checklist' | 'achievements'
 
@@ -56,6 +62,7 @@ interface ChecklistItem {
 
 interface AchievementRecord {
   id: number
+  remoteId: number | null
   animalId: number | null
   showName: string
   showDate: string
@@ -126,7 +133,6 @@ const showStringSearch = ref('')
 const listKey = 'venture-herd-lists-v2'
 const showStringKey = 'venture-herd-show-string-v2'
 const checklistKey = 'venture-herd-checklist-v1'
-const achievementsKey = 'venture-herd-achievements-v1'
 
 const defaultLists: AnimalGroupList[] = [
   { key: 'show-string', title: 'Show String', animalIds: [], notes: '', searchQuery: '' },
@@ -206,19 +212,16 @@ function loadData() {
   showStringRows.value = parseStored<ShowStringRow[]>(showStringKey, [])
     .map(r => ({ ...r, feedRation: r.feedRation ?? '' }))
   checklistItems.value = parseStored<ChecklistItem[]>(checklistKey, defaultChecklist.map(i => ({ ...i })))
-  achievements.value = parseStored<AchievementRecord[]>(achievementsKey, [])
   nextRowId.value = Math.max(1, ...showStringRows.value.map(r => r.id + 1), 1)
-  nextAchievementId.value = Math.max(1, ...achievements.value.map(a => a.id + 1), 1)
 }
 
 function saveData() {
   localStorage.setItem(listKey, JSON.stringify(groupLists.value))
   localStorage.setItem(showStringKey, JSON.stringify(showStringRows.value))
   localStorage.setItem(checklistKey, JSON.stringify(checklistItems.value))
-  localStorage.setItem(achievementsKey, JSON.stringify(achievements.value))
 }
 
-watch([groupLists, showStringRows, checklistItems, achievements], saveData, { deep: true })
+watch([groupLists, showStringRows, checklistItems], saveData, { deep: true })
 
 const animalOptions = computed(() =>
   [...animals.value].sort((a, b) =>
@@ -400,13 +403,20 @@ function getAnimalLabel(animalId: number | null): string {
   if (!animalId) return 'Unassigned'
   const a = animals.value.find(x => x.animalId === animalId)
   if (!a) return `Animal #${animalId}`
-  return `${a.barnName || a.registeredName || `#${a.animalId}`} - ${formatCurrentAge(a.birthDate)} - ${getShowClassLabel(a.birthDate, a.animalStage)}`
+  return `${animalDisplayName(a)} - ${formatCurrentAge(a.birthDate)} - ${getShowClassLabel(a.birthDate, a.animalStage)}`
+}
+
+function animalDisplayName(animal: Animal): string {
+  return animal.barnName
+    || animal.registeredName
+    || [animal.sireName, animal.damName].filter(Boolean).join(' × ')
+    || `Animal #${animal.animalId}`
 }
 
 function getAnimalName(animalId: number | null): string {
   if (!animalId) return 'Recipient not assigned'
   const animal = animals.value.find(item => item.animalId === animalId)
-  return animal?.barnName || animal?.registeredName || `Animal #${animalId}`
+  return animal ? animalDisplayName(animal) : `Animal #${animalId}`
 }
 
 function getScoreLabel(score: number | null | undefined): string {
@@ -527,8 +537,7 @@ function removeEmbryoGradeGroup(id: number) {
 
 function selectDonorAnimal(animal: Animal) {
   newEmbryo.value.donorAnimalId = animal.animalId
-  newEmbryo.value.donor =
-    animal.barnName || animal.registeredName || `Animal #${animal.animalId}`
+  newEmbryo.value.donor = animalDisplayName(animal)
   donorSearch.value = newEmbryo.value.donor
 }
 
@@ -621,7 +630,9 @@ function filteredRecipients(record: EmbryoRecord): Animal[] {
     .filter(animal =>
       (animal.barnName || '').toLowerCase().includes(query)
       || (animal.registeredName || '').toLowerCase().includes(query)
-      || (animal.registrationNumber || '').toLowerCase().includes(query))
+      || (animal.registrationNumber || '').toLowerCase().includes(query)
+      || (animal.sireName || '').toLowerCase().includes(query)
+      || (animal.damName || '').toLowerCase().includes(query))
     .slice(0, 12)
 }
 
@@ -641,7 +652,7 @@ function filteredEmbryoDonors(record: EmbryoRecord): Animal[] {
 
 async function linkEmbryoDonor(record: EmbryoRecord, animal: Animal) {
   record.donorAnimalId = animal.animalId
-  record.donor = animal.barnName || animal.registeredName || `Animal #${animal.animalId}`
+  record.donor = animalDisplayName(animal)
   embryoDonorSearch.value[record.embryoRecordId] = ''
   await saveEmbryoRecord(record)
   embryoMessage.value = `${record.code || `Embryo #${record.embryoRecordId}`} linked to ${record.donor}.`
@@ -690,10 +701,51 @@ async function confirmOutcome(record: EmbryoRecord, successful: boolean) {
 }
 
 function addAchievement() {
-  achievements.value.push({ id: nextAchievementId.value++, animalId: null, showName: '', showDate: '', bagged: '', placed: '', notes: '' })
+  achievements.value.push({ id: nextAchievementId.value++, remoteId: null, animalId: null, showName: '', showDate: '', bagged: '', placed: '', notes: '' })
 }
 
-function removeAchievement(id: number) { achievements.value = achievements.value.filter(a => a.id !== id) }
+async function loadAchievements() {
+  const records = await getAllAchievements()
+  achievements.value = records.map(record => ({
+    id: record.showAchievementId,
+    remoteId: record.showAchievementId,
+    animalId: record.animalId,
+    showName: record.showName ?? '',
+    showDate: record.showDate ?? '',
+    bagged: record.bagged ?? '',
+    placed: record.placed ?? '',
+    notes: record.notes ?? ''
+  }))
+  nextAchievementId.value = Math.max(1, ...achievements.value.map(a => a.id + 1), 1)
+}
+
+async function saveAchievement(record: AchievementRecord) {
+  if (!record.animalId) {
+    alert('Select an animal before saving.')
+    return
+  }
+  const payload = {
+    animalId: record.animalId,
+    showName: record.showName || null,
+    showDate: record.showDate || null,
+    bagged: record.bagged || null,
+    placed: record.placed || null,
+    notes: record.notes || null
+  }
+  if (record.remoteId) {
+    await updateAchievement(record.remoteId, payload)
+  } else {
+    const created = await createAchievement(payload)
+    record.remoteId = created.showAchievementId
+    record.id = created.showAchievementId
+  }
+}
+
+async function removeAchievement(record: AchievementRecord) {
+  if (!window.confirm('Delete this achievement?')) return
+  if (record.remoteId) await deleteAchievement(record.remoteId)
+  achievements.value = achievements.value.filter(a => a !== record)
+}
 
 onMounted(async () => {
   loadData()
@@ -710,6 +762,7 @@ onMounted(async () => {
       loading.value = false
     })
   void loadReportAnimalData()
+  void loadAchievements().catch(error => console.error('Failed to load achievements:', error))
   void loadActiveReportTab(activeTab.value)
 })
 
@@ -1471,12 +1524,16 @@ watch(activeTab, tab => {
             <option v-for="a in animalOptions" :key="`ach-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option>
           </select>
         </label>
+        <button v-if="rec.animalId" type="button" class="rp-link-btn" @click="router.push(`/animals/${rec.animalId}`)">Open animal record</button>
         <label>Show Name<input v-model="rec.showName" type="text" placeholder="Spring Classic Show"></label>
         <label>Show Date<input v-model="rec.showDate" type="date"></label>
         <label>Bagged<input v-model="rec.bagged" type="text" placeholder="How she bagged up"></label>
         <label>Placement<input v-model="rec.placed" type="text" placeholder="1st Jr 2 / Reserve Champion"></label>
         <label class="rp-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Judge comments, prep notes" /></label>
-        <button type="button" class="rp-danger" @click="removeAchievement(rec.id)">Remove</button>
+        <div class="rp-actions">
+          <button type="button" class="rp-add-btn" @click="saveAchievement(rec)">Save</button>
+          <button type="button" class="rp-danger" @click="removeAchievement(rec)">Delete</button>
+        </div>
       </div>
       </details>
     </section>

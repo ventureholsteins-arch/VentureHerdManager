@@ -140,7 +140,8 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
         var casanova = new Animal { BarnName = "Casanova" };
         var missy = new Animal { BarnName = "Missy", AnimalStage = AnimalStage.Milking };
         var emmy = new Animal { BarnName = "Emmy", AnimalStage = AnimalStage.Heifer };
-        _context.Animals.AddRange(casanova, missy, emmy);
+        var ernest = new Animal { BarnName = "Ernest", AnimalStage = AnimalStage.Milking };
+        _context.Animals.AddRange(casanova, missy, emmy, ernest);
         await _context.SaveChangesAsync();
         _context.BreedingEvents.Add(new BreedingEvent
         {
@@ -149,23 +150,77 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
             SireUsed = "Paldwyn",
             PregnancyStatus = PregnancyStatus.Unconfirmed
         });
+        _context.BreedingEvents.Add(new BreedingEvent
+        {
+            AnimalId = ernest.AnimalId,
+            BreedingDate = new DateTime(2026, 4, 26),
+            SireUsed = "Beef",
+            PregnancyStatus = PregnancyStatus.Unconfirmed
+        });
         await _context.SaveChangesAsync();
         WriteSources(
             [
                 "Casanova,Pregnant noted,,,PG confirmed,Yes",
                 "Missy,Dry / Pregnant noted,,,Dry and pregnant confirmed,Yes",
-                "Emmy,Dry noted,,,Dry and bred pending confirmation,Yes"
+                "Emmy,Dry noted,,,Dry and bred pending confirmation,Yes",
+                "Ernest,Pregnant noted,,,PG confirmed,Yes"
             ],
             [],
             []);
 
         await _service.ReconcileAsync(_sourceDirectory, true);
 
-        Assert.Equal(
-            PregnancyStatus.Pregnant,
-            (await _context.BreedingEvents.SingleAsync()).PregnancyStatus);
+        Assert.All(
+            await _context.BreedingEvents.ToListAsync(),
+            breeding => Assert.Equal(
+                PregnancyStatus.Pregnant,
+                breeding.PregnancyStatus));
         Assert.Equal(AnimalStage.Dry, missy.AnimalStage);
         Assert.Equal(AnimalStage.Dry, emmy.AnimalStage);
+    }
+
+    [Fact]
+    public async Task RepairsCarmellaEmbryoLinkWithoutDeletingOldHistory()
+    {
+        var carmella = new Animal { BarnName = "Carmella", AnimalStage = AnimalStage.Heifer };
+        var wrongRecipient = new Animal { BarnName = "Wrong Recipient" };
+        _context.Animals.AddRange(carmella, wrongRecipient);
+        await _context.SaveChangesAsync();
+        var oldHistory = new BreedingEvent
+        {
+            AnimalId = wrongRecipient.AnimalId,
+            BreedingDate = new DateTime(2026, 7, 15),
+            SireUsed = "Seashell x Legend",
+            BreedingType = BreedingType.EmbryoTransfer
+        };
+        _context.BreedingEvents.Add(oldHistory);
+        await _context.SaveChangesAsync();
+        var existingEmbryo = new EmbryoRecord
+        {
+            Donor = "Seashell",
+            Sire = "Legend",
+            RecipientAnimalId = carmella.AnimalId,
+            ImplantDate = new DateOnly(2026, 7, 15),
+            BreedingEventId = oldHistory.BreedingEventId,
+            Status = EmbryoStatus.Implanted
+        };
+        _context.EmbryoRecords.Add(existingEmbryo);
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Carmella,,,,Existing recipient,Yes"],
+            [],
+            ["Carmella,2026-07-15,Seashell,Legend,Seashell x Legend,Yes,Yes,Paper section labeled Eggs"]);
+
+        var report = await _service.ReconcileAsync(_sourceDirectory, true);
+
+        Assert.Equal(1, report.DuplicateEmbryosSkipped);
+        Assert.Single(report.Conflicts);
+        Assert.Equal(2, await _context.BreedingEvents.CountAsync());
+        Assert.Equal(
+            carmella.AnimalId,
+            (await _context.BreedingEvents.FindAsync(existingEmbryo.BreedingEventId))!.AnimalId);
+        Assert.True(await _context.BreedingEvents.AnyAsync(
+            breeding => breeding.BreedingEventId == oldHistory.BreedingEventId));
     }
 
     [Fact]
@@ -280,6 +335,8 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
             animal => animal.BarnName == "Pixie");
         var bandi = await _context.Animals.SingleAsync(animal => animal.BarnName == "Bandi");
         var carmella = await _context.Animals.SingleAsync(animal => animal.BarnName == "Carmella");
+        var seaTurtle = await _context.Animals.SingleAsync(animal => animal.BarnName == "Sea Turtle");
+        Assert.Equal(AnimalStage.Milking, seaTurtle.AnimalStage);
         Assert.Contains(
             await _context.EmbryoRecords.ToListAsync(),
             embryo => embryo.RecipientAnimalId == bandi.AnimalId

@@ -105,7 +105,7 @@ public sealed class PaperRecordImportService
         var existingBreedings = await _context.BreedingEvents
             .ToListAsync(cancellationToken);
 
-        foreach (var confirmedPregnantName in new[] { "Casanova", "Missy" })
+        foreach (var confirmedPregnantName in new[] { "Casanova", "Missy", "Ernest" })
         {
             var confirmedAnimal = FindAnimal(animalLookup, confirmedPregnantName).Animal;
             if (confirmedAnimal == null)
@@ -488,13 +488,19 @@ public sealed class PaperRecordImportService
         PaperImportReport report)
     {
         var normalizedName = Normalize(paperName);
-        if (normalizedName is not ("missy" or "emmy")
-            || animal.AnimalStage == AnimalStage.Dry)
+        var confirmedStage = normalizedName switch
+        {
+            "missy" or "emmy" => AnimalStage.Dry,
+            "sea turtle" => AnimalStage.Milking,
+            _ => (AnimalStage?)null
+        };
+        if (!confirmedStage.HasValue
+            || animal.AnimalStage == confirmedStage.Value)
         {
             return;
         }
 
-        animal.AnimalStage = AnimalStage.Dry;
+        animal.AnimalStage = confirmedStage.Value;
         animal.UpdatedBy = "Paper record import";
         animal.UpdatedAt = DateTime.UtcNow;
         report.RecordsUpdated++;

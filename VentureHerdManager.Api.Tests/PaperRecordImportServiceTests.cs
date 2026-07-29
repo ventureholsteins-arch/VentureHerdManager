@@ -62,6 +62,9 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
         Assert.Null(recipient.RegistrationNumber);
         Assert.Equal(recipient.AnimalId, embryo.RecipientAnimalId);
         Assert.Equal("Seashell x Legend", embryo.Mating);
+        Assert.Equal("Seashell", embryo.Donor);
+        Assert.Equal("Legend", embryo.Sire);
+        Assert.Equal(new DateOnly(2026, 7, 15), embryo.ImplantDate);
         Assert.NotNull(embryo.BreedingEventId);
     }
 
@@ -163,6 +166,94 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
             (await _context.BreedingEvents.SingleAsync()).PregnancyStatus);
         Assert.Equal(AnimalStage.Dry, missy.AnimalStage);
         Assert.Equal(AnimalStage.Dry, emmy.AnimalStage);
+    }
+
+    [Fact]
+    public async Task FlagsAmbiguousAnimalMatchesWithoutChangingEitherAnimal()
+    {
+        _context.Animals.AddRange(
+            new Animal { BarnName = "Cade", RegistrationNumber = "ONE" },
+            new Animal { RegisteredName = "Cade", RegistrationNumber = "TWO" });
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Cade,,,,Ambiguous duplicate name,Yes"],
+            ["Cade,2026-05-24,Master,,Breeding,"],
+            []);
+
+        var report = await _service.ReconcileAsync(_sourceDirectory, true);
+
+        Assert.Equal(2, report.Conflicts.Count);
+        Assert.Empty(await _context.BreedingEvents.ToListAsync());
+        Assert.Equal(2, await _context.Animals.CountAsync());
+    }
+
+    [Fact]
+    public async Task KeepsExistingValidHistoryWhenAddingMissingHistory()
+    {
+        var animal = new Animal { BarnName = "Azure" };
+        _context.Animals.Add(animal);
+        await _context.SaveChangesAsync();
+        var existing = new BreedingEvent
+        {
+            AnimalId = animal.AnimalId,
+            BreedingDate = new DateTime(2026, 3, 28),
+            SireUsed = "Venmo",
+            PregnancyStatus = PregnancyStatus.Open,
+            Notes = "Existing valid history"
+        };
+        _context.BreedingEvents.Add(existing);
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Azure,,,,Two paper breedings,Yes"],
+            [
+                "Azure,2026-03-28,Venmo,,Breeding,",
+                "Azure,2026-05-04,Image,,Breeding,"
+            ],
+            []);
+
+        var report = await _service.ReconcileAsync(_sourceDirectory, true);
+        var history = await _context.BreedingEvents
+            .OrderBy(breeding => breeding.BreedingDate)
+            .ToListAsync();
+
+        Assert.Equal(1, report.DuplicateBreedingsSkipped);
+        Assert.Equal(1, report.BreedingsAdded);
+        Assert.Equal(2, history.Count);
+        Assert.Equal(PregnancyStatus.Open, history[0].PregnancyStatus);
+        Assert.Equal("Existing valid history", history[0].Notes);
+    }
+
+    [Fact]
+    public async Task LinkingEmbryoDoesNotOverwriteExistingRecipientDetails()
+    {
+        var recipient = new Animal
+        {
+            BarnName = "Bandi",
+            RegisteredName = "VENTURE BANDI",
+            RegistrationNumber = "BANDI-REG",
+            BirthDate = new DateOnly(2024, 1, 2),
+            DamName = "Known Dam",
+            SireName = "Known Sire",
+            AnimalStage = AnimalStage.Heifer
+        };
+        _context.Animals.Add(recipient);
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Bandi,,,,Existing recipient,Yes"],
+            [],
+            ["Bandi,2026-07-15,Polly,Goldwyn,Polly x Goldwyn,Yes,Yes,Paper section labeled Eggs"]);
+
+        await _service.ReconcileAsync(_sourceDirectory, true);
+        _context.ChangeTracker.Clear();
+        var unchangedRecipient = await _context.Animals.SingleAsync();
+        var embryo = await _context.EmbryoRecords.SingleAsync();
+
+        Assert.Equal("VENTURE BANDI", unchangedRecipient.RegisteredName);
+        Assert.Equal("BANDI-REG", unchangedRecipient.RegistrationNumber);
+        Assert.Equal(new DateOnly(2024, 1, 2), unchangedRecipient.BirthDate);
+        Assert.Equal("Known Dam", unchangedRecipient.DamName);
+        Assert.Equal("Known Sire", unchangedRecipient.SireName);
+        Assert.Equal(unchangedRecipient.AnimalId, embryo.RecipientAnimalId);
     }
 
     [Fact]

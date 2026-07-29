@@ -41,6 +41,7 @@ const spritePosition = computed(() => {
 <template>
   <span
     class="retro-icon"
+    :class="{ 'retro-icon-embryo': name === 'embryo' }"
     :style="{
       width: `${size}px`,
       height: `${size}px`,
@@ -60,5 +61,9 @@ const spritePosition = computed(() => {
   background-size: 500% 200%;
   image-rendering: pixelated;
   filter: drop-shadow(2px 2px 0 rgba(41, 36, 28, 0.16));
+}
+
+.retro-icon-embryo {
+  transform: translateX(4px);
 }
 </style>

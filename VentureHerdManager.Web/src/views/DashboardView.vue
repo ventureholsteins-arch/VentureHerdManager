@@ -608,10 +608,10 @@ onMounted(() => {
       </section>
 
       <section class="quick-actions-bar">
-        <button @click="openHeatModal" class="quick-btn heat-btn"><RetroIcon name="heat" :size="28" /> Record Heat</button>
-        <button @click="openLUTModal()" class="quick-btn lut-btn"><RetroIcon name="lut" :size="28" /> LUT Injection</button>
-        <button @click="router.push('/reports?tab=embryos')" class="quick-btn embryo-btn"><RetroIcon name="embryo" :size="28" /> Embryo Inventory</button>
-        <button @click="openReports" class="quick-btn report-btn"><RetroIcon name="reports" :size="28" /> Reports</button>
+        <button @click="openHeatModal" class="quick-btn heat-btn"><RetroIcon name="heat" :size="28" /><span>Record Heat</span></button>
+        <button @click="openLUTModal()" class="quick-btn lut-btn"><RetroIcon name="lut" :size="28" /><span>LUT Injection</span></button>
+        <button @click="router.push('/reports?tab=embryos')" class="quick-btn embryo-btn"><RetroIcon name="embryo" :size="28" /><span>Embryo Inventory</span></button>
+        <button @click="openReports" class="quick-btn report-btn"><RetroIcon name="reports" :size="28" /><span>Reports</span></button>
       </section>
 
       <div class="mobile-fab-wrap">
@@ -1493,6 +1493,12 @@ onMounted(() => {
   color: white;
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(49, 87, 44, 0.2);
+}
+
+.quick-btn > span {
+  display: inline-block;
+  line-height: 1.18;
+  text-align: left;
 }
 
 .mobile-fab-wrap {

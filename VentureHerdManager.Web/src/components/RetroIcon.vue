@@ -64,6 +64,6 @@ const spritePosition = computed(() => {
 }
 
 .retro-icon-embryo {
-  transform: translateX(4px);
+  transform: translateX(2px);
 }
 </style>

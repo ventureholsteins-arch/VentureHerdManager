@@ -166,11 +166,13 @@ app.MapGet(
                 StatusCodes.Status503ServiceUnavailable);
     });
 
-_ = Task.Run(() => InitializeDatabaseInBackgroundAsync(app));
+_ = Task.Run(() => InitializeDatabaseInBackgroundAsync(app, isDemoMode));
 
 app.Run();
 
-static async Task InitializeDatabaseInBackgroundAsync(WebApplication app)
+static async Task InitializeDatabaseInBackgroundAsync(
+    WebApplication app,
+    bool isDemoMode)
 {
     var stopping = app.Lifetime.ApplicationStopping;
 
@@ -179,7 +181,7 @@ static async Task InitializeDatabaseInBackgroundAsync(WebApplication app)
         try
         {
             await EnsureEmbryoRecordsReadyAsync(app);
-            await InitializeDatabaseAsync(app);
+            await InitializeDatabaseAsync(app, isDemoMode);
 
             app.Services
                 .GetRequiredService<DatabaseInitializationState>()
@@ -244,7 +246,9 @@ static async Task EnsureEmbryoRecordsReadyAsync(WebApplication app)
           END");
 }
 
-static async Task InitializeDatabaseAsync(WebApplication app)
+static async Task InitializeDatabaseAsync(
+    WebApplication app,
+    bool isDemoMode)
 {
     using var scope = app.Services.CreateScope();
     var services = scope.ServiceProvider;
@@ -253,7 +257,7 @@ static async Task InitializeDatabaseAsync(WebApplication app)
     // The EF model includes the nullable DemoSessionId shadow property in both
     // environments. Ensure those support columns exist in production as well,
     // while query filtering and value stamping remain disabled outside demo mode.
-    await EnsureDemoSessionSchemaAsync(context);
+    await EnsureDemoSessionSchemaAsync(context, isDemoMode);
 
     static async Task EnsureAnimalColumnAsync(
         ApplicationDbContext context,
@@ -269,7 +273,8 @@ static async Task InitializeDatabaseAsync(WebApplication app)
     }
 
     static async Task EnsureDemoSessionSchemaAsync(
-        ApplicationDbContext context)
+        ApplicationDbContext context,
+        bool isDemoMode)
     {
         await context.Database.ExecuteSqlRawAsync(
             @"IF OBJECT_ID(N'dbo.DemoSessions', N'U') IS NULL
@@ -313,8 +318,15 @@ static async Task InitializeDatabaseAsync(WebApplication app)
                    END");
         }
 
-        await context.Database.ExecuteSqlRawAsync(
-            @"IF OBJECT_ID(N'dbo.Animals', N'U') IS NOT NULL
+        // The session-aware uniqueness rule is only appropriate for the shared
+        // demo database. Production keeps its normal registration-number index.
+        // Applying the demo index in production can fail when legacy records
+        // contain duplicate registration numbers and leaves the API perpetually
+        // stuck in its not-ready state.
+        if (isDemoMode)
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                @"IF OBJECT_ID(N'dbo.Animals', N'U') IS NOT NULL
               BEGIN
                 IF EXISTS (
                   SELECT 1 FROM sys.indexes
@@ -331,6 +343,7 @@ static async Task InitializeDatabaseAsync(WebApplication app)
                     ON [dbo].[Animals]([DemoSessionId], [RegistrationNumber])
                     WHERE [RegistrationNumber] IS NOT NULL;
               END");
+        }
     }
 
     try

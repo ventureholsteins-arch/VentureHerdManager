@@ -63,6 +63,7 @@ builder.Services.AddScoped<DemoSessionMaintenanceService>();
 builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
 builder.Services.AddScoped<PaperRecordImportService>();
 builder.Services.AddScoped<NaabSireCatalogService>();
+builder.Services.AddSingleton<DatabaseInitializationState>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -97,6 +98,29 @@ app.UseHttpsRedirection();
 app.UseCors(CorsPolicyName);
 app.UseStaticFiles();
 
+app.Use(async (httpContext, next) =>
+{
+    if (httpContext.Request.Path.StartsWithSegments("/api")
+        && !HttpMethods.IsOptions(httpContext.Request.Method)
+        && !httpContext.RequestServices
+            .GetRequiredService<DatabaseInitializationState>()
+            .IsReady)
+    {
+        httpContext.Response.StatusCode =
+            StatusCodes.Status503ServiceUnavailable;
+        await httpContext.Response.WriteAsJsonAsync(
+            new
+            {
+                message =
+                    "The herd database is waking up. Please try again shortly."
+            },
+            httpContext.RequestAborted);
+        return;
+    }
+
+    await next();
+});
+
 if (isDemoMode)
 {
     app.Use(async (httpContext, next) =>
@@ -124,8 +148,15 @@ app.MapGet(
     "/health/ready",
     async (
         ApplicationDbContext context,
+        DatabaseInitializationState initializationState,
         CancellationToken cancellationToken) =>
     {
+        if (!initializationState.IsReady)
+        {
+            return Results.StatusCode(
+                StatusCodes.Status503ServiceUnavailable);
+        }
+
         var canConnect = await context.Database
             .CanConnectAsync(cancellationToken);
 
@@ -135,23 +166,49 @@ app.MapGet(
                 StatusCodes.Status503ServiceUnavailable);
     });
 
-try
-{
-    // Finish migrations/compatibility repairs before accepting requests.
-    // Serving traffic while schema work ran in the background was the source
-    // of intermittent first-request 500 responses after Azure woke up.
-    await EnsureEmbryoRecordsReadyAsync(app);
-    await InitializeDatabaseAsync(app);
-}
-catch (Exception exception)
-{
-    app.Logger.LogCritical(
-        exception,
-        "Database initialization failed; the API will not start with a partial schema.");
-    throw;
-}
+_ = InitializeDatabaseInBackgroundAsync(app);
 
 app.Run();
+
+static async Task InitializeDatabaseInBackgroundAsync(WebApplication app)
+{
+    var stopping = app.Lifetime.ApplicationStopping;
+
+    while (!stopping.IsCancellationRequested)
+    {
+        try
+        {
+            await EnsureEmbryoRecordsReadyAsync(app);
+            await InitializeDatabaseAsync(app);
+
+            app.Services
+                .GetRequiredService<DatabaseInitializationState>()
+                .MarkReady();
+            app.Logger.LogInformation(
+                "Database initialization completed; API data routes are ready.");
+            return;
+        }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            app.Logger.LogError(
+                exception,
+                "Database initialization failed. The API remains live but not ready; retrying in 30 seconds.");
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), stopping);
+            }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            {
+                return;
+            }
+        }
+    }
+}
 
 static async Task EnsureEmbryoRecordsReadyAsync(WebApplication app)
 {

@@ -166,7 +166,7 @@ app.MapGet(
                 StatusCodes.Status503ServiceUnavailable);
     });
 
-_ = InitializeDatabaseInBackgroundAsync(app);
+_ = Task.Run(() => InitializeDatabaseInBackgroundAsync(app));
 
 app.Run();
 

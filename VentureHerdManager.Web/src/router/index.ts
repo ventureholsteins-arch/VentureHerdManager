@@ -9,6 +9,7 @@ import CalendarView from '../views/CalendarView.vue'
 import AnimalCreateView from '../views/AnimalCreateView.vue'
 import ReportsView from '../views/ReportsView.vue'
 import PrintReportsView from '../views/PrintReportsView.vue'
+import SireCatalogView from '../views/SireCatalogView.vue'
 import DemoView from '../views/DemoView.vue'
 
 import SettingsView from '../views/SettingsView.vue'
@@ -48,6 +49,11 @@ const router = createRouter({
       path: '/reports/print',
       name: 'print-reports',
       component: PrintReportsView
+    },
+    {
+      path: '/reports/sires',
+      name: 'sire-catalog',
+      component: SireCatalogView
     },
     {
       path: '/settings',

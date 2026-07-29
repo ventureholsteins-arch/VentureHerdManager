@@ -222,6 +222,7 @@ public class CalendarService
         var pregnancyChecks =
             _context.BreedingEvents
                 .AsNoTracking()
+                .CurrentReproductiveEvents(_context)
                 .Where(breeding =>
                     (
                         breeding.PregnancyStatus ==
@@ -300,6 +301,7 @@ public class CalendarService
         var expectedDueDates =
             _context.BreedingEvents
                 .AsNoTracking()
+                .CurrentReproductiveEvents(_context)
                 .Where(breeding =>
                     breeding.PregnancyStatus ==
                         PregnancyStatus.Pregnant

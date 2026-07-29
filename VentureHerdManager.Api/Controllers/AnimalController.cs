@@ -27,10 +27,14 @@ public class AnimalsController : ControllerBase
     }
 
     [HttpGet("{animalId:int}")]
-    public IActionResult GetAnimalById(int animalId)
+    public async Task<IActionResult> GetAnimalById(
+        int animalId,
+        CancellationToken cancellationToken)
     {
         var animal =
-            _animalService.GetAnimalById(animalId);
+            await _animalService.GetAnimalByIdAsync(
+                animalId,
+                cancellationToken);
 
         if (animal == null)
         {

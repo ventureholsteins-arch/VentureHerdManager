@@ -57,12 +57,13 @@ const pregCheckStageOptions: Array<[PregCheckStage, string]> = [
 ]
 const filteredPregChecks = computed(() => {
   const items = dashboard.value.pregChecksDue ?? []
-  const stage = {
+  if (pregCheckStage.value === 'all') return items
+  const stage: number = {
     milking: 3,
     heifers: 2,
     dry: 4
   }[pregCheckStage.value]
-  return stage ? items.filter(item => item.animalStage === stage) : items
+  return items.filter(item => item.animalStage === stage)
 })
 let retryTimer: number | null = null
 
@@ -345,11 +346,7 @@ async function openReportSection(section: ReportSection) {
         </button>
       </section>
 
-      <section
-        v-if="(dashboard.dueSoon?.length ?? 0) > 0"
-        class="dashboard-panel"
-        ref="dueSoonSectionRef"
-      >
+      <section class="dashboard-panel" ref="dueSoonSectionRef">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">UPCOMING</p>
@@ -367,6 +364,13 @@ async function openReportSection(section: ReportSection) {
           <span class="count-badge">
             {{ dashboard.dueSoonCount }}
           </span>
+        </div>
+
+        <div
+          v-if="(dashboard.dueSoon?.length ?? 0) === 0"
+          class="empty-event-state"
+        >
+          No confirmed pregnancies are due in this window.
         </div>
 
         <button
@@ -824,6 +828,12 @@ async function openReportSection(section: ReportSection) {
   margin-bottom: 6px;
   color: #163022;
   font-size: 0.95rem;
+}
+
+.empty-event-state {
+  padding: 14px 2px;
+  color: #5d6f63;
+  font-size: 0.9rem;
 }
 
 .event-row {

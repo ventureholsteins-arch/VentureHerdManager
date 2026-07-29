@@ -7,17 +7,6 @@ namespace VentureHerdManager.Api.Controllers;
 [Route("api/[controller]")]
 public class PhotosController : ControllerBase
 {
-    private static readonly HashSet<string> AllowedContentTypes =
-    [
-        "image/jpeg",
-        "image/jpg",
-        "image/pjpeg",
-        "image/png",
-        "image/webp",
-        "image/heic",
-        "image/heif"
-    ];
-
     private readonly IPhotoStorageService _photoStorageService;
 
     public PhotosController(IPhotoStorageService photoStorageService)
@@ -37,19 +26,22 @@ public class PhotosController : ControllerBase
             return BadRequest("No file uploaded.");
         }
 
-        if (!AllowedContentTypes.Contains(file.ContentType.ToLowerInvariant()))
-        {
-            return BadRequest("Unsupported file type.");
-        }
-
         var targetFolder = string.IsNullOrWhiteSpace(folder)
             ? "general"
             : folder;
 
-        var url = await _photoStorageService.UploadImageAsync(
-            file,
-            targetFolder,
-            cancellationToken);
+        string url;
+        try
+        {
+            url = await _photoStorageService.UploadImageAsync(
+                file,
+                targetFolder,
+                cancellationToken);
+        }
+        catch (InvalidDataException exception)
+        {
+            return BadRequest(exception.Message);
+        }
 
         return Ok(new PhotoUploadResponse
         {

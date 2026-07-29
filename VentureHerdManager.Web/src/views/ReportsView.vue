@@ -792,6 +792,7 @@ watch(activeTab, tab => {
       <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'">Achievements</button>
       <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">Analytics</button>
       <button class="print-reports-link" @click="router.push('/reports/print')"><RetroIcon name="reports" :size="22" /> Print Reports</button>
+      <button class="print-reports-link" @click="router.push('/reports/sires')">Sire Lookup</button>
     </nav>
 
     <section v-if="loading" class="rp-panel">
@@ -1205,6 +1206,14 @@ watch(activeTab, tab => {
               <option :value="0">Back to Storage</option>
             </select>
           </label>
+          <button
+            type="button"
+            class="rp-add-btn mt8"
+            :disabled="embryoSavingId === rec.embryoRecordId"
+            @click="saveEmbryoRecord(rec)"
+          >
+            {{ embryoSavingId === rec.embryoRecordId ? 'Saving...' : 'Save Changes' }}
+          </button>
         </div>
       </template>
     </section>

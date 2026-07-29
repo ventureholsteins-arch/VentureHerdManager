@@ -11,6 +11,7 @@ export interface CalvingEvent {
   twins: boolean
   stillborn: boolean
   notes?: string | null
+  pictureUrl?: string | null
   createdBy?: string | null
 }
 

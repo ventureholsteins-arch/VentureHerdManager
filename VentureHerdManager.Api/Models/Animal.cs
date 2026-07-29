@@ -83,6 +83,12 @@ public class Animal
     public ICollection<BreedingEvent> BreedingEvents { get; set; } =
         new List<BreedingEvent>();
 
+    public ICollection<EmbryoRecord> EmbryosAsRecipient { get; set; } =
+        new List<EmbryoRecord>();
+
+    public ICollection<EmbryoRecord> EmbryosAsDonor { get; set; } =
+        new List<EmbryoRecord>();
+
     public ICollection<CalvingEvent> CalvingEvents { get; set; } =
         new List<CalvingEvent>();
 

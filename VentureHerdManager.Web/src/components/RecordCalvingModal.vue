@@ -67,8 +67,8 @@
           <label>Calf Sex:</label>
           <select v-model="calfSex" class="form-input">
             <option value="0">Unknown</option>
-            <option value="1">Female</option>
-            <option value="2">Male</option>
+            <option value="1">Male (Bull)</option>
+            <option value="2">Female (Heifer)</option>
           </select>
         </div>
 
@@ -129,7 +129,7 @@ const calfBarnName = ref('')
 const calfRegisteredName = ref('')
 const calfSireName = ref('')
 const calfDamName = ref('')
-const calfSex = ref('1')
+const calfSex = ref('2')
 const birthWeight = ref('')
 const calvingEase = ref('0')
 const twins = ref(false)
@@ -153,7 +153,7 @@ const openModal = (id: number, name: string) => {
   calfRegisteredName.value = ''
   calfSireName.value = ''
   calfDamName.value = name
-  calfSex.value = '1'
+  calfSex.value = '2'
   birthWeight.value = ''
   calvingEase.value = '0'
   twins.value = false

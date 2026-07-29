@@ -24,6 +24,13 @@ public class PhotoStorageService : IPhotoStorageService
         string folder,
         CancellationToken cancellationToken = default)
     {
+        var safeFolder =
+            ImageUploadValidator.NormalizeFolder(folder);
+        var validatedImage =
+            await ImageUploadValidator.ValidateAsync(
+                file,
+                cancellationToken);
+
         var connectionString = _configuration["BlobStorage:ConnectionString"];
 
         if (!string.IsNullOrWhiteSpace(connectionString))
@@ -37,7 +44,8 @@ public class PhotoStorageService : IPhotoStorageService
                 return await UploadToBlobAsync(
                     connectionString,
                     file,
-                    folder,
+                    safeFolder,
+                    validatedImage,
                     storageTimeout.Token);
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -47,13 +55,18 @@ public class PhotoStorageService : IPhotoStorageService
             }
         }
 
-        return await UploadToLocalAsync(file, folder, cancellationToken);
+        return await UploadToLocalAsync(
+            file,
+            safeFolder,
+            validatedImage,
+            cancellationToken);
     }
 
     private async Task<string> UploadToBlobAsync(
         string connectionString,
         IFormFile file,
         string folder,
+        ValidatedImage validatedImage,
         CancellationToken cancellationToken)
     {
         var containerName =
@@ -63,12 +76,9 @@ public class PhotoStorageService : IPhotoStorageService
         var containerClient = new BlobContainerClient(connectionString, containerName);
         await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
 
-        var extension = Path.GetExtension(file.FileName);
-        var safeFolder = folder.Trim('/').Trim();
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        var blobPath = string.IsNullOrWhiteSpace(safeFolder)
-            ? fileName
-            : $"{safeFolder}/{fileName}";
+        var fileName =
+            $"{Guid.NewGuid():N}{validatedImage.Extension}";
+        var blobPath = $"{folder}/{fileName}";
 
         var blobClient = containerClient.GetBlobClient(blobPath);
 
@@ -79,7 +89,7 @@ public class PhotoStorageService : IPhotoStorageService
             {
                 HttpHeaders = new BlobHttpHeaders
                 {
-                    ContentType = file.ContentType
+                    ContentType = validatedImage.ContentType
                 }
             },
             cancellationToken);
@@ -90,6 +100,7 @@ public class PhotoStorageService : IPhotoStorageService
     private async Task<string> UploadToLocalAsync(
         IFormFile file,
         string folder,
+        ValidatedImage validatedImage,
         CancellationToken cancellationToken)
     {
         var webRootPath = _environment.WebRootPath;
@@ -98,15 +109,35 @@ public class PhotoStorageService : IPhotoStorageService
             webRootPath = Path.Combine(_environment.ContentRootPath, "wwwroot");
         }
 
-        var safeFolder = folder.Trim('/').Trim();
-        var uploadsRoot = Path.Combine(webRootPath, "uploads", safeFolder);
+        var uploadsBase = Path.GetFullPath(
+            Path.Combine(webRootPath, "uploads"));
+        var uploadsRoot = Path.GetFullPath(
+            Path.Combine(uploadsBase, folder));
+        var expectedPrefix =
+            uploadsBase.TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+
+        if (!uploadsRoot.StartsWith(
+                expectedPrefix,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "The upload path is invalid.");
+        }
+
         Directory.CreateDirectory(uploadsRoot);
 
-        var extension = Path.GetExtension(file.FileName);
-        var fileName = $"{Guid.NewGuid():N}{extension}";
+        var fileName =
+            $"{Guid.NewGuid():N}{validatedImage.Extension}";
         var fullPath = Path.Combine(uploadsRoot, fileName);
 
-        await using (var fileStream = new FileStream(fullPath, FileMode.Create))
+        await using (var fileStream = new FileStream(
+            fullPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None))
         {
             await file.CopyToAsync(fileStream, cancellationToken);
         }
@@ -114,10 +145,10 @@ public class PhotoStorageService : IPhotoStorageService
         var request = _httpContextAccessor.HttpContext?.Request;
         if (request == null)
         {
-            return $"/uploads/{safeFolder}/{fileName}".Replace("\\", "/");
+            return $"/uploads/{folder}/{fileName}".Replace("\\", "/");
         }
 
         var baseUrl = $"{request.Scheme}://{request.Host}";
-        return $"{baseUrl}/uploads/{safeFolder}/{fileName}".Replace("\\", "/");
+        return $"{baseUrl}/uploads/{folder}/{fileName}".Replace("\\", "/");
     }
 }

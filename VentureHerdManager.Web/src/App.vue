@@ -161,6 +161,7 @@ async function openDemoFast() {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-align: center;
+  flex-wrap: wrap;
 }
 
 .app-footer strong {
@@ -170,5 +171,21 @@ async function openDemoFast() {
 
 .footer-sep {
   color: rgba(255,255,255,0.2);
+}
+
+@media (max-width: 640px) {
+  .app-footer {
+    gap: 4px 10px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    line-height: 1.4;
+  }
+
+  .footer-sep {
+    display: none;
+  }
+
+  .app-footer > span:not(.footer-sep) {
+    flex: 1 1 100%;
+  }
 }
 </style>

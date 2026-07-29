@@ -21,6 +21,9 @@ public class EmbryoRecord
     [MaxLength(200)]
     public string? Donor { get; set; }
 
+    [MaxLength(400)]
+    public string? Mating { get; set; }
+
     /// <summary>
     /// Optional link when the donor is an animal in this herd.
     /// </summary>

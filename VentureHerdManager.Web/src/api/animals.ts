@@ -68,15 +68,24 @@ export async function getAnimal(animalId: number): Promise<Animal> {
 export interface UpdateAnimalRequest {
   barnName?: string | null
   registeredName?: string | null
+  registrationNumber?: string | null
+  birthDate?: string | null
+  sex?: number
+  animalStage?: number
+  animalStatus?: number
   breed?: string | null
+  sireId?: number | null
   sireName?: string | null
+  damId?: number | null
+  damName?: string | null
   currentLactation?: number | null
   notes?: string | null
+  profilePictureUrl?: string | null
   isFavorite?: boolean
 }
 
 export interface CreateAnimalRequest {
-  barnName: string
+  barnName?: string | null
   registeredName?: string | null
   registrationNumber?: string | null
   birthDate?: string | null

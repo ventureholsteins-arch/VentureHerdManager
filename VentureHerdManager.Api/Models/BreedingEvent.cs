@@ -52,7 +52,8 @@ public enum BreedingType
 {
     AI = 0,
     Natural = 1,
-    EmbryoTransfer = 2
+    EmbryoTransfer = 2,
+    Unknown = 3
 }
 
 public enum PregnancyStatus

@@ -5,6 +5,7 @@ export interface EmbryoRecord {
   code: string | null
   sire: string | null
   donor: string | null
+  mating?: string | null
   donorAnimalId?: number | null
   grade: string | null
   groupName?: string | null
@@ -47,6 +48,12 @@ export async function getAllEmbryos(): Promise<EmbryoRecord[]> {
 export async function getEmbryoById(id: number): Promise<EmbryoRecord> {
   const response = await fetch(`${API_BASE}/EmbryoRecords/${id}`)
   if (!response.ok) throw new Error(`Failed to load embryo record #${id}`)
+  return response.json()
+}
+
+export async function getEmbryosForRecipient(animalId: number): Promise<EmbryoRecord[]> {
+  const response = await fetch(`${API_BASE}/EmbryoRecords/recipient/${animalId}`)
+  if (!response.ok) throw new Error('Failed to load recipient embryo records')
   return response.json()
 }
 

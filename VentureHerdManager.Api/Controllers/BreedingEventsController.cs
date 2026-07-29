@@ -82,28 +82,44 @@ public class BreedingEventsController : ControllerBase
         var linkedEmbryo = await _context.EmbryoRecords
             .FirstOrDefaultAsync(e =>
                 e.BreedingEventId == breeding.BreedingEventId);
+        var isEmbryoTransfer =
+            breeding.BreedingType == BreedingType.EmbryoTransfer
+            || linkedEmbryo != null;
+
+        if (status == PregnancyStatus.Pregnant)
+        {
+            var dueDate = breeding.BreedingDate.AddDays(
+                isEmbryoTransfer ? 273 : 280);
+            breeding.ExpectedDueDate = dueDate;
+            breeding.RecommendedDryOffDate = dueDate.AddDays(-60);
+            breeding.CloseUpDate = dueDate.AddDays(-21);
+        }
+        else if (status is PregnancyStatus.Open or PregnancyStatus.Aborted)
+        {
+            breeding.ExpectedDueDate = null;
+            breeding.RecommendedDryOffDate = null;
+            breeding.CloseUpDate = null;
+        }
+
         if (linkedEmbryo != null)
         {
-            linkedEmbryo.Status = status == PregnancyStatus.Pregnant
-                ? EmbryoStatus.Successful
-                : status == PregnancyStatus.Open
-                    ? EmbryoStatus.Failed
-                    : EmbryoStatus.Implanted;
-
-            if (status == PregnancyStatus.Open)
+            linkedEmbryo.Status = status switch
             {
-                breeding.ExpectedDueDate = null;
-                breeding.RecommendedDryOffDate = null;
-                breeding.CloseUpDate = null;
+                PregnancyStatus.Pregnant => EmbryoStatus.Successful,
+                PregnancyStatus.Open or PregnancyStatus.Aborted =>
+                    EmbryoStatus.Failed,
+                _ => EmbryoStatus.Implanted
+            };
+
+            if (status is PregnancyStatus.Open or PregnancyStatus.Aborted)
+            {
                 linkedEmbryo.FailureNotes ??=
-                    $"Pregnancy check on {DateTime.UtcNow:d}: embryo did not establish a pregnancy.";
+                    status == PregnancyStatus.Aborted
+                        ? $"Pregnancy loss recorded on {DateTime.UtcNow:d}."
+                        : $"Pregnancy check on {DateTime.UtcNow:d}: embryo did not establish a pregnancy.";
             }
             else if (status == PregnancyStatus.Pregnant)
             {
-                var dueDate = breeding.BreedingDate.AddDays(273);
-                breeding.ExpectedDueDate = dueDate;
-                breeding.RecommendedDryOffDate = dueDate.AddDays(-60);
-                breeding.CloseUpDate = dueDate.AddDays(-21);
                 linkedEmbryo.FailureNotes = null;
             }
 

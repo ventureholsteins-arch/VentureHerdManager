@@ -536,11 +536,15 @@ async function savePregCheck() {
     breedingEvents.value = await getBreedings(
       animalId.value
     )
+    recipientEmbryos.value = await getEmbryosForRecipient(
+      animalId.value
+    )
   } catch (error) {
     console.error(
       'Failed to save pregnancy check:',
       error
     )
+    alert('Failed to save pregnancy check.')
   }
 }
 

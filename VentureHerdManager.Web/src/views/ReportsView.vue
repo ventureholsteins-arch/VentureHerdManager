@@ -28,7 +28,6 @@ import {
   getAllAchievements,
   updateAchievement
 } from '../api/showAchievements'
-import { createShareLink } from '../api/shareLinks'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'lists' | 'checklist' | 'achievements'
 
@@ -77,12 +76,6 @@ const route = useRoute()
 const activeTab = ref<HubTab>('embryos')
 const loading = ref(true)
 const animals = ref<Animal[]>([])
-const showSharePanel = ref(false)
-const shareAnimals = ref(true)
-const shareEmbryos = ref(true)
-const shareOutcomes = ref(true)
-const shareExpires = ref(14)
-const shareMessage = ref('')
 
 const analyticsData = ref<HerdActivityResponse | null>(null)
 const analyticsLoading = ref(false)
@@ -754,29 +747,6 @@ async function removeAchievement(record: AchievementRecord) {
   achievements.value = achievements.value.filter(a => a !== record)
 }
 
-async function makeShareLink() {
-  shareMessage.value = ''
-  try {
-    const result = await createShareLink({
-      animalIds: animals.value.map(animal => animal.animalId),
-      includeAnimals: shareAnimals.value,
-      includeEmbryos: shareEmbryos.value,
-      includeOutcomes: shareOutcomes.value,
-      expiresInDays: shareExpires.value
-    })
-    const url = `${window.location.origin}/shared/${encodeURIComponent(result.token)}`
-    if (navigator.share) {
-      await navigator.share({ title: 'Venture Herd Manager', url })
-      shareMessage.value = 'Share link ready.'
-    } else {
-      await navigator.clipboard.writeText(url)
-      shareMessage.value = 'Private read-only link copied.'
-    }
-  } catch (error) {
-    shareMessage.value = error instanceof Error ? error.message : 'Could not create share link.'
-  }
-}
-
 onMounted(async () => {
   loadData()
   const tabParam = route.query.tab as string | undefined
@@ -806,31 +776,12 @@ watch(activeTab, tab => {
     <header class="rp-hero">
       <div class="rp-hero-top">
         <button class="rp-back" type="button" @click="router.push('/')">Back to Dashboard</button>
-        <button class="rp-share-btn" type="button" @click="showSharePanel = !showSharePanel">Send Link</button>
+        <span class="rp-brand">Venture Herd Manager</span>
       </div>
       <h1 class="rp-title">Reports &amp; Show Planner</h1>
       <p class="rp-sub">Embryo Inventory / Show String / Herd Lists / Checklist / Achievements</p>
       <p class="rp-powered">Powered by <strong>Venture Ag Marketing</strong> / Custom Application Solutions</p>
     </header>
-
-    <section v-if="showSharePanel" class="rp-share-panel">
-      <div>
-        <strong>Private read-only link</strong>
-        <span>Choose what the recipient can see.</span>
-      </div>
-      <label><input v-model="shareAnimals" type="checkbox"> Animal records</label>
-      <label><input v-model="shareEmbryos" type="checkbox"> Embryos and implants</label>
-      <label><input v-model="shareOutcomes" type="checkbox"> Implant outcomes</label>
-      <label>Expires
-        <select v-model.number="shareExpires">
-          <option :value="7">7 days</option>
-          <option :value="14">14 days</option>
-          <option :value="30">30 days</option>
-        </select>
-      </label>
-      <button type="button" class="rp-add-btn" @click="makeShareLink">Create &amp; Send Link</button>
-      <p v-if="shareMessage">{{ shareMessage }}</p>
-    </section>
 
     <nav class="rp-tabs">
       <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'">Embryos</button>
@@ -1600,8 +1551,6 @@ watch(activeTab, tab => {
 .rp-powered strong { color: rgba(255,255,255,0.55); font-weight: 900; }
 .rp-back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.07); color: #e2e8f0; font-weight: 800; font-size: 0.85rem; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
 .rp-back:hover { background: rgba(255,255,255,0.14); }
-.rp-share-btn{border:1px solid rgba(255,255,255,.35);border-radius:7px;background:#fff;color:#173422;padding:8px 14px;font-weight:900;cursor:pointer}
-.rp-share-panel{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid #d9e3db;background:#eef5ef}.rp-share-panel>div{display:grid;margin-right:auto}.rp-share-panel>div span,.rp-share-panel p{color:#5d6f63;font-size:.8rem}.rp-share-panel label{display:flex;align-items:center;gap:6px;font-size:.84rem;font-weight:750}.rp-share-panel p{width:100%;margin:0}
 
 .rp-tabs { display: flex; overflow-x: auto; gap: 0; background: #fff; border-bottom: 2px solid #e0e8e1; padding: 0 16px; }
 .rp-tabs::-webkit-scrollbar { height: 0; }

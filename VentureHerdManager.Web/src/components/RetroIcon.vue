@@ -25,7 +25,7 @@ const spritePosition = computed(() => {
     pregCheck: '25% 0%',
     calving: '50% 0%',
     lut: '75% 0%',
-    embryo: '100% 0%',
+    embryo: '96% 0%',
     dryOff: '0% 100%',
     calf: '25% 100%',
     note: '50% 100%',

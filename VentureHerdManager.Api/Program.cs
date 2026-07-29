@@ -180,12 +180,28 @@ static async Task InitializeDatabaseInBackgroundAsync(
     {
         try
         {
-            await EnsureEmbryoRecordsReadyAsync(app);
-            await InitializeDatabaseAsync(app, isDemoMode);
+            using (var readinessScope = app.Services.CreateScope())
+            {
+                var readinessContext = readinessScope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                if (!await readinessContext.Database
+                        .CanConnectAsync(stopping))
+                {
+                    throw new InvalidOperationException(
+                        "The herd database is not accepting connections.");
+                }
+            }
 
+            // Existing production data routes should not be held offline while
+            // optional compatibility repairs and seed checks run. Once SQL is
+            // reachable, serve the herd and finish maintenance in background.
             app.Services
                 .GetRequiredService<DatabaseInitializationState>()
                 .MarkReady();
+
+            await EnsureEmbryoRecordsReadyAsync(app);
+            await InitializeDatabaseAsync(app, isDemoMode);
+
             app.Logger.LogInformation(
                 "Database initialization completed; API data routes are ready.");
             return;

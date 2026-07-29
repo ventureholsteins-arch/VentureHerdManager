@@ -254,10 +254,13 @@ static async Task InitializeDatabaseAsync(
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<ApplicationDbContext>();
 
-    // The EF model includes the nullable DemoSessionId shadow property in both
-    // environments. Ensure those support columns exist in production as well,
-    // while query filtering and value stamping remain disabled outside demo mode.
-    await EnsureDemoSessionSchemaAsync(context, isDemoMode);
+    // Session tables, columns, and indexes belong only to the shared demo
+    // database. Production records intentionally have no demo session and must
+    // never wait on demo schema maintenance during application startup.
+    if (isDemoMode)
+    {
+        await EnsureDemoSessionSchemaAsync(context);
+    }
 
     static async Task EnsureAnimalColumnAsync(
         ApplicationDbContext context,
@@ -273,8 +276,7 @@ static async Task InitializeDatabaseAsync(
     }
 
     static async Task EnsureDemoSessionSchemaAsync(
-        ApplicationDbContext context,
-        bool isDemoMode)
+        ApplicationDbContext context)
     {
         await context.Database.ExecuteSqlRawAsync(
             @"IF OBJECT_ID(N'dbo.DemoSessions', N'U') IS NULL
@@ -318,14 +320,7 @@ static async Task InitializeDatabaseAsync(
                    END");
         }
 
-        // The session-aware uniqueness rule is only appropriate for the shared
-        // demo database. Production keeps its normal registration-number index.
-        // Applying the demo index in production can fail when legacy records
-        // contain duplicate registration numbers and leaves the API perpetually
-        // stuck in its not-ready state.
-        if (isDemoMode)
-        {
-            await context.Database.ExecuteSqlRawAsync(
+        await context.Database.ExecuteSqlRawAsync(
                 @"IF OBJECT_ID(N'dbo.Animals', N'U') IS NOT NULL
               BEGIN
                 IF EXISTS (
@@ -343,7 +338,6 @@ static async Task InitializeDatabaseAsync(
                     ON [dbo].[Animals]([DemoSessionId], [RegistrationNumber])
                     WHERE [RegistrationNumber] IS NOT NULL;
               END");
-        }
     }
 
     try

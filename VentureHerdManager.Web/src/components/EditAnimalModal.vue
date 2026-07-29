@@ -78,7 +78,7 @@
                   placeholder="e.g., 92.5"
                 />
                 <small style="display: block; margin-top: 4px; color: #666;">
-                  EX: 90+, VG: 85-89, GP: <85
+                  EX: 90+, VG: 85-89, GP: &lt;85
                 </small>
               </div>
 
@@ -141,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref } from 'vue'
 import type { Animal } from '../models/Animal'
 import { updateAnimal } from '../api/animals'
 import { addClassification } from '../api/classification'

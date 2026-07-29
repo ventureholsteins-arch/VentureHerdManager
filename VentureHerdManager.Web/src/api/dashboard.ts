@@ -46,6 +46,7 @@ export interface DashboardHeat {
   animalName: string
   heatDateTime: string
   notes?: string | null
+  pictureUrl?: string | null
 }
 
 export interface DashboardBreeding {
@@ -129,13 +130,93 @@ function normalizeDashboardSummary(value: unknown): DashboardSummary {
   }
 }
 
-export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const response = await fetch(`${API_BASE}/Dashboard`)
+const DASHBOARD_CACHE_MS = 120_000
+const DASHBOARD_TIMEOUT_MS = 30_000
+const DASHBOARD_STORAGE_KEY = 'venture-herd-summary-cache-v1'
+let cachedDashboard: DashboardSummary | null = null
+let cachedAt = 0
+let dashboardRequest: Promise<DashboardSummary> | null = null
 
-  if (!response.ok) {
-    throw new Error('Failed to load dashboard')
+function dashboardStorage() {
+  return import.meta.env.VITE_DEMO_ONLY === 'true'
+    ? sessionStorage
+    : localStorage
+}
+
+function restoreDashboardCache() {
+  if (cachedDashboard) return
+  try {
+    const raw = dashboardStorage().getItem(DASHBOARD_STORAGE_KEY)
+    if (!raw) return
+    const saved = JSON.parse(raw) as {
+      value?: unknown
+      savedAt?: number
+    }
+    if (
+      typeof saved.savedAt === 'number'
+      && Date.now() - saved.savedAt < DASHBOARD_CACHE_MS
+    ) {
+      cachedDashboard = normalizeDashboardSummary(saved.value)
+      cachedAt = saved.savedAt
+    }
+  } catch {
+    dashboardStorage().removeItem(DASHBOARD_STORAGE_KEY)
+  }
+}
+
+export async function getDashboardSummary(dueDays = 30): Promise<DashboardSummary> {
+  if (dueDays !== 30) {
+    const response = await fetch(`${API_BASE}/Dashboard?dueDays=${dueDays}`)
+    if (!response.ok) throw new Error('Failed to load dashboard')
+    return normalizeDashboardSummary(await response.json())
+  }
+  restoreDashboardCache()
+  const now = Date.now()
+
+  if (cachedDashboard && now - cachedAt < DASHBOARD_CACHE_MS) {
+    return cachedDashboard
   }
 
-  const payload = await response.json()
-  return normalizeDashboardSummary(payload)
+  if (dashboardRequest) {
+    return dashboardRequest
+  }
+
+  dashboardRequest = (async () => {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(
+      () => controller.abort(),
+      DASHBOARD_TIMEOUT_MS
+    )
+
+    let response: Response
+    try {
+      response = await fetch(`${API_BASE}/Dashboard`, {
+        signal: controller.signal
+      })
+    } finally {
+      window.clearTimeout(timeout)
+    }
+
+    if (!response.ok) {
+      throw new Error('Failed to load dashboard')
+    }
+
+    const payload = await response.json()
+    cachedDashboard = normalizeDashboardSummary(payload)
+    cachedAt = Date.now()
+    dashboardStorage().setItem(
+      DASHBOARD_STORAGE_KEY,
+      JSON.stringify({
+        value: cachedDashboard,
+        savedAt: cachedAt
+      })
+    )
+    return cachedDashboard
+  })()
+
+  try {
+    return await dashboardRequest
+  } finally {
+    dashboardRequest = null
+  }
 }

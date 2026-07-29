@@ -5,10 +5,13 @@ export interface EmbryoRecord {
   code: string | null
   sire: string | null
   donor: string | null
+  donorAnimalId?: number | null
   grade: string | null
+  groupName?: string | null
   status: 0 | 1 | 2 | 3 | 4
   recipientAnimalId: number | null
   implantDate: string | null
+  breedingEventId?: number | null
   linkedBreedingNote: string | null
   failureNotes: string | null
   notes: string | null
@@ -27,9 +30,18 @@ export const EMBRYO_STATUS_LABELS: Record<number, string> = {
 }
 
 export async function getAllEmbryos(): Promise<EmbryoRecord[]> {
-  const response = await fetch(`${API_BASE}/EmbryoRecords`)
-  if (!response.ok) throw new Error('Failed to load embryo records')
-  return response.json()
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), 60_000)
+
+  try {
+    const response = await fetch(`${API_BASE}/EmbryoRecords`, {
+      signal: controller.signal
+    })
+    if (!response.ok) throw new Error('Failed to load embryo records')
+    return response.json()
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
 }
 
 export async function getEmbryoById(id: number): Promise<EmbryoRecord> {
@@ -48,6 +60,21 @@ export async function createEmbryo(data: Omit<EmbryoRecord, 'embryoRecordId' | '
   return response.json()
 }
 
+export async function createEmbryoBatch(
+  data: Omit<EmbryoRecord, 'embryoRecordId' | 'createdAt' | 'updatedAt'>,
+  quantity: number
+): Promise<EmbryoRecord[]> {
+  const response = await fetch(`${API_BASE}/EmbryoRecords/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity, embryo: data }),
+  })
+  if (!response.ok) {
+    throw new Error(await response.text() || 'Failed to create embryo inventory')
+  }
+  return response.json()
+}
+
 export async function updateEmbryo(id: number, data: Partial<EmbryoRecord>): Promise<void> {
   const response = await fetch(`${API_BASE}/EmbryoRecords/${id}`, {
     method: 'PUT',
@@ -55,6 +82,18 @@ export async function updateEmbryo(id: number, data: Partial<EmbryoRecord>): Pro
     body: JSON.stringify({ ...data, embryoRecordId: id }),
   })
   if (!response.ok) throw new Error('Failed to update embryo record')
+}
+
+export async function groupEmbryos(
+  embryoRecordIds: number[],
+  groupName: string | null
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/EmbryoRecords/group`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ embryoRecordIds, groupName }),
+  })
+  if (!response.ok) throw new Error(await response.text() || 'Failed to group embryos')
 }
 
 export async function deleteEmbryo(id: number): Promise<void> {
@@ -81,17 +120,42 @@ export async function getRecentHeatRecipients(): Promise<RecentHeatRecipient[]> 
 
 export async function implantEmbryo(
   embryoRecordId: number,
-  recipientAnimalId: number
+  recipientAnimalId: number,
+  implantDate?: string
 ): Promise<EmbryoRecord> {
   const response = await fetch(
     `${API_BASE}/EmbryoRecords/${embryoRecordId}/implant`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipientAnimalId })
+      body: JSON.stringify({ recipientAnimalId, implantDate: implantDate || null })
     }
   )
   if (!response.ok) throw new Error(await response.text() || 'Failed to implant embryo')
+  return response.json()
+}
+
+export async function undoEmbryoImplant(id: number): Promise<EmbryoRecord> {
+  const response = await fetch(`${API_BASE}/EmbryoRecords/${id}/undo-implant`, {
+    method: 'POST'
+  })
+  if (!response.ok) throw new Error(await response.text() || 'Failed to undo implant')
+  return response.json()
+}
+
+export async function assignEmbryo(
+  embryoRecordId: number,
+  recipientAnimalId: number
+): Promise<EmbryoRecord> {
+  const response = await fetch(
+    `${API_BASE}/EmbryoRecords/${embryoRecordId}/assign`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipientAnimalId })
+    }
+  )
+  if (!response.ok) throw new Error(await response.text() || 'Failed to reserve embryo')
   return response.json()
 }
 

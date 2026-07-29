@@ -1,28 +1,54 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { resetDemo } from '../api/demo'
+import { ensureDemo, resetDemo } from '../api/demo'
+import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 
 const router = useRouter()
 const loading = ref(false)
 const error = ref<string | null>(null)
 const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
+let demoReadyPromise: Promise<unknown> | null = null
+
+onMounted(() => {
+  // Create this browser's isolated sample herd while visitors read the page.
+  demoReadyPromise = ensureDemo()
+  void demoReadyPromise.catch(() => undefined)
+})
 
 async function launchDemo(withReset: boolean) {
   loading.value = true
   error.value = null
 
   try {
+    let result
     if (withReset && demoResetEnabled) {
-      await resetDemo()
+      result = await resetDemo()
+    } else if (demoReadyPromise) {
+      try {
+        result = await demoReadyPromise
+      } catch {
+        // The first request may have coincided with an Azure cold start.
+        // Retry before opening so visitors never land on an empty dashboard.
+        result = await ensureDemo()
+      }
+    } else {
+      result = await ensureDemo()
     }
+
+    if (!result || typeof result !== 'object' || !('animals' in result)
+      || Number(result.animals) < 1) {
+      throw new Error('The sample herd is still preparing. Please try again.')
+    }
+
     sessionStorage.setItem('demo-launched', 'true')
     await router.push('/')
   } catch (err) {
-    // If reset API is unavailable, continue launching demo so UI still works.
-    console.warn('Demo reset unavailable, launching without reset:', err)
-    sessionStorage.setItem('demo-launched', 'true')
-    await router.push('/')
+    console.error('Demo setup failed:', err)
+    error.value =
+      err instanceof Error
+        ? err.message
+        : 'The demo could not be prepared. Please try again.'
   } finally {
     loading.value = false
   }
@@ -35,30 +61,27 @@ async function launchDemo(withReset: boolean) {
       <p class="demo-tag">DEMO</p>
       <h1>Venture Herd Manager</h1>
       <h2 class="demo-promise">
-        Know your herd.
-        <span>Move with confidence.</span>
+        <span class="promise-setup">Your operation</span>
+        <span class="promise-main">should not have to fit</span>
+        <span class="promise-accent">somebody else's software.</span>
       </h2>
       <p class="subtitle">
-        Easy View keeps the whole crew on the same page. Record work with one
-        hand, keep every event in order, and see what needs to happen next.
+        Try animal records, breeding, embryos, alerts, and reports in one
+        shared place—built around the way a crew actually works.
       </p>
 
-      <ul class="feature-list">
-        <li>One shared animal record for everyone</li>
-        <li>Automatic alerts for work coming due</li>
-        <li>Heats, breeding, embryos, calvings, and notes in order</li>
-        <li>Built to view and update from a phone in the barn</li>
-      </ul>
-
-      <div class="custom-software">
-        <strong>Built for your operation</strong>
-        <p>
-          This is custom software. Features, reports, workflows, and branding
-          can be tailored to fit your herd and the way you work.
-        </p>
+      <div class="capability-row" aria-label="Demo features">
+        <span>Animal records</span>
+        <span>Breeding &amp; embryos</span>
+        <span>Calendar &amp; alerts</span>
       </div>
 
       <p v-if="error" class="error-msg">{{ error }}</p>
+
+      <HerdLoadingScene
+        v-if="loading"
+        message="Preparing your sample herd..."
+      />
 
       <div class="launch-buttons">
         <button
@@ -99,11 +122,16 @@ async function launchDemo(withReset: boolean) {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  position: relative;
+  background:
+    linear-gradient(rgba(10, 28, 17, 0.74), rgba(10, 28, 17, 0.88)),
+    url('/candid.jpg') center / cover fixed;
 }
 
 .launch-card {
-  background: #fff;
-  border: 1px solid #d5dde4;
+  position: relative;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-top: 5px solid #31572c;
   border-radius: 12px;
   padding: 40px 48px;
@@ -129,18 +157,38 @@ h1 {
 .demo-promise {
   margin: 0 0 18px;
   color: #17281a;
-  font-size: clamp(2rem, 7vw, 3.25rem);
-  line-height: 0.95;
-  letter-spacing: -0.055em;
-  text-transform: uppercase;
-  font-weight: 900;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 700;
 }
 
 .demo-promise span {
   display: block;
-  margin-top: 8px;
-  color: transparent;
-  -webkit-text-stroke: 1.25px #31572c;
+}
+
+.promise-setup {
+  margin-bottom: 7px;
+  color: #6f7d70;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 0.38em;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.promise-main {
+  color: #17281a;
+  font-weight: 700;
+}
+
+.promise-accent {
+  margin-top: 5px;
+  color: #31572c;
+  font-style: italic;
+  font-weight: 500;
 }
 
 .subtitle {
@@ -149,27 +197,21 @@ h1 {
   line-height: 1.6;
 }
 
-.feature-list {
-  margin: 0 0 28px;
-  padding-left: 20px;
-  color: #4a5e4c;
-  line-height: 1.8;
-}
-
-.custom-software {
+.capability-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
   margin: 0 0 24px;
-  padding: 16px;
-  background: #f3f7f1;
-  border: 1px solid #d9e5d5;
-  border-radius: 8px;
-  color: #31572c;
 }
 
-.custom-software p {
-  margin: 6px 0 0;
-  color: #4a5e4c;
-  font-size: 0.92rem;
-  line-height: 1.5;
+.capability-row span {
+  padding: 7px 10px;
+  border: 1px solid #d9e5d5;
+  border-radius: 999px;
+  background: #f3f7f1;
+  color: #31572c;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .launch-buttons {
@@ -220,10 +262,12 @@ h1 {
 }
 
 .powered-by {
-  margin: 20px 0 0;
+  margin: 26px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #e5ebe3;
   text-align: center;
   font-size: 0.75rem;
-  color: #8a9ba8;
+  color: #879488;
   letter-spacing: 0.01em;
 }
 
@@ -246,11 +290,22 @@ h1 {
   }
 
   .launch-card {
-    padding: 30px 22px;
+    padding: 28px 22px 24px;
   }
 
   .demo-promise {
-    font-size: clamp(2rem, 12vw, 2.75rem);
+    font-size: clamp(1.72rem, 8vw, 2.25rem);
+    line-height: 1.04;
   }
+
+  .promise-setup {
+    margin-bottom: 6px;
+  }
+
+  .powered-by {
+    margin-top: 22px;
+    padding-top: 12px;
+  }
+
 }
 </style>

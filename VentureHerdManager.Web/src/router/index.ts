@@ -8,6 +8,7 @@ import AnimalView from '../views/AnimalView.vue'
 import CalendarView from '../views/CalendarView.vue'
 import AnimalCreateView from '../views/AnimalCreateView.vue'
 import ReportsView from '../views/ReportsView.vue'
+import PrintReportsView from '../views/PrintReportsView.vue'
 import DemoView from '../views/DemoView.vue'
 
 import SettingsView from '../views/SettingsView.vue'
@@ -42,6 +43,11 @@ const router = createRouter({
       path: '/reports',
       name: 'reports',
       component: ReportsView
+    },
+    {
+      path: '/reports/print',
+      name: 'print-reports',
+      component: PrintReportsView
     },
     {
       path: '/settings',

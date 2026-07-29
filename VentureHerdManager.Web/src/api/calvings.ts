@@ -60,7 +60,8 @@ export async function recordCalving(
   })
 
   if (!response.ok) {
-    throw new Error('Failed to record calving')
+    const details = await response.text()
+    throw new Error(details || `Failed to record calving (${response.status})`)
   }
 }
 

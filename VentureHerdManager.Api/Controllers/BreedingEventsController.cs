@@ -74,6 +74,28 @@ public class BreedingEventsController : ControllerBase
         }
 
         breeding.PregnancyStatus = status;
+        breeding.PregnancyCheckDate = DateTime.UtcNow;
+
+        var linkedEmbryo = await _context.EmbryoRecords
+            .FirstOrDefaultAsync(e =>
+                e.BreedingEventId == breeding.BreedingEventId);
+        if (linkedEmbryo != null)
+        {
+            linkedEmbryo.Status = status == PregnancyStatus.Pregnant
+                ? EmbryoStatus.Successful
+                : status == PregnancyStatus.Open
+                    ? EmbryoStatus.Failed
+                    : EmbryoStatus.Implanted;
+
+            if (status == PregnancyStatus.Open)
+            {
+                breeding.ExpectedDueDate = null;
+                breeding.RecommendedDryOffDate = null;
+                breeding.CloseUpDate = null;
+            }
+
+            linkedEmbryo.UpdatedAt = DateTime.UtcNow;
+        }
 
         await _context.SaveChangesAsync();
 
@@ -98,10 +120,38 @@ public class BreedingEventsController : ControllerBase
         breeding.BreedingType = request.BreedingType;
         breeding.PregnancyStatus = request.PregnancyStatus;
         breeding.Notes = request.Notes;
-        breeding.ExpectedDueDate = request.BreedingDate.AddDays(280);
-        breeding.PregnancyCheckDueDate = request.BreedingDate.AddDays(30);
+        var linkedEmbryo = await _context.EmbryoRecords
+            .FirstOrDefaultAsync(e =>
+                e.BreedingEventId == breeding.BreedingEventId);
+        var isEmbryoTransfer =
+            request.BreedingType == BreedingType.EmbryoTransfer
+            || linkedEmbryo != null;
+        var expectedDueDate = request.BreedingDate.AddDays(
+            isEmbryoTransfer ? 273 : 280);
+        breeding.ExpectedDueDate = request.PregnancyStatus == PregnancyStatus.Open
+            ? null
+            : expectedDueDate;
+        breeding.PregnancyCheckDueDate = request.BreedingDate.AddDays(
+            isEmbryoTransfer ? 28 : 30);
+        breeding.RecommendedDryOffDate = breeding.ExpectedDueDate?.AddDays(-60);
+        breeding.CloseUpDate = breeding.ExpectedDueDate?.AddDays(-21);
         breeding.UpdatedBy = request.UpdatedBy;
         breeding.UpdatedAt = DateTime.UtcNow;
+
+        if (linkedEmbryo != null)
+        {
+            linkedEmbryo.RecipientAnimalId = breeding.AnimalId;
+            linkedEmbryo.ImplantDate =
+                DateOnly.FromDateTime(request.BreedingDate);
+            linkedEmbryo.Sire = request.SireUsed;
+            linkedEmbryo.Status = request.PregnancyStatus switch
+            {
+                PregnancyStatus.Pregnant => EmbryoStatus.Successful,
+                PregnancyStatus.Open => EmbryoStatus.Failed,
+                _ => EmbryoStatus.Implanted
+            };
+            linkedEmbryo.UpdatedAt = DateTime.UtcNow;
+        }
 
         await _context.SaveChangesAsync();
 

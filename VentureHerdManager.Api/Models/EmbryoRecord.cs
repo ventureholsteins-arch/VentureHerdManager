@@ -22,10 +22,23 @@ public class EmbryoRecord
     public string? Donor { get; set; }
 
     /// <summary>
+    /// Optional link when the donor is an animal in this herd.
+    /// </summary>
+    public int? DonorAnimalId { get; set; }
+
+    public Animal? DonorAnimal { get; set; }
+
+    /// <summary>
     /// Grade assigned at time of collection (Grade 1, Excellent, etc.)
     /// </summary>
     [MaxLength(100)]
     public string? Grade { get; set; }
+
+    /// <summary>
+    /// User-created inventory group (e.g. Emmy embryos).
+    /// </summary>
+    [MaxLength(200)]
+    public string? GroupName { get; set; }
 
     public EmbryoStatus Status { get; set; } = EmbryoStatus.InStorage;
 
@@ -40,6 +53,13 @@ public class EmbryoRecord
     /// Date the embryo was physically implanted
     /// </summary>
     public DateOnly? ImplantDate { get; set; }
+
+    /// <summary>
+    /// The recipient's breeding-history entry created for this transfer.
+    /// </summary>
+    public int? BreedingEventId { get; set; }
+
+    public BreedingEvent? BreedingEvent { get; set; }
 
     /// <summary>
     /// Free-text link to a breeding event note or date for traceability

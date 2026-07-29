@@ -28,11 +28,23 @@ public class PhotoStorageService : IPhotoStorageService
 
         if (!string.IsNullOrWhiteSpace(connectionString))
         {
-            return await UploadToBlobAsync(
-                connectionString,
-                file,
-                folder,
-                cancellationToken);
+            using var storageTimeout =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            storageTimeout.CancelAfter(TimeSpan.FromSeconds(20));
+
+            try
+            {
+                return await UploadToBlobAsync(
+                    connectionString,
+                    file,
+                    folder,
+                    storageTimeout.Token);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                Console.WriteLine(
+                    $"Blob photo upload unavailable; using local storage. {ex.Message}");
+            }
         }
 
         return await UploadToLocalAsync(file, folder, cancellationToken);

@@ -55,32 +55,32 @@ const eventTypes: Array<{
   {
     type: 'heat',
     label: 'Heat',
-    icon: '♥'
+    icon: '❤️'
   },
   {
     type: 'breeding',
     label: 'Breeding',
-    icon: '●'
+    icon: '🧬'
   },
   {
     type: 'pregnancyCheck',
     label: 'Pregnancy Check',
-    icon: '✓'
+    icon: '🤰'
   },
   {
     type: 'dueDate',
     label: 'Due Date',
-    icon: '◆'
+    icon: '⏰'
   },
   {
     type: 'calving',
     label: 'Calving',
-    icon: '★'
+    icon: '🐄'
   },
   {
     type: 'dryOff',
     label: 'Dry Off',
-    icon: '◇'
+    icon: '🌾'
   },
   {
     type: 'lutalyse',
@@ -231,9 +231,9 @@ const selectedWeekDays = computed<CalendarDay[]>(() => {
 })
 
 const selectedWeekTitle = computed(() => {
-  if (!selectedWeekDays.value.length) return ''
-  const first = selectedWeekDays.value[0].date
-  const last = selectedWeekDays.value[6].date
+  if (selectedWeekDays.value.length < 7) return ''
+  const first = selectedWeekDays.value[0]!.date
+  const last = selectedWeekDays.value[6]!.date
   return `${first.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${last.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 })
 
@@ -1462,6 +1462,82 @@ onMounted(async () => {
 }
 
 @media (max-width: 430px) {
+  .calendar-page {
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(6px, env(safe-area-inset-right))
+      max(30px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
+  }
+
+  .calendar-card {
+    border-radius: 8px;
+  }
+
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px 5px;
+    overflow: visible;
+    padding: 9px 7px;
+  }
+
+  .legend-item {
+    min-width: 0;
+    gap: 4px;
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .legend-dot {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    font-size: 10px;
+  }
+
+  .weekday {
+    padding: 8px 0;
+    font-size: 10px;
+    letter-spacing: 0;
+  }
+
+  .calendar-day {
+    min-height: 54px;
+    padding: 4px 2px;
+  }
+
+  .day-number {
+    font-size: 12px;
+  }
+
+  .day-events {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    flex-wrap: wrap;
+  }
+
+  .calendar-event {
+    width: 7px;
+    height: 7px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+  }
+
+  .calendar-event .event-icon,
+  .calendar-event .event-animal {
+    display: none;
+  }
+
+  .more-events {
+    width: 100%;
+    font-size: 8px;
+    line-height: 1;
+  }
+
   .month-title {
     min-width: 0;
   }

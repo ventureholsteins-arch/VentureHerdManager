@@ -110,6 +110,8 @@ public class Animal
             ? BarnName
             : !string.IsNullOrWhiteSpace(RegisteredName)
                 ? RegisteredName
+                : !string.IsNullOrWhiteSpace(DamName) || !string.IsNullOrWhiteSpace(SireName)
+                    ? $"{DamName ?? "Unknown dam"} x {SireName ?? "Unknown sire"}"
                 : $"Animal #{AnimalId}";
 
     [NotMapped]

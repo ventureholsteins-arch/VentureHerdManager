@@ -8,20 +8,27 @@ public class DashboardService
 {
     private readonly ApplicationDbContext _context;
     private readonly ClassificationService _classificationService;
+    private readonly ILogger<DashboardService> _logger;
 
     public DashboardService(
         ApplicationDbContext context,
-        ClassificationService classificationService)
+        ClassificationService classificationService,
+        ILogger<DashboardService> logger)
     {
         _context = context;
         _classificationService = classificationService;
+        _logger = logger;
     }
 
-    public async Task<object> GetDashboardAsync()
+    public async Task<object> GetDashboardAsync(int dueDays = 30)
     {
+        // Dashboard queries should fail fast and fall back section-by-section
+        // instead of holding the entire page for SQL Server's default timeout.
+        _context.Database.SetCommandTimeout(TimeSpan.FromSeconds(5));
+
         var today = DateTime.Today;
         var pregnancyCheckCutoff = today.AddDays(30);
-        var dueSoonCutoff = today.AddDays(30);
+        var dueSoonCutoff = today.AddDays(Math.Clamp(dueDays, 30, 60));
         var lutTrackingDays = 4;
         var embryoTrackingDays = 7;
 
@@ -43,35 +50,48 @@ public class DashboardService
 
         // These queries must run one at a time because they share the same
         // ApplicationDbContext. Running them with Task.WhenAll causes a 500.
-        var pregChecksDue = await GetPregChecksDueAsync(
-            today,
-            pregnancyCheckCutoff,
-            animalNameDict);
+        var pregChecksDue = await SafeLoadAsync(
+            "pregnancy checks",
+            () => GetPregChecksDueAsync(
+                today,
+                pregnancyCheckCutoff,
+                animalNameDict));
 
-        var dueSoon = await GetDueSoonAsync(
-            today,
-            dueSoonCutoff,
-            animalNameDict);
+        var dueSoon = await SafeLoadAsync(
+            "upcoming calvings",
+            () => GetDueSoonAsync(
+                today,
+                dueSoonCutoff,
+                animalNameDict));
 
-        var lutTracking = await GetLutTrackingAsync(
-            today,
-            lutTrackingDays,
-            animalNameDict);
+        var lutTracking = await SafeLoadAsync(
+            "LUT tracking",
+            () => GetLutTrackingAsync(
+                today,
+                lutTrackingDays,
+                animalNameDict));
 
-        var embryoImplants = await GetEmbryoImplantsAsync(
-            today,
-            embryoTrackingDays,
-            animalNameDict);
+        var embryoImplants = await SafeLoadAsync(
+            "embryo tracking",
+            () => GetEmbryoImplantsAsync(
+                today,
+                embryoTrackingDays,
+                animalNameDict));
 
-        var recentHeats = await GetRecentHeatsAsync(animalNameDict);
+        var recentHeats = await SafeLoadAsync(
+            "recent heats",
+            () => GetRecentHeatsAsync(animalNameDict));
 
-        var recentBreedings = await GetRecentBreedingsAsync(
-            today,
-            animalNameDict);
+        var recentBreedings = await SafeLoadAsync(
+            "recent breedings",
+            () => GetRecentBreedingsAsync(
+                today,
+                animalNameDict));
 
-        var milkingClassifications =
-            await _classificationService
-                .GetLatestClassificationsForAnimalsAsync(milkingCowIds);
+        var milkingClassifications = await SafeLoadAsync(
+            "classification summary",
+            () => _classificationService
+                .GetLatestClassificationsForAnimalsAsync(milkingCowIds));
 
         var scoredMilkingScores = milkingClassifications
             .Where(classification => classification.Score.HasValue)
@@ -117,6 +137,69 @@ public class DashboardService
             scoredMilkingScores,
             scoredMilkingBaas,
             percentExcellent2ndLactationOrHigher);
+    }
+
+    public async Task<object> GetDashboardFallbackAsync()
+    {
+        var animals = await _context.Animals
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(animal => animal.AnimalStatus == AnimalStatus.Active)
+            .Select(animal => new
+            {
+                animal.AnimalStage
+            })
+            .ToListAsync();
+
+        return new
+        {
+            TotalAnimals = animals.Count,
+            Milking = animals.Count(animal =>
+                animal.AnimalStage == AnimalStage.Milking),
+            Dry = animals.Count(animal =>
+                animal.AnimalStage == AnimalStage.Dry),
+            Heifers = animals.Count(animal =>
+                animal.AnimalStage == AnimalStage.Heifer),
+            Calves = animals.Count(animal =>
+                animal.AnimalStage == AnimalStage.Calf),
+            Bulls = animals.Count(animal =>
+                animal.AnimalStage == AnimalStage.Bull),
+            PregChecksDueCount = 0,
+            OverduePregChecksCount = 0,
+            UpcomingPregChecksCount = 0,
+            DueSoonCount = 0,
+            LutTrackingCount = 0,
+            EmbryoImplantsCount = 0,
+            HerdScoreAverage = (decimal?)null,
+            HerdBaaAverage = (decimal?)null,
+            AnimalsWithScore = 0,
+            AnimalsWithBaa = 0,
+            PercentExcellent2ndLactationOrHigher = 0m,
+            PregChecksDue = Array.Empty<object>(),
+            DueSoon = Array.Empty<object>(),
+            LutTracking = Array.Empty<object>(),
+            EmbryoImplants = Array.Empty<object>(),
+            RecentHeats = Array.Empty<object>(),
+            RecentBreedings = Array.Empty<object>()
+        };
+    }
+
+    private async Task<List<T>> SafeLoadAsync<T>(
+        string section,
+        Func<Task<List<T>>> load)
+    {
+        try
+        {
+            return await load();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Dashboard section {DashboardSection} could not be loaded.",
+                section);
+            return [];
+        }
     }
 
     private async Task<List<dynamic>> GetPregChecksDueAsync(
@@ -308,7 +391,8 @@ public class DashboardService
                 heat.HeatEventId,
                 heat.AnimalId,
                 heat.HeatDateTime,
-                heat.Notes
+                heat.Notes,
+                heat.PictureUrl
             })
             .Take(10)
             .ToListAsync();
@@ -322,7 +406,8 @@ public class DashboardService
                     item.AnimalId,
                     animalNameDict),
                 item.HeatDateTime,
-                item.Notes
+                item.Notes,
+                item.PictureUrl
             } as dynamic)
             .ToList();
     }

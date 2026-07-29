@@ -126,6 +126,9 @@ public class AnimalService
                  animal.SireName.Contains(normalizedSearch)) ||
                 (animal.DamName != null &&
                  animal.DamName.Contains(normalizedSearch)) ||
+                (animal.DamName != null &&
+                 animal.SireName != null &&
+                 (animal.DamName + " x " + animal.SireName).Contains(normalizedSearch)) ||
                 (animal.Breed != null &&
                  animal.Breed.Contains(normalizedSearch)));
         }
@@ -157,6 +160,13 @@ public class AnimalService
             CleanOptionalText(animal.SireName);
         animal.DamName =
             CleanOptionalText(animal.DamName);
+        if (string.IsNullOrWhiteSpace(animal.BarnName) &&
+            string.IsNullOrWhiteSpace(animal.RegisteredName) &&
+            !string.IsNullOrWhiteSpace(animal.DamName) &&
+            !string.IsNullOrWhiteSpace(animal.SireName))
+        {
+            animal.RegisteredName = $"{animal.DamName} x {animal.SireName}";
+        }
         animal.Notes =
             CleanOptionalText(animal.Notes);
         animal.ProfilePictureUrl =

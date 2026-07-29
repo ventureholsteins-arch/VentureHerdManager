@@ -49,6 +49,12 @@ export async function getAnimals(): Promise<Animal[]> {
   return animals
 }
 
+export async function getAnimalsBasic(): Promise<Animal[]> {
+  const response = await fetch(`${API_BASE}/Animals`)
+  if (!response.ok) throw new Error('Failed to load animals')
+  return response.json()
+}
+
 export async function getAnimal(animalId: number): Promise<Animal> {
   const response = await fetch(`${API_BASE}/Animals/${animalId}`)
 

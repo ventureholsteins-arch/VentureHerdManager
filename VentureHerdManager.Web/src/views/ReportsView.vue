@@ -2,22 +2,26 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { getAnimals } from '../api/animals'
+import { getAnimalsBasic } from '../api/animals'
 import { getHerdActivity, getEmbryoImplants, type HerdActivityResponse, type EmbryoImplantResponse } from '../api/analytics'
 import {
-  createEmbryo,
+  createEmbryoBatch,
   deleteEmbryo,
   getAllEmbryos,
   getRecentHeatRecipients,
+  groupEmbryos,
   implantEmbryo,
   recordEmbryoOutcome,
   updateEmbryo,
+  undoEmbryoImplant,
   EMBRYO_STATUS_LABELS,
   type EmbryoRecord,
   type RecentHeatRecipient
 } from '../api/embryoRecords'
 import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
+import HerdLoadingScene from '../components/HerdLoadingScene.vue'
+import RetroIcon from '../components/RetroIcon.vue'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'lists' | 'checklist' | 'achievements'
 
@@ -27,6 +31,12 @@ interface AnimalGroupList {
   animalIds: number[]
   notes: string
   searchQuery: string
+}
+
+interface EmbryoGradeGroup {
+  id: number
+  grade: string
+  quantity: number
 }
 
 interface ShowStringRow {
@@ -79,16 +89,34 @@ async function loadAnalytics() {
 const embryoImplantsData = ref<EmbryoImplantResponse | null>(null)
 const embryoImplantsLoading = ref(false)
 const embryoImplantsError = ref('')
+const analyticsLoaded = ref(false)
+const embryoImplantsLoaded = ref(false)
+const EMBRYO_CACHE_KEY = 'venture-herd-embryo-inventory-v1'
+const embryoStorage =
+  import.meta.env.VITE_DEMO_ONLY === 'true'
+    ? sessionStorage
+    : localStorage
 
 async function loadEmbryoImplants() {
   embryoImplantsLoading.value = true
   embryoImplantsError.value = ''
   try {
     embryoImplantsData.value = await getEmbryoImplants(12)
+    embryoImplantsLoaded.value = true
   } catch (e) {
     embryoImplantsError.value = 'Could not load embryo implant data. Make sure the API is reachable.'
   } finally {
     embryoImplantsLoading.value = false
+  }
+}
+
+async function loadActiveReportTab(tab: HubTab) {
+  if (tab === 'analytics' && !analyticsLoaded.value) {
+    await loadAnalytics()
+    analyticsLoaded.value = true
+  }
+  if (tab === 'embryoImplants' && !embryoImplantsLoaded.value) {
+    await loadEmbryoImplants()
   }
 }
 
@@ -124,9 +152,41 @@ const checklistItems = ref<ChecklistItem[]>(defaultChecklist.map(i => ({ ...i })
 const embryoRecords = ref<EmbryoRecord[]>([])
 const recentHeatRecipients = ref<RecentHeatRecipient[]>([])
 const recipientSearch = ref<Record<number, string>>({})
+const embryoDonorSearch = ref<Record<number, string>>({})
+const implantDates = ref<Record<number, string>>({})
 const embryoMessage = ref('')
 const embryoSavingId = ref<number | null>(null)
+const selectedEmbryoIds = ref<number[]>([])
+const embryoGroupName = ref('')
+const groupingEmbryos = ref(false)
+const expandedEmbryoGroups = ref<Record<string, boolean>>({})
+const expandedEmbryos = ref<Record<number, boolean>>({})
+const showEmbryoCreator = ref(false)
+const embryoCreating = ref(false)
+const embryoGradeGroups = ref<EmbryoGradeGroup[]>([
+  { id: 1, grade: 'Grade 1', quantity: 1 }
+])
+const nextEmbryoGradeGroupId = ref(2)
+const donorSearch = ref('')
+const newEmbryo = ref({
+  groupName: '',
+  code: '',
+  sire: '',
+  donor: '',
+  donorAnimalId: null as number | null,
+  notes: '',
+  collectionLocation: '',
+  storageLocation: '',
+})
 const achievements = ref<AchievementRecord[]>([])
+const achievementsByShow = computed(() => {
+  const groups = new Map<string, AchievementRecord[]>()
+  for (const record of achievements.value) {
+    const key = record.showName.trim() || 'Show not named'
+    groups.set(key, [...(groups.get(key) ?? []), record])
+  }
+  return Array.from(groups, ([showName, records]) => ({ showName, records }))
+})
 
 const nextRowId = ref(1)
 const nextAchievementId = ref(1)
@@ -141,8 +201,10 @@ function parseStored<T>(k: string, fallback: T): T {
 }
 
 function loadData() {
-  groupLists.value = parseStored<AnimalGroupList[]>(listKey, defaultLists.map(l => ({ ...l }))).map(l => ({ searchQuery: '', ...l }))
-  showStringRows.value = parseStored<ShowStringRow[]>(showStringKey, []).map(r => ({ feedRation: '', ...r }))
+  groupLists.value = parseStored<AnimalGroupList[]>(listKey, defaultLists.map(l => ({ ...l })))
+    .map(l => ({ ...l, searchQuery: l.searchQuery ?? '' }))
+  showStringRows.value = parseStored<ShowStringRow[]>(showStringKey, [])
+    .map(r => ({ ...r, feedRation: r.feedRation ?? '' }))
   checklistItems.value = parseStored<ChecklistItem[]>(checklistKey, defaultChecklist.map(i => ({ ...i })))
   achievements.value = parseStored<AchievementRecord[]>(achievementsKey, [])
   nextRowId.value = Math.max(1, ...showStringRows.value.map(r => r.id + 1), 1)
@@ -217,12 +279,134 @@ const embryosAvailable = computed(() => embryoRecords.value.filter(e => e.status
 const embryosImplanted = computed(() => embryoRecords.value.filter(e => e.status === 2))
 const embryosFailed = computed(() => embryoRecords.value.filter(e => e.status === 3))
 const embryosSuccessful = computed(() => embryoRecords.value.filter(e => e.status === 4))
+const availableEmbryoGroups = computed(() => {
+  const groups = new Map<string, EmbryoRecord[]>()
+  for (const embryo of embryosAvailable.value) {
+    const name = embryo.groupName?.trim() || 'Ungrouped embryos'
+    const records = groups.get(name) || []
+    records.push(embryo)
+    groups.set(name, records)
+  }
+  return Array.from(groups, ([name, records]) => ({ name, records }))
+    .sort((a, b) => {
+      if (a.name === 'Ungrouped embryos') return 1
+      if (b.name === 'Ungrouped embryos') return -1
+      return a.name.localeCompare(b.name)
+    })
+})
+const embryoCreateTotal = computed(() =>
+  embryoGradeGroups.value.reduce(
+    (total, group) =>
+      total + Math.max(0, Math.trunc(group.quantity || 0)),
+    0
+  )
+)
+const filteredDonorAnimals = computed(() => {
+  const query = donorSearch.value.trim().toLowerCase()
+  if (!query) return []
+  return animalOptions.value
+    .filter(animal =>
+      animal.sex === 1
+      && (
+        (animal.barnName || '').toLowerCase().includes(query)
+        || (animal.registeredName || '').toLowerCase().includes(query)
+        || (animal.registrationNumber || '').toLowerCase().includes(query)
+      ))
+    .slice(0, 8)
+})
+
+function matchingEmbryoCount(record: EmbryoRecord): number {
+  return embryosAvailable.value.filter(item =>
+    item.code === record.code
+    && item.sire === record.sire
+    && item.donor === record.donor
+    && item.grade === record.grade
+  ).length
+}
+
+function embryoName(record: Pick<EmbryoRecord, 'donor' | 'sire'>): string {
+  const dam = record.donor?.trim() || 'Dam not entered'
+  const sire = record.sire?.trim() || 'Sire not entered'
+  return `${dam} x ${sire}`
+}
+
+function isEmbryoSelected(id: number): boolean {
+  return selectedEmbryoIds.value.includes(id)
+}
+
+function toggleEmbryoSelection(id: number) {
+  selectedEmbryoIds.value = isEmbryoSelected(id)
+    ? selectedEmbryoIds.value.filter(selectedId => selectedId !== id)
+    : [...selectedEmbryoIds.value, id]
+}
+
+function toggleGroupSelection(records: EmbryoRecord[]) {
+  const ids = records.map(record => record.embryoRecordId)
+  const allSelected = ids.every(isEmbryoSelected)
+  selectedEmbryoIds.value = allSelected
+    ? selectedEmbryoIds.value.filter(id => !ids.includes(id))
+    : Array.from(new Set([...selectedEmbryoIds.value, ...ids]))
+}
+
+async function saveSelectedEmbryoGroup() {
+  if (selectedEmbryoIds.value.length === 0) {
+    embryoMessage.value = 'Select at least one embryo first.'
+    return
+  }
+  const name = embryoGroupName.value.trim()
+  if (!name) {
+    embryoMessage.value = 'Enter a group name, such as Emmy embryos.'
+    return
+  }
+
+  groupingEmbryos.value = true
+  embryoMessage.value = ''
+  try {
+    await groupEmbryos(selectedEmbryoIds.value, name)
+    const selected = new Set(selectedEmbryoIds.value)
+    embryoRecords.value = embryoRecords.value.map(record =>
+      selected.has(record.embryoRecordId)
+        ? { ...record, groupName: name }
+        : record
+    )
+    expandedEmbryoGroups.value[name] = true
+    embryoMessage.value = `${selected.size} embryo${selected.size === 1 ? '' : 's'} moved into "${name}."`
+    selectedEmbryoIds.value = []
+    embryoGroupName.value = ''
+  } finally {
+    groupingEmbryos.value = false
+  }
+}
+
+async function removeSelectedFromGroup() {
+  if (selectedEmbryoIds.value.length === 0) return
+  groupingEmbryos.value = true
+  try {
+    await groupEmbryos(selectedEmbryoIds.value, null)
+    const selected = new Set(selectedEmbryoIds.value)
+    embryoRecords.value = embryoRecords.value.map(record =>
+      selected.has(record.embryoRecordId)
+        ? { ...record, groupName: null }
+        : record
+    )
+    embryoMessage.value = `${selected.size} embryo${selected.size === 1 ? '' : 's'} removed from its group.`
+    selectedEmbryoIds.value = []
+  } finally {
+    groupingEmbryos.value = false
+  }
+}
 
 function getAnimalLabel(animalId: number | null): string {
   if (!animalId) return 'Unassigned'
   const a = animals.value.find(x => x.animalId === animalId)
   if (!a) return `Animal #${animalId}`
-  return `${a.barnName || a.registeredName || `#${a.animalId}`} · ${formatCurrentAge(a.birthDate)} · ${getShowClassLabel(a.birthDate, a.animalStage)}`
+  return `${a.barnName || a.registeredName || `#${a.animalId}`} - ${formatCurrentAge(a.birthDate)} - ${getShowClassLabel(a.birthDate, a.animalStage)}`
+}
+
+function getAnimalName(animalId: number | null): string {
+  if (!animalId) return 'Recipient not assigned'
+  const animal = animals.value.find(item => item.animalId === animalId)
+  return animal?.barnName || animal?.registeredName || `Animal #${animalId}`
 }
 
 function getScoreLabel(score: number | null | undefined): string {
@@ -269,25 +453,136 @@ function addChecklistItem() { checklistItems.value.push({ id: Date.now(), text: 
 
 async function loadEmbryoRecords() {
   embryoRecords.value = await getAllEmbryos()
-  recentHeatRecipients.value = await getRecentHeatRecipients()
+  embryoStorage.setItem(EMBRYO_CACHE_KEY, JSON.stringify(embryoRecords.value))
+  for (const record of embryoRecords.value) {
+    implantDates.value[record.embryoRecordId] =
+      record.implantDate || new Date().toISOString().slice(0, 10)
+  }
+}
+
+function restoreEmbryoCache(): boolean {
+  const cached = embryoStorage.getItem(EMBRYO_CACHE_KEY)
+  if (!cached) return false
+
+  try {
+    const records = JSON.parse(cached) as EmbryoRecord[]
+    if (!Array.isArray(records)) return false
+    embryoRecords.value = records
+    for (const record of records) {
+      implantDates.value[record.embryoRecordId] =
+        record.implantDate || new Date().toISOString().slice(0, 10)
+    }
+    return true
+  } catch {
+    embryoStorage.removeItem(EMBRYO_CACHE_KEY)
+    return false
+  }
+}
+
+async function loadReportAnimalData() {
+  const [animalResult, recipientResult] = await Promise.all([
+    getAnimalsBasic().catch(error => {
+      console.error('Failed to load animals:', error)
+      return [] as Animal[]
+    }),
+    getRecentHeatRecipients().catch(error => {
+      console.error('Failed to load recent heat recipients:', error)
+      return [] as RecentHeatRecipient[]
+    })
+  ])
+  animals.value = animalResult
+  recentHeatRecipients.value = recipientResult
+}
+
+function resetNewEmbryo() {
+  embryoGradeGroups.value = [
+    { id: nextEmbryoGradeGroupId.value++, grade: 'Grade 1', quantity: 1 }
+  ]
+  donorSearch.value = ''
+  newEmbryo.value = {
+    groupName: '',
+    code: '',
+    sire: '',
+    donor: '',
+    donorAnimalId: null,
+    notes: '',
+    collectionLocation: '',
+    storageLocation: '',
+  }
+}
+
+function addEmbryoGradeGroup() {
+  embryoGradeGroups.value.push({
+    id: nextEmbryoGradeGroupId.value++,
+    grade: '',
+    quantity: 1
+  })
+}
+
+function removeEmbryoGradeGroup(id: number) {
+  if (embryoGradeGroups.value.length === 1) return
+  embryoGradeGroups.value =
+    embryoGradeGroups.value.filter(group => group.id !== id)
+}
+
+function selectDonorAnimal(animal: Animal) {
+  newEmbryo.value.donorAnimalId = animal.animalId
+  newEmbryo.value.donor =
+    animal.barnName || animal.registeredName || `Animal #${animal.animalId}`
+  donorSearch.value = newEmbryo.value.donor
 }
 
 async function addEmbryoRecord() {
-  const created = await createEmbryo({
-    code: null,
-    sire: null,
-    donor: null,
-    grade: null,
-    status: 0,
-    recipientAnimalId: null,
-    implantDate: null,
-    linkedBreedingNote: null,
-    failureNotes: null,
-    notes: null,
-    collectionLocation: null,
-    storageLocation: null
-  })
-  embryoRecords.value.unshift(created)
+  const dam = newEmbryo.value.donor.trim()
+  const sire = newEmbryo.value.sire.trim()
+  if (!dam || !sire) {
+    embryoMessage.value = 'Enter both the dam and sire so the embryos are named Dam x Sire.'
+    return
+  }
+  const groups = embryoGradeGroups.value
+    .map(group => ({
+      grade: group.grade.trim(),
+      quantity: Math.max(0, Math.min(100, Math.trunc(group.quantity || 0)))
+    }))
+    .filter(group => group.quantity > 0)
+  if (groups.length === 0) {
+    embryoMessage.value = 'Enter at least one grade and quantity.'
+    return
+  }
+  embryoCreating.value = true
+  embryoMessage.value = ''
+
+  try {
+    const groupName = newEmbryo.value.groupName.trim() || `${dam} x ${sire}`
+    const batches = await Promise.all(groups.map(group =>
+      createEmbryoBatch({
+        groupName,
+        code: newEmbryo.value.code.trim() || null,
+        sire: newEmbryo.value.sire.trim() || null,
+        donor: newEmbryo.value.donor.trim() || null,
+        donorAnimalId: newEmbryo.value.donorAnimalId,
+        grade: group.grade || null,
+        status: 0,
+        recipientAnimalId: null,
+        implantDate: null,
+        breedingEventId: null,
+        linkedBreedingNote: null,
+        failureNotes: null,
+        notes: newEmbryo.value.notes.trim() || null,
+        collectionLocation: newEmbryo.value.collectionLocation.trim() || null,
+        storageLocation: newEmbryo.value.storageLocation.trim() || null
+      }, group.quantity)
+    ))
+    const created = batches.flat()
+
+    embryoRecords.value.unshift(...created)
+    expandedEmbryoGroups.value[groupName] = true
+    embryoMessage.value = `${groupName} created with ${created.length} embryo${created.length === 1 ? '' : 's'}.`
+    showEmbryoCreator.value = false
+    resetNewEmbryo()
+  } finally {
+    embryoCreating.value = false
+  }
 }
 
 async function saveEmbryoRecord(record: EmbryoRecord) {
@@ -307,6 +602,18 @@ async function removeEmbryoRecord(id: number) {
   embryoRecords.value = embryoRecords.value.filter(e => e.embryoRecordId !== id)
 }
 
+async function undoImplant(record: EmbryoRecord) {
+  if (!window.confirm('Return this embryo to available inventory and remove the linked breeding record?')) return
+  try {
+    const updated = await undoEmbryoImplant(record.embryoRecordId)
+    Object.assign(record, updated)
+    embryoMessage.value = 'Implant removed and embryo returned to inventory.'
+    embryoStorage.setItem(EMBRYO_CACHE_KEY, JSON.stringify(embryoRecords.value))
+  } catch (error) {
+    embryoMessage.value = error instanceof Error ? error.message : 'Could not undo implant.'
+  }
+}
+
 function filteredRecipients(record: EmbryoRecord): Animal[] {
   const query = (recipientSearch.value[record.embryoRecordId] ?? '').trim().toLowerCase()
   if (!query) return animalOptions.value.slice(0, 8)
@@ -318,13 +625,43 @@ function filteredRecipients(record: EmbryoRecord): Animal[] {
     .slice(0, 12)
 }
 
+function filteredEmbryoDonors(record: EmbryoRecord): Animal[] {
+  const query = (embryoDonorSearch.value[record.embryoRecordId] ?? '').trim().toLowerCase()
+  if (!query) return []
+  return animalOptions.value
+    .filter(animal =>
+      animal.sex === 1
+      && (
+        (animal.barnName || '').toLowerCase().includes(query)
+        || (animal.registeredName || '').toLowerCase().includes(query)
+        || (animal.registrationNumber || '').toLowerCase().includes(query)
+      ))
+    .slice(0, 10)
+}
+
+async function linkEmbryoDonor(record: EmbryoRecord, animal: Animal) {
+  record.donorAnimalId = animal.animalId
+  record.donor = animal.barnName || animal.registeredName || `Animal #${animal.animalId}`
+  embryoDonorSearch.value[record.embryoRecordId] = ''
+  await saveEmbryoRecord(record)
+  embryoMessage.value = `${record.code || `Embryo #${record.embryoRecordId}`} linked to ${record.donor}.`
+}
+
+async function unlinkEmbryoDonor(record: EmbryoRecord) {
+  record.donorAnimalId = null
+  await saveEmbryoRecord(record)
+  embryoMessage.value = 'Owned donor link removed. The typed donor name was kept.'
+}
+
 async function confirmImplant(record: EmbryoRecord, animalId: number) {
   const animalName = getAnimalLabel(animalId)
-  if (!window.confirm(`Are you sure embryo ${record.code || `#${record.embryoRecordId}`} was implanted in ${animalName}?`)) return
+  const implantDate = implantDates.value[record.embryoRecordId]
+    || new Date().toISOString().slice(0, 10)
+  if (!window.confirm(`Record embryo ${record.code || `#${record.embryoRecordId}`} implanted in ${animalName} on ${implantDate}?`)) return
 
   embryoSavingId.value = record.embryoRecordId
   try {
-    const updated = await implantEmbryo(record.embryoRecordId, animalId)
+    const updated = await implantEmbryo(record.embryoRecordId, animalId, implantDate)
     embryoRecords.value = embryoRecords.value.map(item =>
       item.embryoRecordId === updated.embryoRecordId ? updated : item)
     embryoMessage.value = 'Implant recorded. The embryo is no longer available.'
@@ -364,10 +701,20 @@ onMounted(async () => {
   if (tabParam && ['analytics', 'embryos', 'embryoImplants', 'showString', 'lists', 'checklist', 'achievements'].includes(tabParam)) {
     activeTab.value = tabParam as HubTab
   }
-  try { animals.value = await getAnimals() } catch (e) { console.error('Failed to load animals:', e) } finally { loading.value = false }
-  try { await loadEmbryoRecords() } catch (e) { console.error('Failed to load embryo records:', e) }
-  loadAnalytics()
-  loadEmbryoImplants()
+  const hasCachedEmbryos = restoreEmbryoCache()
+  if (hasCachedEmbryos) loading.value = false
+
+  await loadEmbryoRecords()
+    .catch(e => console.error('Failed to load embryo records:', e))
+    .finally(() => {
+      loading.value = false
+    })
+  void loadReportAnimalData()
+  void loadActiveReportTab(activeTab.value)
+})
+
+watch(activeTab, tab => {
+  void loadActiveReportTab(tab)
 })
 </script>
 
@@ -375,38 +722,41 @@ onMounted(async () => {
   <main class="rp">
     <header class="rp-hero">
       <div class="rp-hero-top">
-        <button class="rp-back" type="button" @click="router.push('/')">← Dashboard</button>
+        <button class="rp-back" type="button" @click="router.push('/')">Back to Dashboard</button>
         <span class="rp-brand">Venture Herd Manager</span>
       </div>
       <h1 class="rp-title">Reports &amp; Show Planner</h1>
-      <p class="rp-sub">Embryo Inventory · Show String · Herd Lists · Checklist · Achievements</p>
-      <p class="rp-powered">Powered by <strong>Venture Ag Marketing</strong> · Custom Application Solutions</p>
+      <p class="rp-sub">Embryo Inventory / Show String / Herd Lists / Checklist / Achievements</p>
+      <p class="rp-powered">Powered by <strong>Venture Ag Marketing</strong> / Custom Application Solutions</p>
     </header>
 
     <nav class="rp-tabs">
-      <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'">🧬 Embryos</button>
-      <button :class="{ active: activeTab === 'embryoImplants' }" @click="activeTab = 'embryoImplants'">🤰 Implanted</button>
-      <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'">🐄 Show String</button>
-      <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'">📋 Herd Lists</button>
-      <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'">✅ Checklist</button>
-      <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'">🏆 Achievements</button>
-      <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">📊 Analytics</button>
+      <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'">Embryos</button>
+      <button :class="{ active: activeTab === 'embryoImplants' }" @click="activeTab = 'embryoImplants'">Implanted</button>
+      <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'">Show String</button>
+      <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'">Herd Lists</button>
+      <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'">Checklist</button>
+      <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'">Achievements</button>
+      <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">Analytics</button>
+      <button class="print-reports-link" @click="router.push('/reports/print')"><RetroIcon name="reports" :size="22" /> Print Reports</button>
     </nav>
 
-    <section v-if="loading" class="rp-panel"><p>Loading animals...</p></section>
+    <section v-if="loading" class="rp-panel">
+      <HerdLoadingScene message="Opening embryo inventory..." />
+    </section>
 
     <!-- ANALYTICS -->
     <section v-else-if="activeTab === 'analytics'" class="rp-panel">
       <div class="rp-ph">
         <h2>Herd Analytics</h2>
-        <button type="button" class="rp-add-btn" @click="loadAnalytics" :disabled="analyticsLoading">{{ analyticsLoading ? 'Loading…' : '↻ Refresh' }}</button>
+        <button type="button" class="rp-add-btn" @click="loadAnalytics" :disabled="analyticsLoading">{{ analyticsLoading ? 'Loading...' : 'Refresh' }}</button>
       </div>
 
       <div v-if="analyticsError" class="analytics-error">
         <strong>Analytics unavailable right now</strong>
         <p>{{ analyticsError }}</p>
-        <p style="font-size:0.82rem;color:#7f1d1d;margin-top:4px">This usually means the API is deploying — try refreshing in a minute.</p>
-        <button type="button" class="rp-add-btn" style="margin-top:10px" @click="loadAnalytics">↻ Try Again</button>
+        <p style="font-size:0.82rem;color:#7f1d1d;margin-top:4px">This usually means the API is deploying. Try refreshing in a minute.</p>
+        <button type="button" class="rp-add-btn" style="margin-top:10px" @click="loadAnalytics">Try Again</button>
       </div>
 
       <template v-if="analyticsData && !analyticsLoading">
@@ -525,27 +875,200 @@ onMounted(async () => {
     <!-- EMBRYO INVENTORY -->
     <section v-else-if="activeTab === 'embryos'" class="rp-panel">
       <div class="rp-ph">
-        <h2>Embryo Inventory</h2>
-        <button type="button" class="rp-add-btn" @click="addEmbryoRecord">+ Add Embryo</button>
+        <h2>Embryo Inventory <small>({{ embryosAvailable.length }} available)</small></h2>
+        <button type="button" class="rp-add-btn" @click="showEmbryoCreator = !showEmbryoCreator">
+          {{ showEmbryoCreator ? 'Cancel' : '+ Add Embryos' }}
+        </button>
       </div>
-      <p class="rp-hint">Track storage, assign recipients, log implants. Mark Failed when it didn't stick — those show below.</p>
+      <p class="rp-hint">Track storage, assign recipients, and log implants. Embryos that do not stick stay in the record below.</p>
 
       <p v-if="embryoMessage" class="rp-success">{{ embryoMessage }}</p>
-      <div v-if="embryosAvailable.length === 0" class="rp-empty">No embryos are currently available.</div>
 
-      <div v-for="rec in embryosAvailable" :key="rec.embryoRecordId" class="emb-card">
+      <div v-if="showEmbryoCreator" class="emb-card emb-create-card">
         <div class="emb-hd">
           <div class="emb-id">
-            <span class="emb-code">{{ rec.code || 'No Code' }}</span>
-            <span class="emb-badge">{{ EMBRYO_STATUS_LABELS[rec.status] }}</span>
+            <span class="emb-code">Add embryos to inventory</span>
+            <span class="emb-badge">Individual records</span>
           </div>
-          <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.embryoRecordId)">✕</button>
+        </div>
+        <div class="emb-grid">
+          <label>Code / ID<input v-model="newEmbryo.code" type="text" placeholder="ET-2026-001"></label>
+          <label>Sire Name<input v-model="newEmbryo.sire" type="text" placeholder="Sire name"></label>
+          <label class="emb-full">Donor Cow
+            <input v-model="donorSearch" type="search" placeholder="Search owned cow or type another donor name" @input="newEmbryo.donorAnimalId = null; newEmbryo.donor = donorSearch">
+          </label>
+          <div v-if="filteredDonorAnimals.length" class="recipient-results emb-full">
+            <button
+              v-for="donorAnimal in filteredDonorAnimals"
+              :key="`donor-${donorAnimal.animalId}`"
+              type="button"
+              @click="selectDonorAnimal(donorAnimal)"
+            >
+              {{ donorAnimal.barnName || donorAnimal.registeredName }}
+              <small v-if="donorAnimal.registrationNumber"> - {{ donorAnimal.registrationNumber }}</small>
+            </button>
+          </div>
+          <p v-if="newEmbryo.donorAnimalId" class="rp-success emb-full">
+            Linked to {{ newEmbryo.donor }}'s animal record.
+          </p>
+          <label>Collection Location<input v-model="newEmbryo.collectionLocation" type="text" placeholder="Farm, clinic, flush date"></label>
+          <label>Storage Location<input v-model="newEmbryo.storageLocation" type="text" placeholder="Tank, cane, goblet"></label>
+          <label class="emb-full">Notes<textarea v-model="newEmbryo.notes" rows="2" placeholder="Straw information or collection notes" /></label>
+          <label class="emb-full">Optional Group Name
+            <input v-model="newEmbryo.groupName" type="text" placeholder="Defaults to Dam x Sire">
+          </label>
+        </div>
+        <div class="emb-grade-groups">
+          <strong>Grades and quantities</strong>
+          <div v-for="group in embryoGradeGroups" :key="group.id" class="emb-grade-row">
+            <input v-model="group.grade" type="text" placeholder="Grade 1">
+            <input v-model.number="group.quantity" type="number" min="1" max="100" inputmode="numeric" aria-label="Embryo quantity">
+            <button type="button" class="rp-x" :disabled="embryoGradeGroups.length === 1" @click="removeEmbryoGradeGroup(group.id)">X</button>
+          </div>
+          <button type="button" class="rp-add-btn" @click="addEmbryoGradeGroup">+ Add Another Grade</button>
+        </div>
+        <p class="rp-hint">This batch will appear as one expandable group. Each embryo inside can still be edited and tracked separately.</p>
+        <button
+          type="button"
+          class="rp-add-btn"
+          :disabled="embryoCreating"
+          @click="addEmbryoRecord"
+        >
+          {{ embryoCreating ? 'Adding...' : `Add ${embryoCreateTotal} to Inventory` }}
+        </button>
+      </div>
+      <div v-if="embryosAvailable.length === 0" class="rp-empty">No embryos are currently available.</div>
+
+      <div v-for="group in availableEmbryoGroups" :key="group.name" class="emb-group-card">
+        <div class="emb-group-header">
+          <label class="emb-select" @click.stop>
+            <input type="checkbox" :checked="group.records.every(rec => isEmbryoSelected(rec.embryoRecordId))" @change="toggleGroupSelection(group.records)">
+          </label>
+          <button type="button" class="emb-group-toggle" @click="expandedEmbryoGroups[group.name] = !expandedEmbryoGroups[group.name]">
+            <span class="emb-group-title">
+              <strong>{{ group.name }}</strong>
+              <small>{{ group.records.length }} embryo{{ group.records.length === 1 ? '' : 's' }}</small>
+            </span>
+            <span class="emb-group-preview">{{ Array.from(new Set(group.records.map(rec => rec.grade || 'No grade'))).join(' / ') }}</span>
+            <span class="emb-chevron">{{ expandedEmbryoGroups[group.name] ? '-' : '+' }}</span>
+          </button>
+        </div>
+
+        <div v-if="expandedEmbryoGroups[group.name]" class="emb-group-body">
+          <article v-for="rec in group.records" :key="rec.embryoRecordId" class="emb-compact-card">
+            <div class="emb-compact-header">
+              <label class="emb-select" @click.stop>
+                <input type="checkbox" :checked="isEmbryoSelected(rec.embryoRecordId)" @change="toggleEmbryoSelection(rec.embryoRecordId)">
+              </label>
+              <button type="button" class="emb-item-toggle" @click="expandedEmbryos[rec.embryoRecordId] = !expandedEmbryos[rec.embryoRecordId]">
+                <span class="emb-code">{{ embryoName(rec) }}</span>
+                <span>{{ rec.code || `Embryo #${rec.embryoRecordId}` }}</span>
+                <span>{{ rec.grade || 'No grade' }}</span>
+                <span>{{ rec.storageLocation || 'Storage not set' }}</span>
+                <span class="emb-badge">{{ EMBRYO_STATUS_LABELS[rec.status] }}</span>
+                <span class="emb-chevron">{{ expandedEmbryos[rec.embryoRecordId] ? '-' : '+' }}</span>
+              </button>
+            </div>
+
+            <div v-if="expandedEmbryos[rec.embryoRecordId]" class="emb-item-details">
+              <div class="emb-grid">
+                <label>Code / ID<input v-model="rec.code" type="text" placeholder="ET-2026-001"></label>
+                <label>Group<input v-model="rec.groupName" type="text" placeholder="Emmy embryos"></label>
+                <label>Sire<input v-model="rec.sire" type="text" placeholder="Sire name"></label>
+                <label>Donor Cow<input v-model="rec.donor" type="text" placeholder="Donor name"></label>
+                <div class="emb-donor-link">
+                  <template v-if="rec.donorAnimalId">
+                    <span class="emb-linked-label">Linked to a cow in your herd</span>
+                    <div class="emb-detail-actions">
+                      <button type="button" class="rp-add-btn" @click="router.push(`/animals/${rec.donorAnimalId}`)">Open Cow Record</button>
+                      <button type="button" class="emb-secondary-btn" @click="unlinkEmbryoDonor(rec)">Change Cow</button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <label>Link Donor Cow From Your Herd
+                      <input v-model="embryoDonorSearch[rec.embryoRecordId]" type="search" placeholder="Search cow name or registration number">
+                    </label>
+                    <div v-if="filteredEmbryoDonors(rec).length" class="recipient-results">
+                      <button v-for="donorAnimal in filteredEmbryoDonors(rec)" :key="`embryo-donor-${rec.embryoRecordId}-${donorAnimal.animalId}`" type="button" @click="linkEmbryoDonor(rec, donorAnimal)">
+                        {{ donorAnimal.barnName || donorAnimal.registeredName }}
+                        <small v-if="donorAnimal.registrationNumber"> - {{ donorAnimal.registrationNumber }}</small>
+                      </button>
+                    </div>
+                  </template>
+                </div>
+                <label>Grade<input v-model="rec.grade" type="text" placeholder="Grade 1"></label>
+                <label>Collection Location<input v-model="rec.collectionLocation" type="text" placeholder="Farm, clinic, or flush date"></label>
+                <label>Storage Location<input v-model="rec.storageLocation" type="text" placeholder="Tank, cane, or goblet"></label>
+                <label class="emb-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Straw information or notes" /></label>
+              </div>
+
+              <div class="recipient-picker">
+                <strong>Implant this embryo</strong>
+                <small>Recent heat animals are shown first.</small>
+                <label>Implant Date<input v-model="implantDates[rec.embryoRecordId]" type="date"></label>
+                <div v-if="recentHeatRecipients.length" class="recipient-suggestions">
+                  <button v-for="candidate in recentHeatRecipients" :key="`${rec.embryoRecordId}-${candidate.animalId}`" type="button" @click="confirmImplant(rec, candidate.animalId)">
+                    {{ candidate.animalName }} - {{ candidate.daysSinceHeat }} days
+                  </button>
+                </div>
+                <label class="recipient-search">Search another animal
+                  <input v-model="recipientSearch[rec.embryoRecordId]" type="search" placeholder="Name or registration number">
+                </label>
+                <div v-if="recipientSearch[rec.embryoRecordId]" class="recipient-results">
+                  <button v-for="animalOption in filteredRecipients(rec)" :key="`${rec.embryoRecordId}-animal-${animalOption.animalId}`" type="button" @click="confirmImplant(rec, animalOption.animalId)">
+                    {{ animalOption.barnName || animalOption.registeredName }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="emb-detail-actions">
+                <button type="button" class="rp-add-btn" :disabled="embryoSavingId === rec.embryoRecordId" @click="saveEmbryoRecord(rec)">
+                  {{ embryoSavingId === rec.embryoRecordId ? 'Saving...' : 'Save Details' }}
+                </button>
+                <button type="button" class="rp-danger" @click="removeEmbryoRecord(rec.embryoRecordId)">Delete Embryo</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div v-if="embryosAvailable.length" class="emb-group-toolbar">
+        <strong>{{ selectedEmbryoIds.length ? `${selectedEmbryoIds.length} selected` : 'Select embryos above to make a group' }}</strong>
+        <div class="emb-group-actions">
+          <input v-model="embryoGroupName" type="text" placeholder="Group name">
+          <button type="button" class="rp-add-btn" :disabled="groupingEmbryos || !selectedEmbryoIds.length" @click="saveSelectedEmbryoGroup">
+            {{ groupingEmbryos ? 'Saving...' : 'Put in Group' }}
+          </button>
+          <button v-if="selectedEmbryoIds.length" type="button" class="emb-secondary-btn" :disabled="groupingEmbryos" @click="removeSelectedFromGroup">Remove Group</button>
+        </div>
+      </div>
+
+      <div v-if="false" v-for="rec in embryosAvailable" :key="rec.embryoRecordId" class="emb-card">
+        <div class="emb-hd">
+          <div class="emb-id">
+            <span class="emb-code">{{ rec.code || 'No Code' }} <small>#{{ rec.embryoRecordId }}</small></span>
+            <span class="emb-badge">{{ EMBRYO_STATUS_LABELS[rec.status] }}</span>
+            <span v-if="matchingEmbryoCount(rec) > 1" class="emb-badge">
+              {{ matchingEmbryoCount(rec) }} matching
+            </span>
+          </div>
+          <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.embryoRecordId)">X</button>
         </div>
         <div class="emb-grid">
           <label>Code / ID<input v-model="rec.code" type="text" placeholder="ET-2026-001"></label>
           <label>Sire<input v-model="rec.sire" type="text" placeholder="Sire name"></label>
           <label>Donor Cow<input v-model="rec.donor" type="text" placeholder="Donor name"></label>
-          <label>Grade<input v-model="rec.grade" type="text" placeholder="Grade 1, Excellent…"></label>
+          <button
+            v-if="rec.donorAnimalId"
+            type="button"
+            class="rp-add-btn"
+            @click="router.push(`/animals/${rec.donorAnimalId}`)"
+          >
+            Open Donor Record
+          </button>
+          <label>Grade<input v-model="rec.grade" type="text" placeholder="Grade 1, Excellent"></label>
+          <label>Collection Location<input v-model="rec.collectionLocation" type="text" placeholder="Farm, clinic, or flush date"></label>
+          <label>Storage Location<input v-model="rec.storageLocation" type="text" placeholder="Tank, cane, or goblet"></label>
           <label>Status
             <select v-model.number="rec.status">
               <option :value="0">In Storage</option>
@@ -558,7 +1081,14 @@ onMounted(async () => {
 
         <div class="recipient-picker">
           <strong>Recent heat recipients</strong>
-          <small>Animals recorded in heat 6–8 days ago</small>
+          <small>Animals recorded in heat 6-8 days ago</small>
+          <label>
+            Implant Date
+            <input v-model="implantDates[rec.embryoRecordId]" type="date">
+          </label>
+          <p v-if="rec.status === 1 && rec.recipientAnimalId" class="rp-hint">
+            Reserved for {{ getAnimalLabel(rec.recipientAnimalId) }}. Confirm the recipient below when the transfer is completed.
+          </p>
 
           <div v-if="recentHeatRecipients.length" class="recipient-suggestions">
             <button
@@ -567,7 +1097,7 @@ onMounted(async () => {
               type="button"
               @click="confirmImplant(rec, candidate.animalId)"
             >
-              {{ candidate.animalName }} · {{ candidate.daysSinceHeat }} days
+              {{ candidate.animalName }} - {{ candidate.daysSinceHeat }} days
             </button>
           </div>
           <p v-else class="rp-hint">No recent-heat candidates right now.</p>
@@ -598,22 +1128,23 @@ onMounted(async () => {
           :disabled="embryoSavingId === rec.embryoRecordId"
           @click="saveEmbryoRecord(rec)"
         >
-          {{ embryoSavingId === rec.embryoRecordId ? 'Saving…' : 'Save Details' }}
+          {{ embryoSavingId === rec.embryoRecordId ? 'Saving...' : 'Save Details' }}
         </button>
+        <small class="rp-hint">Changes apply only to embryo #{{ rec.embryoRecordId }}.</small>
       </div>
 
       <template v-if="embryosFailed.length > 0">
         <div class="rp-divider rp-divider-failed">Failed / Not Confirmed ({{ embryosFailed.length }})</div>
-        <p class="rp-hint">Embryos that didn't stick — kept for your records.</p>
+        <p class="rp-hint">Embryos that did not stick are kept for your records.</p>
         <div v-for="rec in embryosFailed" :key="`f-${rec.embryoRecordId}`" class="emb-card emb-failed">
           <div class="emb-hd">
             <div class="emb-id">
               <span class="emb-code">{{ rec.code || 'No Code' }}</span>
               <span class="emb-badge ebadge-failed">Failed</span>
             </div>
-            <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.embryoRecordId)">✕</button>
+            <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.embryoRecordId)">X</button>
           </div>
-          <div class="emb-summary"><span>Sire: <strong>{{ rec.sire || '—' }}</strong></span><span>Donor: <strong>{{ rec.donor || '—' }}</strong></span><span>Recipient: <strong>{{ rec.recipientAnimalId ? getAnimalLabel(rec.recipientAnimalId) : '—' }}</strong></span></div>
+          <div class="emb-summary"><span>Sire: <strong>{{ rec.sire || 'Not entered' }}</strong></span><span>Donor: <strong>{{ rec.donor || 'Not entered' }}</strong></span><span>Recipient: <strong>{{ rec.recipientAnimalId ? getAnimalLabel(rec.recipientAnimalId) : 'Not entered' }}</strong></span></div>
           <label class="emb-full mt8">Failure Notes<textarea v-model="rec.failureNotes" rows="2" placeholder="Reason, vet notes, recheck date" /></label>
           <label class="emb-full mt8">Status
             <select v-model.number="rec.status">
@@ -629,31 +1160,85 @@ onMounted(async () => {
     <section v-else-if="activeTab === 'embryoImplants'" class="rp-panel">
       <div class="rp-ph">
         <h2>Currently Implanted</h2>
-        <button type="button" class="rp-add-btn" @click="loadEmbryoImplants" :disabled="embryoImplantsLoading">{{ embryoImplantsLoading ? 'Loading…' : '↻ Refresh' }}</button>
+        <button type="button" class="rp-add-btn" @click="loadEmbryoImplants" :disabled="embryoImplantsLoading">{{ embryoImplantsLoading ? 'Loading...' : 'Refresh' }}</button>
       </div>
-      <p class="rp-hint">Record the pregnancy-check result for each implanted embryo.</p>
+      <p class="rp-hint">Each implanted embryo stays linked to its recipient animal until you record the pregnancy-check result.</p>
 
       <div v-if="embryosImplanted.length === 0" class="rp-empty">No embryos are waiting for an outcome.</div>
       <div v-for="rec in embryosImplanted" :key="`implanted-${rec.embryoRecordId}`" class="emb-card emb-implanted">
-        <div class="emb-hd">
+        <button
+          type="button"
+          class="emb-item-toggle implanted-toggle"
+          @click="expandedEmbryos[rec.embryoRecordId] = !expandedEmbryos[rec.embryoRecordId]"
+        >
           <div class="emb-id">
-            <span class="emb-code">{{ rec.code || `Embryo #${rec.embryoRecordId}` }}</span>
+            <span class="emb-code">{{ embryoName(rec) }}</span>
+            <span>{{ rec.code || `Embryo #${rec.embryoRecordId}` }}</span>
             <span class="emb-badge ebadge-implanted">Implanted</span>
           </div>
+          <span class="emb-chevron">{{ expandedEmbryos[rec.embryoRecordId] ? '-' : '+' }}</span>
+        </button>
+        <div class="emb-summary implant-compact-summary">
+          <span>Recipient: <strong>{{ getAnimalName(rec.recipientAnimalId) }}</strong></span>
+          <span>Date: <strong>{{ rec.implantDate || 'Not recorded' }}</strong></span>
         </div>
+        <div v-if="expandedEmbryos[rec.embryoRecordId]" class="emb-item-details">
+        <button
+          v-if="rec.recipientAnimalId"
+          type="button"
+          class="emb-recipient-card"
+          @click="router.push(`/animals/${rec.recipientAnimalId}`)"
+        >
+          <small>Implanted in</small>
+          <strong>{{ getAnimalName(rec.recipientAnimalId) }}</strong>
+          <span>Open animal record</span>
+        </button>
         <div class="emb-summary">
-          <span>Recipient: <strong>{{ getAnimalLabel(rec.recipientAnimalId) }}</strong></span>
+          <span>Status: <strong>Implanted</strong></span>
           <span>Implanted: <strong>{{ rec.implantDate || 'Date not recorded' }}</strong></span>
-          <span>Sire: <strong>{{ rec.sire || '—' }}</strong></span>
+          <span>Recipient: <strong>{{ getAnimalName(rec.recipientAnimalId) }}</strong></span>
+          <span>Grade: <strong>{{ rec.grade || 'Not entered' }}</strong></span>
+        </div>
+        <div class="emb-grid">
+          <label>Embryo Code<input v-model="rec.code" type="text"></label>
+          <label>Implant Date<input v-model="rec.implantDate" type="date"></label>
+          <label>Recipient
+            <select v-model.number="rec.recipientAnimalId">
+              <option
+                v-for="animalOption in animalOptions"
+                :key="`implanted-recipient-${rec.embryoRecordId}-${animalOption.animalId}`"
+                :value="animalOption.animalId"
+              >
+                {{ animalOption.barnName || animalOption.registeredName }}
+              </option>
+            </select>
+          </label>
+          <label>Sire<input v-model="rec.sire" type="text"></label>
+          <label>Donor Cow<input v-model="rec.donor" type="text"></label>
+          <label>Grade<input v-model="rec.grade" type="text"></label>
+        </div>
+        <button
+          type="button"
+          class="rp-add-btn"
+          :disabled="embryoSavingId === rec.embryoRecordId"
+          @click="saveEmbryoRecord(rec)"
+        >
+          {{ embryoSavingId === rec.embryoRecordId ? 'Saving...' : 'Save Implant Corrections' }}
+        </button>
+        <p class="rp-hint">Changing the implant date or recipient updates the linked animal record and recalculates its due dates.</p>
+        <div class="emb-actions">
+          <button type="button" class="emb-secondary-btn" @click="saveEmbryoRecord(rec)">Save Implant Changes</button>
+          <button type="button" class="rp-danger" @click="undoImplant(rec)">Undo Implant</button>
         </div>
         <div class="outcome-actions">
           <button type="button" class="outcome-success" @click="confirmOutcome(rec, true)">Confirmed Pregnant</button>
           <button type="button" class="outcome-failed" @click="confirmOutcome(rec, false)">Did Not Stick</button>
         </div>
+        </div>
       </div>
 
       <div v-if="embryosSuccessful.length || embryosFailed.length" class="rp-divider">
-        Recorded outcomes: {{ embryosSuccessful.length }} pregnant · {{ embryosFailed.length }} failed
+        Recorded outcomes: {{ embryosSuccessful.length }} pregnant / {{ embryosFailed.length }} failed
       </div>
 
       <h3 class="implant-report-title">Implant Report</h3>
@@ -674,7 +1259,7 @@ onMounted(async () => {
             <span class="as-val">{{ embryoImplantsData.totals.totalSuccessful }}</span>
           </div>
           <div class="as-stat">
-            <span class="as-label">Failed / Stuck</span>
+            <span class="as-label">Did Not Stick</span>
             <span class="as-val">{{ embryoImplantsData.totals.totalFailed }}</span>
           </div>
           <div class="as-stat">
@@ -720,9 +1305,9 @@ onMounted(async () => {
             <option value="all">All Classes</option>
             <option v-for="cls in showClassOptions" :key="cls" :value="cls">{{ cls }}</option>
           </select>
-          <input v-model="showStringSearch" type="search" class="rp-sel" placeholder="Filter by name…" />
+          <input v-model="showStringSearch" type="search" class="rp-sel" placeholder="Filter by name..." />
         </div>
-        <div class="browse-grid">
+        <div v-if="showStringClassFilter !== 'all' || showStringSearch.trim()" class="browse-grid">
           <div v-for="a in showStringBrowseAnimals" :key="a.animalId" class="browse-row" :class="{ 'in-str': isAnimalInShowString(a.animalId) }">
             <div class="browse-info">
               <strong>{{ a.barnName || a.registeredName || `#${a.animalId}` }}</strong>
@@ -730,7 +1315,7 @@ onMounted(async () => {
               <span class="browse-cls">{{ getShowClassLabel(a.birthDate, a.animalStage) }}</span>
             </div>
             <button v-if="!isAnimalInShowString(a.animalId)" type="button" class="add-str-btn" @click="addToShowString(a)">+ Add</button>
-            <span v-else class="in-str-tag">✓ In String</span>
+            <span v-else class="in-str-tag">In String</span>
           </div>
           <p v-if="showStringBrowseAnimals.length === 0" class="rp-empty-sm">No animals match this filter.</p>
         </div>
@@ -742,15 +1327,15 @@ onMounted(async () => {
       <!-- Section: Cows -->
       <template v-if="showStringCows.length > 0">
         <div class="lineup-section-hd">
-          <span class="lineup-section-icon">🐄</span>
+          <span class="lineup-section-icon">Cows</span>
           Cows <span class="lineup-section-ct">{{ showStringCows.length }}</span>
         </div>
         <div v-for="(row, idx) in showStringCows" :key="row.id" class="lineup-card">
           <div class="lineup-pos">{{ idx + 1 }}</div>
           <div class="lineup-main">
             <div class="lineup-name">
-              {{ row.animalId ? (animals.find(a => a.animalId === row.animalId)?.barnName || animals.find(a => a.animalId === row.animalId)?.registeredName || `#${row.animalId}`) : '—' }}
-              <button type="button" class="lineup-remove" @click="removeShowStringRow(row.id)" title="Remove">✕</button>
+              {{ row.animalId ? (animals.find(a => a.animalId === row.animalId)?.barnName || animals.find(a => a.animalId === row.animalId)?.registeredName || `#${row.animalId}`) : 'Not assigned' }}
+              <button type="button" class="lineup-remove" @click="removeShowStringRow(row.id)" title="Remove">X</button>
             </div>
             <div class="lineup-meta-row">
               <span class="lineup-class-pill">{{ row.animalId ? getShowClassLabel(animals.find(a => a.animalId === row.animalId)?.birthDate, animals.find(a => a.animalId === row.animalId)?.animalStage) : '' }}</span>
@@ -760,7 +1345,7 @@ onMounted(async () => {
             <div class="lineup-notes-row">
               <div class="lineup-note-block">
                 <span class="lineup-note-lbl">Feed Ration</span>
-                <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X…" />
+                <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X..." />
               </div>
               <div class="lineup-note-block">
                 <span class="lineup-note-lbl">Feed Schedule / Notes</span>
@@ -778,15 +1363,15 @@ onMounted(async () => {
       <!-- Section: Heifers & Youngstock -->
       <template v-if="showStringYoungstock.length > 0">
         <div class="lineup-section-hd">
-          <span class="lineup-section-icon">🌱</span>
+          <span class="lineup-section-icon">Youngstock</span>
           Heifers &amp; Youngstock <span class="lineup-section-ct">{{ showStringYoungstock.length }}</span>
         </div>
         <div v-for="(row, idx) in showStringYoungstock" :key="row.id" class="lineup-card">
           <div class="lineup-pos heifer-pos">{{ idx + 1 }}</div>
           <div class="lineup-main">
             <div class="lineup-name">
-              {{ row.animalId ? (animals.find(a => a.animalId === row.animalId)?.barnName || animals.find(a => a.animalId === row.animalId)?.registeredName || `#${row.animalId}`) : '—' }}
-              <button type="button" class="lineup-remove" @click="removeShowStringRow(row.id)" title="Remove">✕</button>
+              {{ row.animalId ? (animals.find(a => a.animalId === row.animalId)?.barnName || animals.find(a => a.animalId === row.animalId)?.registeredName || `#${row.animalId}`) : 'Not assigned' }}
+              <button type="button" class="lineup-remove" @click="removeShowStringRow(row.id)" title="Remove">X</button>
             </div>
             <div class="lineup-meta-row">
               <span class="lineup-class-pill heifer-pill">{{ row.animalId ? getShowClassLabel(animals.find(a => a.animalId === row.animalId)?.birthDate, animals.find(a => a.animalId === row.animalId)?.animalStage) : '' }}</span>
@@ -795,7 +1380,7 @@ onMounted(async () => {
             <div class="lineup-notes-row">
               <div class="lineup-note-block">
                 <span class="lineup-note-lbl">Feed Ration</span>
-                <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X…" />
+                <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X..." />
               </div>
               <div class="lineup-note-block">
                 <span class="lineup-note-lbl">Feed Schedule / Notes</span>
@@ -813,7 +1398,7 @@ onMounted(async () => {
       <!-- Unassigned / blank rows -->
       <template v-if="showStringUnassigned.length > 0">
         <div class="lineup-section-hd">
-          <span class="lineup-section-icon">📌</span>
+          <span class="lineup-section-icon">Unassigned</span>
           Unassigned Slots <span class="lineup-section-ct">{{ showStringUnassigned.length }}</span>
         </div>
         <div v-for="row in showStringUnassigned" :key="row.id" class="lineup-card lineup-card-empty">
@@ -821,11 +1406,11 @@ onMounted(async () => {
           <div class="lineup-main">
             <label class="lineup-note-lbl" style="margin-bottom:6px">Animal
               <select v-model.number="row.animalId" class="lineup-input" style="min-height:42px;margin-top:4px">
-                <option :value="null">— Select animal —</option>
+                <option :value="null">Select animal</option>
                 <option v-for="a in animalOptions" :key="a.animalId" :value="a.animalId">{{ getAnimalLabel(a.animalId) }}</option>
               </select>
             </label>
-            <button type="button" class="lineup-remove" style="margin-top:8px" @click="removeShowStringRow(row.id)">✕ Remove</button>
+            <button type="button" class="lineup-remove" style="margin-top:8px" @click="removeShowStringRow(row.id)">Remove</button>
           </div>
         </div>
       </template>
@@ -841,15 +1426,15 @@ onMounted(async () => {
           <h3>{{ list.title }}</h3>
           <span class="rp-group-ct">{{ list.animalIds.length }}</span>
         </div>
-        <input v-model="list.searchQuery" type="search" class="rp-list-search" :placeholder="`Search ${list.title}…`" />
-        <div class="rp-chips">
+        <input v-model="list.searchQuery" type="search" class="rp-list-search" :placeholder="`Search ${list.title}...`" />
+        <div v-if="list.searchQuery.trim()" class="rp-chips">
           <button v-for="a in filteredListAnimals(list)" :key="`${list.key}-${a.animalId}`" type="button" class="rp-chip" :class="{ 'rp-chip-sel': list.animalIds.includes(a.animalId) }" @click="toggleAnimalInList(list.key, a.animalId)">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</button>
         </div>
         <div v-if="list.animalIds.length > 0" class="rp-list-members">
           <div class="rp-lm-hd">In this list</div>
           <div v-for="id in list.animalIds" :key="`in-${id}`" class="rp-lm-row">
             <span>{{ getAnimalLabel(id) }}</span>
-            <button type="button" class="rp-lm-rm" @click="toggleAnimalInList(list.key, id)">✕</button>
+            <button type="button" class="rp-lm-rm" @click="toggleAnimalInList(list.key, id)">X</button>
           </div>
         </div>
         <label class="lbl-notes">Notes<textarea v-model="list.notes" rows="2" placeholder="Instructions, sorting priority, vet orders" class="rp-textarea" /></label>
@@ -877,7 +1462,9 @@ onMounted(async () => {
         <button type="button" class="rp-add-btn" @click="addAchievement">+ Achievement</button>
       </div>
       <div v-if="achievements.length === 0" class="rp-empty">No achievements logged yet.</div>
-      <div v-for="rec in achievements" :key="rec.id" class="rp-row-card">
+      <details v-for="show in achievementsByShow" :key="show.showName" class="rp-group">
+        <summary class="rp-group-hd"><h3>{{ show.showName }}</h3><span class="rp-group-ct">{{ show.records.length }}</span></summary>
+      <div v-for="rec in show.records" :key="rec.id" class="rp-row-card">
         <label>Animal
           <select v-model.number="rec.animalId">
             <option :value="null">Select animal</option>
@@ -887,10 +1474,11 @@ onMounted(async () => {
         <label>Show Name<input v-model="rec.showName" type="text" placeholder="Spring Classic Show"></label>
         <label>Show Date<input v-model="rec.showDate" type="date"></label>
         <label>Bagged<input v-model="rec.bagged" type="text" placeholder="How she bagged up"></label>
-        <label>Placement<input v-model="rec.placed" type="text" placeholder="1st Jr 2 · Reserve Champion"></label>
+        <label>Placement<input v-model="rec.placed" type="text" placeholder="1st Jr 2 / Reserve Champion"></label>
         <label class="rp-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Judge comments, prep notes" /></label>
         <button type="button" class="rp-danger" @click="removeAchievement(rec.id)">Remove</button>
       </div>
+      </details>
     </section>
   </main>
 </template>
@@ -938,6 +1526,9 @@ onMounted(async () => {
 .ebadge-implanted { background: #dbeafe; color: #1d4ed8; }
 .ebadge-failed { background: #fee2e2; color: #991b1b; }
 .emb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.emb-grade-groups { margin: 14px 0; display: grid; gap: 9px; }
+.emb-grade-row { display: grid; grid-template-columns: minmax(0, 1fr) 92px auto; gap: 8px; align-items: center; }
+.emb-grade-row input { width: 100%; }
 .emb-full { grid-column: 1 / -1; }
 .rp-success { padding: 10px 12px; border-radius: 7px; background: #ecfdf3; color: #166534; font-weight: 700; }
 .recipient-picker { display: grid; gap: 9px; margin: 14px 0; padding: 12px; border-radius: 8px; background: #f5f8f5; }
@@ -954,6 +1545,35 @@ onMounted(async () => {
 .implant-report-title { margin: 24px 0 6px; color: #18351f; }
 .mt8 { margin-top: 8px; }
 .emb-summary { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.9rem; color: #5d6f63; }
+.implanted-toggle { width: 100%; }
+.implant-compact-summary { margin-top: 8px; }
+.emb-recipient-card { width: 100%; display: grid; gap: 2px; margin: 0 0 12px; padding: 12px 14px; border: 1px solid #9db8dc; border-radius: 8px; background: #eff6ff; color: #17365d; text-align: left; cursor: pointer; }
+.emb-recipient-card small { font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.emb-recipient-card strong { font-size: 1.05rem; }
+.emb-recipient-card span { font-size: .76rem; color: #46698e; }
+.emb-group-toolbar { margin: 16px 0; padding: 14px; border-radius: 10px; background: #f3f7f3; border: 1px solid #cad8cc; display: grid; gap: 10px; }
+.emb-group-actions { display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 8px; }
+.emb-secondary-btn { min-height: 38px; padding: 0 12px; border: 1px solid #9bad9e; border-radius: 6px; background: #fff; color: #31572c; font-weight: 800; cursor: pointer; }
+.emb-group-card { margin: 10px 0; border: 1px solid #cad7cc; border-radius: 11px; overflow: hidden; background: #fff; }
+.emb-group-header, .emb-compact-header { display: flex; align-items: stretch; }
+.emb-group-header { min-height: 64px; background: #f7faf7; }
+.emb-select { display: flex; place-items: center; padding: 0 13px; cursor: pointer; }
+.emb-select input { width: 20px; height: 20px; min-height: 0; accent-color: #31572c; }
+.emb-group-toggle, .emb-item-toggle { flex: 1; min-width: 0; border: 0; background: transparent; color: #1a3020; cursor: pointer; text-align: left; }
+.emb-group-toggle { padding: 11px 14px 11px 0; display: grid; grid-template-columns: minmax(140px, 1fr) minmax(100px, auto) 26px; align-items: center; gap: 12px; }
+.emb-group-title { display: grid; gap: 2px; }
+.emb-group-title strong { font-size: 1rem; }
+.emb-group-title small, .emb-group-preview { color: #66786a; font-size: .78rem; }
+.emb-group-preview { text-align: right; }
+.emb-chevron { font-size: 1.35rem; font-weight: 700; color: #31572c; text-align: center; }
+.emb-group-body { border-top: 1px solid #dce5dd; padding: 8px; background: #fbfcfb; }
+.emb-compact-card { border: 1px solid #dce5dd; border-radius: 8px; margin: 7px 0; background: #fff; overflow: hidden; }
+.emb-compact-header { min-height: 52px; }
+.emb-item-toggle { padding: 8px 12px 8px 0; display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(70px, .7fr) minmax(100px, 1fr) auto 24px; align-items: center; gap: 10px; font-size: .82rem; }
+.emb-item-details { border-top: 1px solid #e2e9e3; padding: 14px; }
+.emb-detail-actions { display: flex; align-items: center; gap: 10px; }
+.emb-donor-link { display: grid; align-content: start; gap: 8px; padding: 10px; border: 1px solid #d7e2d8; border-radius: 7px; background: #f7faf7; }
+.emb-linked-label { color: #216132; font-weight: 800; font-size: .82rem; }
 .rp-x { border: 1px solid #fca5a5; background: #fff1f2; color: #991b1b; border-radius: 4px; width: 28px; height: 28px; font-size: 0.85rem; font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .rp-x:hover { background: #fee2e2; }
 .rp-divider { margin: 20px 0 10px; padding: 8px 14px; background: #f0f7f1; border-left: 4px solid #31572c; border-radius: 4px; font-weight: 900; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: #1f3a25; }
@@ -990,7 +1610,7 @@ textarea { min-height: 72px; resize: vertical; }
 .in-str-tag { font-size: 0.78rem; font-weight: 800; color: #166534; flex-shrink: 0; }
 .lineup-label { font-weight: 900; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: #5d6f63; margin: 6px 0 8px; }
 
-/* ── Lineup cards ── */
+/* Lineup cards */
 .lineup-section-hd {
   display: flex;
   align-items: center;
@@ -1220,7 +1840,7 @@ textarea { min-height: 72px; resize: vertical; }
 .rp-check-row input[type='text']:focus { outline: none; }
 .done-txt { text-decoration: line-through !important; color: #8a9b8e !important; }
 
-/* ── Analytics ── */
+/* Analytics */
 .analytics-stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 22px; }
 .analytics-stat { display: flex; flex-direction: column; align-items: center; padding: 14px 10px; border: 1px solid #e0e8e1; border-radius: 10px; background: #f8fbf8; text-align: center; }
 .analytics-stat.highlight { background: #dcfce7; border-color: #31572c; }
@@ -1266,5 +1886,11 @@ textarea { min-height: 72px; resize: vertical; }
   .rp-row-card { grid-template-columns: 1fr; }
   .rp-full { grid-column: 1; }
   .rp-tabs button { padding: 12px 12px 9px; font-size: 0.75rem; }
+  .emb-group-actions { grid-template-columns: 1fr; }
+  .emb-group-toggle { grid-template-columns: 1fr 26px; }
+  .emb-group-preview { display: none; }
+  .emb-item-toggle { grid-template-columns: 1fr auto 22px; }
+  .emb-item-toggle > span:nth-child(3), .emb-item-toggle .emb-badge { display: none; }
+  .emb-select { padding: 0 10px; }
 }
 </style>

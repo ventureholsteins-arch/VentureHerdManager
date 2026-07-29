@@ -9,6 +9,12 @@ namespace VentureHerdManager.Api.Controllers;
 [Route("api/[controller]")]
 public class EmbryoRecordsController : ControllerBase
 {
+    private const int EmbryoAgeAtTransferDays = 7;
+    private const int GestationDays = 280;
+    private const int PregnancyCheckAfterTransferDays = 28;
+    private const int DryPeriodDays = 60;
+    private const int CloseUpDays = 21;
+
     private readonly ApplicationDbContext _context;
 
     public EmbryoRecordsController(ApplicationDbContext context)
@@ -46,6 +52,49 @@ public class EmbryoRecordsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = record.EmbryoRecordId }, record);
     }
 
+    [HttpPost("batch")]
+    public async Task<ActionResult<List<EmbryoRecord>>> CreateBatch(
+        [FromBody] CreateEmbryoBatchRequest request)
+    {
+        if (request.Quantity is < 1 or > 100)
+        {
+            return BadRequest("Quantity must be between 1 and 100.");
+        }
+
+        if (request.Embryo == null)
+        {
+            return BadRequest("Embryo details are required.");
+        }
+
+        var records = Enumerable.Range(0, request.Quantity)
+            .Select(_ => new EmbryoRecord
+            {
+                Code = request.Embryo.Code,
+                Sire = request.Embryo.Sire,
+                Donor = request.Embryo.Donor,
+                DonorAnimalId = request.Embryo.DonorAnimalId,
+                Grade = request.Embryo.Grade,
+                GroupName = request.Embryo.GroupName,
+                Status = EmbryoStatus.InStorage,
+                RecipientAnimalId = null,
+                ImplantDate = null,
+                BreedingEventId = null,
+                LinkedBreedingNote = request.Embryo.LinkedBreedingNote,
+                FailureNotes = null,
+                Notes = request.Embryo.Notes,
+                CollectionLocation = request.Embryo.CollectionLocation,
+                StorageLocation = request.Embryo.StorageLocation,
+                CreatedBy = request.Embryo.CreatedBy,
+                UpdatedBy = request.Embryo.UpdatedBy
+            })
+            .ToList();
+
+        _context.EmbryoRecords.AddRange(records);
+        await _context.SaveChangesAsync();
+
+        return Ok(records);
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, EmbryoRecord record)
     {
@@ -63,7 +112,9 @@ public class EmbryoRecordsController : ControllerBase
         existing.Code = record.Code;
         existing.Sire = record.Sire;
         existing.Donor = record.Donor;
+        existing.DonorAnimalId = record.DonorAnimalId;
         existing.Grade = record.Grade;
+        existing.GroupName = record.GroupName;
         existing.Status = record.Status;
         existing.RecipientAnimalId = record.RecipientAnimalId;
         existing.ImplantDate = record.ImplantDate;
@@ -74,6 +125,50 @@ public class EmbryoRecordsController : ControllerBase
         existing.StorageLocation = record.StorageLocation;
         existing.UpdatedBy = record.UpdatedBy;
         existing.UpdatedAt = DateTime.UtcNow;
+
+        if (existing.BreedingEventId.HasValue
+            && existing.RecipientAnimalId.HasValue
+            && existing.ImplantDate.HasValue)
+        {
+            var breeding = await _context.BreedingEvents
+                .FindAsync(existing.BreedingEventId.Value);
+            if (breeding != null)
+            {
+                ApplyTransferDetails(breeding, existing);
+            }
+        }
+
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("group")]
+    public async Task<IActionResult> SetGroup([FromBody] SetEmbryoGroupRequest request)
+    {
+        var ids = request.EmbryoRecordIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return BadRequest("Select at least one embryo.");
+        }
+
+        var records = await _context.EmbryoRecords
+            .Where(record => ids.Contains(record.EmbryoRecordId))
+            .ToListAsync();
+
+        if (records.Count != ids.Count)
+        {
+            return BadRequest("One or more selected embryos could not be found.");
+        }
+
+        var groupName = string.IsNullOrWhiteSpace(request.GroupName)
+            ? null
+            : request.GroupName.Trim();
+
+        foreach (var record in records)
+        {
+            record.GroupName = groupName;
+            record.UpdatedAt = DateTime.UtcNow;
+        }
 
         await _context.SaveChangesAsync();
         return NoContent();
@@ -113,13 +208,73 @@ public class EmbryoRecordsController : ControllerBase
             return BadRequest("This embryo is no longer available.");
         }
 
+        var implantDate = request.ImplantDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
         record.RecipientAnimalId = recipient.AnimalId;
-        record.ImplantDate = request.ImplantDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        record.ImplantDate = implantDate;
         record.Status = EmbryoStatus.Implanted;
         record.LinkedBreedingNote =
             $"Embryo implanted in {recipient.BarnName ?? recipient.RegisteredName}.";
         record.UpdatedAt = DateTime.UtcNow;
 
+        var breeding = new BreedingEvent();
+        ApplyTransferDetails(breeding, record);
+        breeding.CreatedBy = "Embryo workflow";
+        _context.BreedingEvents.Add(breeding);
+
+        await _context.SaveChangesAsync();
+        record.BreedingEventId = breeding.BreedingEventId;
+        await _context.SaveChangesAsync();
+        return Ok(record);
+    }
+
+    [HttpPost("{id}/assign")]
+    public async Task<IActionResult> Assign(
+        int id,
+        [FromBody] AssignEmbryoRequest request)
+    {
+        var record = await _context.EmbryoRecords.FindAsync(id);
+        var recipient = await _context.Animals.FindAsync(request.RecipientAnimalId);
+        if (record == null || recipient == null)
+        {
+            return NotFound();
+        }
+
+        if (record.Status is EmbryoStatus.Implanted
+            or EmbryoStatus.Successful
+            or EmbryoStatus.Failed)
+        {
+            return BadRequest("This embryo is no longer available.");
+        }
+
+        record.RecipientAnimalId = recipient.AnimalId;
+        record.Status = EmbryoStatus.Assigned;
+        record.LinkedBreedingNote =
+            $"Reserved after heat for {recipient.BarnName ?? recipient.RegisteredName}.";
+        record.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        return Ok(record);
+    }
+
+    [HttpPost("{id}/undo-implant")]
+    public async Task<IActionResult> UndoImplant(int id)
+    {
+        var record = await _context.EmbryoRecords.FindAsync(id);
+        if (record == null) return NotFound();
+        if (record.Status is EmbryoStatus.Successful or EmbryoStatus.Failed)
+            return BadRequest("Undo the pregnancy outcome before removing this implant.");
+
+        if (record.BreedingEventId.HasValue)
+        {
+            var breeding = await _context.BreedingEvents.FindAsync(record.BreedingEventId.Value);
+            if (breeding != null) _context.BreedingEvents.Remove(breeding);
+        }
+
+        record.Status = EmbryoStatus.InStorage;
+        record.RecipientAnimalId = null;
+        record.ImplantDate = null;
+        record.BreedingEventId = null;
+        record.LinkedBreedingNote = "Implant entry was corrected and returned to inventory.";
+        record.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return Ok(record);
     }
@@ -147,24 +302,34 @@ public class EmbryoRecordsController : ControllerBase
             ? PregnancyStatus.Pregnant
             : PregnancyStatus.Open;
 
-        _context.BreedingEvents.Add(new BreedingEvent
+        var breeding = record.BreedingEventId.HasValue
+            ? await _context.BreedingEvents.FindAsync(record.BreedingEventId.Value)
+            : null;
+
+        if (breeding == null)
         {
-            AnimalId = record.RecipientAnimalId.Value,
-            BreedingDate = implantDate,
-            SireUsed = record.Sire ?? record.Code ?? "Embryo transfer",
-            BreedingType = BreedingType.EmbryoTransfer,
-            PregnancyStatus = status,
-            PregnancyCheckDate = DateTime.UtcNow,
-            PregnancyCheckDueDate = implantDate.AddDays(35),
-            ExpectedDueDate = request.Successful ? implantDate.AddDays(280) : null,
-            RecommendedDryOffDate = request.Successful ? implantDate.AddDays(220) : null,
-            CloseUpDate = request.Successful ? implantDate.AddDays(259) : null,
-            Notes = request.Successful
-                ? $"Confirmed pregnant from embryo {record.Code ?? record.EmbryoRecordId.ToString()}."
-                : $"Embryo {record.Code ?? record.EmbryoRecordId.ToString()} did not establish a pregnancy.",
-            CreatedBy = "Embryo workflow",
-            UpdatedBy = "Embryo workflow"
-        });
+            breeding = new BreedingEvent { CreatedBy = "Embryo workflow" };
+            ApplyTransferDetails(breeding, record);
+            _context.BreedingEvents.Add(breeding);
+        }
+
+        breeding.PregnancyStatus = status;
+        breeding.PregnancyCheckDate = DateTime.UtcNow;
+        var expectedDueDate =
+            implantDate.AddDays(GestationDays - EmbryoAgeAtTransferDays);
+        breeding.ExpectedDueDate = request.Successful
+            ? expectedDueDate
+            : null;
+        breeding.RecommendedDryOffDate = request.Successful
+            ? expectedDueDate.AddDays(-DryPeriodDays)
+            : null;
+        breeding.CloseUpDate = request.Successful
+            ? expectedDueDate.AddDays(-CloseUpDays)
+            : null;
+        breeding.Notes = request.Successful
+            ? $"Confirmed pregnant from embryo {record.Code ?? record.EmbryoRecordId.ToString()}."
+            : $"Embryo {record.Code ?? record.EmbryoRecordId.ToString()} did not establish a pregnancy.";
+        breeding.UpdatedAt = DateTime.UtcNow;
 
         record.Status = request.Successful
             ? EmbryoStatus.Successful
@@ -173,7 +338,34 @@ public class EmbryoRecordsController : ControllerBase
         record.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+        if (!record.BreedingEventId.HasValue)
+        {
+            record.BreedingEventId = breeding.BreedingEventId;
+            await _context.SaveChangesAsync();
+        }
         return Ok(record);
+    }
+
+    private static void ApplyTransferDetails(
+        BreedingEvent breeding,
+        EmbryoRecord record)
+    {
+        var implantDate = record.ImplantDate!.Value.ToDateTime(TimeOnly.MinValue);
+        var dueDate = implantDate.AddDays(GestationDays - EmbryoAgeAtTransferDays);
+
+        breeding.AnimalId = record.RecipientAnimalId!.Value;
+        breeding.BreedingDate = implantDate;
+        breeding.SireUsed = record.Sire ?? record.Code ?? "Embryo transfer";
+        breeding.BreedingType = BreedingType.EmbryoTransfer;
+        breeding.PregnancyCheckDueDate =
+            implantDate.AddDays(PregnancyCheckAfterTransferDays);
+        breeding.ExpectedDueDate = dueDate;
+        breeding.RecommendedDryOffDate = dueDate.AddDays(-DryPeriodDays);
+        breeding.CloseUpDate = dueDate.AddDays(-CloseUpDays);
+        breeding.Notes =
+            $"Embryo transfer #{record.EmbryoRecordId}: {record.Code ?? "No code"}.";
+        breeding.UpdatedBy = "Embryo workflow";
+        breeding.UpdatedAt = DateTime.UtcNow;
     }
 }
 
@@ -187,4 +379,21 @@ public class EmbryoOutcomeRequest
 {
     public bool Successful { get; set; }
     public string? Notes { get; set; }
+}
+
+public class AssignEmbryoRequest
+{
+    public int RecipientAnimalId { get; set; }
+}
+
+public class CreateEmbryoBatchRequest
+{
+    public int Quantity { get; set; } = 1;
+    public EmbryoRecord? Embryo { get; set; }
+}
+
+public class SetEmbryoGroupRequest
+{
+    public List<int> EmbryoRecordIds { get; set; } = [];
+    public string? GroupName { get; set; }
 }

@@ -8,6 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Controllers
 builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<DemoSessionContext>();
 
 // Database
 var isDemoMode = builder.Configuration.GetValue<bool>("DemoMode:Enabled");
@@ -52,7 +54,7 @@ builder.Services.AddScoped<HeatService>();
 builder.Services.AddScoped<ClassificationService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<CalendarService>();
-builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<DemoSessionMaintenanceService>();
 builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
 
 // Swagger
@@ -88,20 +90,90 @@ app.UseHttpsRedirection();
 app.UseCors(CorsPolicyName);
 app.UseStaticFiles();
 
+if (isDemoMode)
+{
+    app.Use(async (httpContext, next) =>
+    {
+        if (httpContext.Request.Path.StartsWithSegments("/api")
+            && !HttpMethods.IsOptions(httpContext.Request.Method))
+        {
+            var maintenance = httpContext.RequestServices
+                .GetRequiredService<DemoSessionMaintenanceService>();
+            await maintenance.TouchAsync(httpContext.RequestAborted);
+        }
+
+        await next();
+    });
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapControllers();
 
-await InitializeDatabaseAsync(app);
+_ = Task.Run(async () =>
+{
+    try
+    {
+        // Repair the user-facing embryo schema first, but never hold up API
+        // startup while Azure SQL wakes or resumes.
+        await EnsureEmbryoRecordsReadyAsync(app);
+        await InitializeDatabaseAsync(app);
+    }
+    catch (Exception exception)
+    {
+        app.Logger.LogError(
+            exception,
+            "Background database initialization failed.");
+    }
+});
 
 app.Run();
+
+static async Task EnsureEmbryoRecordsReadyAsync(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    await context.Database.ExecuteSqlRawAsync(
+        @"IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
+          BEGIN
+            IF COL_LENGTH(N'dbo.EmbryoRecords', N'BreedingEventId') IS NULL
+              ALTER TABLE [dbo].[EmbryoRecords]
+                ADD [BreedingEventId] INT NULL;
+
+            IF COL_LENGTH(N'dbo.EmbryoRecords', N'DonorAnimalId') IS NULL
+              ALTER TABLE [dbo].[EmbryoRecords]
+                ADD [DonorAnimalId] INT NULL;
+
+            IF COL_LENGTH(N'dbo.EmbryoRecords', N'GroupName') IS NULL
+              ALTER TABLE [dbo].[EmbryoRecords]
+                ADD [GroupName] NVARCHAR(200) NULL;
+
+            IF COL_LENGTH(N'dbo.EmbryoRecords', N'DemoSessionId') IS NULL
+              ALTER TABLE [dbo].[EmbryoRecords]
+                ADD [DemoSessionId] NVARCHAR(64) NULL;
+
+            IF NOT EXISTS (
+              SELECT 1 FROM sys.indexes
+              WHERE [name] = N'IX_EmbryoRecords_DemoSessionId'
+                AND [object_id] = OBJECT_ID(N'dbo.EmbryoRecords'))
+              CREATE INDEX [IX_EmbryoRecords_DemoSessionId]
+                ON [dbo].[EmbryoRecords]([DemoSessionId]);
+          END");
+}
 
 static async Task InitializeDatabaseAsync(WebApplication app)
 {
     using var scope = app.Services.CreateScope();
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<ApplicationDbContext>();
+
+    // The EF model includes the nullable DemoSessionId shadow property in both
+    // environments. Ensure those support columns exist in production as well,
+    // while query filtering and value stamping remain disabled outside demo mode.
+    await EnsureDemoSessionSchemaAsync(context);
 
     static async Task EnsureAnimalColumnAsync(
         ApplicationDbContext context,
@@ -114,6 +186,71 @@ static async Task InitializeDatabaseAsync(WebApplication app)
             "BEGIN " +
             "ALTER TABLE [Animals] ADD [" + columnName + "] " + columnDefinition + "; " +
             "END");
+    }
+
+    static async Task EnsureDemoSessionSchemaAsync(
+        ApplicationDbContext context)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            @"IF OBJECT_ID(N'dbo.DemoSessions', N'U') IS NULL
+              BEGIN
+                CREATE TABLE [dbo].[DemoSessions](
+                  [DemoSessionId] NVARCHAR(64) NOT NULL,
+                  [CreatedAt] DATETIME2 NOT NULL,
+                  [LastSeenAt] DATETIME2 NOT NULL,
+                  CONSTRAINT [PK_DemoSessions] PRIMARY KEY ([DemoSessionId])
+                );
+                CREATE INDEX [IX_DemoSessions_LastSeenAt]
+                  ON [dbo].[DemoSessions]([LastSeenAt]);
+              END");
+
+        var tables = new[]
+        {
+            "Animals",
+            "HeatEvents",
+            "BreedingEvents",
+            "CalvingEvents",
+            "DryOffEvents",
+            "AnimalNotes",
+            "ClassificationRecords",
+            "LutalyseEvents",
+            "AnimalPhotos",
+            "AppearanceSettings",
+            "EmbryoRecords",
+            "ShowAchievements"
+        };
+
+        foreach (var table in tables)
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                $@"IF OBJECT_ID(N'dbo.{table}', N'U') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.{table}', N'DemoSessionId') IS NULL
+                   BEGIN
+                     ALTER TABLE [dbo].[{table}]
+                       ADD [DemoSessionId] NVARCHAR(64) NULL;
+                     CREATE INDEX [IX_{table}_DemoSessionId]
+                       ON [dbo].[{table}]([DemoSessionId]);
+                   END");
+        }
+
+        await context.Database.ExecuteSqlRawAsync(
+            @"IF OBJECT_ID(N'dbo.Animals', N'U') IS NOT NULL
+              BEGIN
+                IF EXISTS (
+                  SELECT 1 FROM sys.indexes
+                  WHERE [name] = N'IX_Animals_RegistrationNumber'
+                    AND [object_id] = OBJECT_ID(N'dbo.Animals'))
+                  DROP INDEX [IX_Animals_RegistrationNumber] ON [dbo].[Animals];
+
+                IF NOT EXISTS (
+                  SELECT 1 FROM sys.indexes
+                  WHERE [name] = N'IX_Animals_DemoSessionId_RegistrationNumber'
+                    AND [object_id] = OBJECT_ID(N'dbo.Animals'))
+                  CREATE UNIQUE INDEX
+                    [IX_Animals_DemoSessionId_RegistrationNumber]
+                    ON [dbo].[Animals]([DemoSessionId], [RegistrationNumber])
+                    WHERE [RegistrationNumber] IS NOT NULL;
+              END");
     }
 
     try
@@ -263,10 +400,13 @@ static async Task InitializeDatabaseAsync(WebApplication app)
                     [Code]                  NVARCHAR(200) NULL,
                     [Sire]                  NVARCHAR(200) NULL,
                     [Donor]                 NVARCHAR(200) NULL,
+                    [DonorAnimalId]         INT NULL,
                     [Grade]                 NVARCHAR(100) NULL,
+                    [GroupName]             NVARCHAR(200) NULL,
                     [Status]                INT NOT NULL DEFAULT 0,
                     [RecipientAnimalId]     INT NULL,
                     [ImplantDate]           DATE NULL,
+                    [BreedingEventId]       INT NULL,
                     [LinkedBreedingNote]    NVARCHAR(500) NULL,
                     [FailureNotes]          NVARCHAR(2000) NULL,
                     [Notes]                 NVARCHAR(2000) NULL,
@@ -274,14 +414,87 @@ static async Task InitializeDatabaseAsync(WebApplication app)
                     [StorageLocation]       NVARCHAR(200) NULL,
                     [CreatedBy]             NVARCHAR(200) NULL,
                     [UpdatedBy]             NVARCHAR(200) NULL,
+                    [DemoSessionId]         NVARCHAR(64) NULL,
                     [CreatedAt]             DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
                     [UpdatedAt]             DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
                     CONSTRAINT [FK_EmbryoRecords_Animals]
                         FOREIGN KEY ([RecipientAnimalId]) REFERENCES [Animals]([AnimalId])
+                        ON DELETE SET NULL,
+                    CONSTRAINT [FK_EmbryoRecords_DonorAnimals]
+                        FOREIGN KEY ([DonorAnimalId]) REFERENCES [Animals]([AnimalId]),
+                    CONSTRAINT [FK_EmbryoRecords_BreedingEvents]
+                        FOREIGN KEY ([BreedingEventId]) REFERENCES [BreedingEvents]([BreedingEventId])
                         ON DELETE SET NULL
                 );
                 CREATE INDEX [IX_EmbryoRecords_Status]              ON [EmbryoRecords]([Status]);
                 CREATE INDEX [IX_EmbryoRecords_RecipientAnimalId]   ON [EmbryoRecords]([RecipientAnimalId]);
+                CREATE INDEX [IX_EmbryoRecords_DonorAnimalId]       ON [EmbryoRecords]([DonorAnimalId]);
+                CREATE INDEX [IX_EmbryoRecords_DemoSessionId]       ON [EmbryoRecords]([DemoSessionId]);
+                CREATE UNIQUE INDEX [IX_EmbryoRecords_BreedingEventId]
+                    ON [EmbryoRecords]([BreedingEventId])
+                    WHERE [BreedingEventId] IS NOT NULL;
+              END
+
+              IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
+                 AND COL_LENGTH(N'dbo.EmbryoRecords', N'BreedingEventId') IS NULL
+              BEGIN
+                ALTER TABLE [EmbryoRecords] ADD [BreedingEventId] INT NULL;
+              END
+
+              IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
+                 AND COL_LENGTH(N'dbo.EmbryoRecords', N'DonorAnimalId') IS NULL
+              BEGIN
+                ALTER TABLE [EmbryoRecords] ADD [DonorAnimalId] INT NULL;
+              END
+
+              IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
+                 AND COL_LENGTH(N'dbo.EmbryoRecords', N'GroupName') IS NULL
+              BEGIN
+                ALTER TABLE [EmbryoRecords] ADD [GroupName] NVARCHAR(200) NULL;
+              END
+
+              IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
+                 AND NOT EXISTS (
+                   SELECT 1 FROM sys.foreign_keys
+                   WHERE [name] = N'FK_EmbryoRecords_DonorAnimals')
+              BEGIN
+                ALTER TABLE [EmbryoRecords]
+                  ADD CONSTRAINT [FK_EmbryoRecords_DonorAnimals]
+                  FOREIGN KEY ([DonorAnimalId])
+                  REFERENCES [Animals]([AnimalId]);
+              END
+
+              IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
+                 AND NOT EXISTS (
+                   SELECT 1 FROM sys.indexes
+                   WHERE [name] = N'IX_EmbryoRecords_DonorAnimalId'
+                     AND [object_id] = OBJECT_ID(N'dbo.EmbryoRecords'))
+              BEGIN
+                CREATE INDEX [IX_EmbryoRecords_DonorAnimalId]
+                  ON [EmbryoRecords]([DonorAnimalId]);
+              END
+
+              IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
+                 AND NOT EXISTS (
+                   SELECT 1 FROM sys.foreign_keys
+                   WHERE [name] = N'FK_EmbryoRecords_BreedingEvents')
+              BEGIN
+                ALTER TABLE [EmbryoRecords]
+                  ADD CONSTRAINT [FK_EmbryoRecords_BreedingEvents]
+                  FOREIGN KEY ([BreedingEventId])
+                  REFERENCES [BreedingEvents]([BreedingEventId])
+                  ON DELETE SET NULL;
+              END
+
+              IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
+                 AND NOT EXISTS (
+                   SELECT 1 FROM sys.indexes
+                   WHERE [name] = N'IX_EmbryoRecords_BreedingEventId'
+                     AND [object_id] = OBJECT_ID(N'dbo.EmbryoRecords'))
+              BEGIN
+                CREATE UNIQUE INDEX [IX_EmbryoRecords_BreedingEventId]
+                  ON [EmbryoRecords]([BreedingEventId])
+                  WHERE [BreedingEventId] IS NOT NULL;
               END");
         Console.WriteLine("EmbryoRecords table ensured.");
     }

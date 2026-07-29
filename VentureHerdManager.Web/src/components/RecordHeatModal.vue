@@ -55,13 +55,23 @@
 
         <div class="form-group">
           <label>Heat Photo:</label>
+          <small class="photo-help">Camera Roll / Existing Photo</small>
           <input
             type="file"
-            accept="image/*"
+            accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp"
+            aria-label="Choose existing heat photo from camera roll"
             class="form-input file-input"
             @change="selectPhoto"
           />
-          <small class="photo-help">Choose from Photos, Files, or Camera on iPhone.</small>
+          <small class="photo-help">Take New Photo</small>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            aria-label="Take a new heat photo"
+            class="form-input file-input"
+            @change="selectPhoto"
+          />
         </div>
 
         <div class="form-group">
@@ -72,15 +82,32 @@
         <div class="form-group">
           <label>
             <input type="checkbox" v-model="hasEmbryoTransfer" />
-            Embryo Transfer
+            Plan Embryo Transfer
           </label>
         </div>
 
+        <div v-if="hasEmbryoTransfer" class="form-group">
+          <label>Reserve an Embryo:</label>
+          <select v-model="selectedEmbryoId" class="form-input">
+            <option value="">Choose later</option>
+            <option
+              v-for="embryo in availableEmbryos"
+              :key="embryo.embryoRecordId"
+              :value="String(embryo.embryoRecordId)"
+            >
+              {{ embryo.code || `Embryo #${embryo.embryoRecordId}` }}
+              <template v-if="embryo.sire"> · {{ embryo.sire }}</template>
+            </option>
+          </select>
+          <small>You can reserve one now or select it when the transfer is recorded.</small>
+        </div>
+
         <div class="form-group">
-          <button :disabled="uploadingPhoto" @click="recordHeat" class="btn-primary">
-            {{ uploadingPhoto ? 'Uploading Photo…' : 'Record Heat' }}
+          <button :disabled="saving" @click="recordHeat" class="btn-primary">
+            {{ saveButtonText }}
           </button>
-          <button @click="goToBreedingTab" class="btn-secondary">Record Heat & Breed</button>
+          <button :disabled="saving" @click="goToBreedingTab" class="btn-secondary">Record Heat & Breed</button>
+          <small v-if="saveError" class="save-error">{{ saveError }}</small>
         </div>
       </div>
     </div>
@@ -90,6 +117,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { uploadPhoto } from '../api/photos'
+import { getAllEmbryos, type EmbryoRecord } from '../api/embryoRecords'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -119,8 +147,12 @@ const standingHeat = ref(false)
 const pictureUrl = ref('')
 const photoFile = ref<File | null>(null)
 const uploadingPhoto = ref(false)
+const saving = ref(false)
+const saveError = ref('')
 const notes = ref('')
 const hasEmbryoTransfer = ref(false)
+const selectedEmbryoId = ref('')
+const availableEmbryos = ref<EmbryoRecord[]>([])
 const animals = ref<Animal[]>([])
 
 const emit = defineEmits<{
@@ -146,10 +178,12 @@ const openModal = async () => {
   isOpen.value = true
   // Load animals list
   try {
-    const response = await fetch(`${API_BASE}/Animals`)
-    if (response.ok) {
-      animals.value = await response.json()
-    }
+    const [animalResponse, embryos] = await Promise.all([
+      fetch(`${API_BASE}/Animals`),
+      getAllEmbryos()
+    ])
+    if (animalResponse.ok) animals.value = await animalResponse.json()
+    availableEmbryos.value = embryos.filter(embryo => embryo.status === 0)
   } catch (err) {
     console.error('Failed to load animals:', err)
   }
@@ -170,11 +204,21 @@ const resetForm = () => {
   photoFile.value = null
   notes.value = ''
   hasEmbryoTransfer.value = false
+  selectedEmbryoId.value = ''
+  saving.value = false
+  uploadingPhoto.value = false
+  saveError.value = ''
 }
 
 function selectPhoto(event: Event) {
   photoFile.value = (event.target as HTMLInputElement).files?.[0] ?? null
 }
+
+const saveButtonText = computed(() => {
+  if (uploadingPhoto.value) return 'Uploading Photo…'
+  if (saving.value) return 'Saving Heat…'
+  return 'Record Heat'
+})
 
 const recordHeat = async () => {
   if (!selectedAnimalId.value) {
@@ -182,22 +226,39 @@ const recordHeat = async () => {
     return
   }
 
-  uploadingPhoto.value = true
+  saving.value = true
+  saveError.value = ''
   try {
     if (photoFile.value) {
+      uploadingPhoto.value = true
       pictureUrl.value = await uploadPhoto(photoFile.value, 'heat-events')
+      uploadingPhoto.value = false
     }
 
     emit('recordHeat', {
-    animalId: parseInt(selectedAnimalId.value),
-    heatStrength: parseInt(heatStrength.value),
-    standingHeat: standingHeat.value,
-    pictureUrl: pictureUrl.value || null,
-    notes: notes.value || null,
-    hasEmbryoTransfer: hasEmbryoTransfer.value
+      animalId: parseInt(selectedAnimalId.value),
+      heatStrength: parseInt(heatStrength.value),
+      standingHeat: standingHeat.value,
+      pictureUrl: pictureUrl.value || null,
+      notes: notes.value || null,
+      hasEmbryoTransfer: hasEmbryoTransfer.value,
+      embryoRecordId: selectedEmbryoId.value
+        ? parseInt(selectedEmbryoId.value)
+        : null,
+      complete: (success: boolean, message?: string) => {
+        saving.value = false
+        if (success) {
+          closeModal()
+        } else {
+          saveError.value = message || 'Heat could not be saved. Please try again.'
+        }
+      }
     })
-
-    closeModal()
+  } catch (error) {
+    saving.value = false
+    saveError.value = error instanceof Error
+      ? error.message
+      : 'Photo could not be uploaded.'
   } finally {
     uploadingPhoto.value = false
   }
@@ -388,5 +449,18 @@ textarea.form-input {
 
 .btn-secondary:hover {
   background: #d0d0d0;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.save-error {
+  display: block;
+  margin-top: 10px;
+  color: #b91c1c;
+  font-size: 0.85rem;
 }
 </style>

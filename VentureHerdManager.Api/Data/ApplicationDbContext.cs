@@ -1,14 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using VentureHerdManager.Api.Models;
+using VentureHerdManager.Api.Services;
 
 namespace VentureHerdManager.Api.Data;
 
 public class ApplicationDbContext : DbContext
 {
+    private readonly DemoSessionContext _demoSessionContext;
+
     public ApplicationDbContext(
-        DbContextOptions<ApplicationDbContext> options)
+        DbContextOptions<ApplicationDbContext> options,
+        DemoSessionContext demoSessionContext)
         : base(options)
     {
+        _demoSessionContext = demoSessionContext;
     }
 
     public DbSet<Animal> Animals => Set<Animal>();
@@ -37,6 +42,8 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<ShowAchievement> ShowAchievements => Set<ShowAchievement>();
 
+    public DbSet<DemoSession> DemoSessions => Set<DemoSession>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -53,6 +60,20 @@ public class ApplicationDbContext : DbContext
         ConfigureAppearanceSetting(modelBuilder);
         ConfigureEmbryoRecord(modelBuilder);
         ConfigureShowAchievement(modelBuilder);
+        ConfigureDemoSession(modelBuilder);
+
+        ConfigureDemoScope<Animal>(modelBuilder);
+        ConfigureDemoScope<HeatEvent>(modelBuilder);
+        ConfigureDemoScope<BreedingEvent>(modelBuilder);
+        ConfigureDemoScope<CalvingEvent>(modelBuilder);
+        ConfigureDemoScope<DryOffEvent>(modelBuilder);
+        ConfigureDemoScope<AnimalNote>(modelBuilder);
+        ConfigureDemoScope<ClassificationRecord>(modelBuilder);
+        ConfigureDemoScope<LutalyseEvent>(modelBuilder);
+        ConfigureDemoScope<AnimalPhoto>(modelBuilder);
+        ConfigureDemoScope<AppearanceSetting>(modelBuilder);
+        ConfigureDemoScope<EmbryoRecord>(modelBuilder);
+        ConfigureDemoScope<ShowAchievement>(modelBuilder);
     }
 
     private static void ConfigureAnimal(ModelBuilder modelBuilder)
@@ -60,6 +81,8 @@ public class ApplicationDbContext : DbContext
         var entity = modelBuilder.Entity<Animal>();
 
         entity.HasKey(animal => animal.AnimalId);
+        entity.Property<string?>("DemoSessionId")
+            .HasMaxLength(DemoSessionContext.MaxSessionIdLength);
 
         entity.HasOne(animal => animal.Dam)
             .WithMany(dam => dam.OffspringAsDam)
@@ -85,7 +108,7 @@ public class ApplicationDbContext : DbContext
 
         entity.HasIndex(animal => animal.SireId);
 
-        entity.HasIndex(animal => animal.RegistrationNumber)
+        entity.HasIndex("DemoSessionId", nameof(Animal.RegistrationNumber))
             .IsUnique()
             .HasFilter("[RegistrationNumber] IS NOT NULL");
 
@@ -391,8 +414,22 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(e => e.RecipientAnimalId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        entity.HasOne(e => e.DonorAnimal)
+            .WithMany()
+            .HasForeignKey(e => e.DonorAnimalId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        entity.HasOne(e => e.BreedingEvent)
+            .WithMany()
+            .HasForeignKey(e => e.BreedingEventId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         entity.HasIndex(e => e.Status);
         entity.HasIndex(e => e.RecipientAnimalId);
+        entity.HasIndex(e => e.DonorAnimalId);
+        entity.HasIndex(e => e.BreedingEventId)
+            .IsUnique()
+            .HasFilter("[BreedingEventId] IS NOT NULL");
 
         entity.Property(e => e.CreatedAt)
             .HasDefaultValueSql("SYSUTCDATETIME()");
@@ -421,5 +458,60 @@ public class ApplicationDbContext : DbContext
 
         entity.Property(a => a.UpdatedAt)
             .HasDefaultValueSql("SYSUTCDATETIME()");
+    }
+
+    private static void ConfigureDemoSession(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<DemoSession>();
+
+        entity.HasKey(session => session.DemoSessionId);
+        entity.Property(session => session.DemoSessionId)
+            .HasMaxLength(DemoSessionContext.MaxSessionIdLength);
+        entity.HasIndex(session => session.LastSeenAt);
+    }
+
+    private void ConfigureDemoScope<TEntity>(ModelBuilder modelBuilder)
+        where TEntity : class
+    {
+        var entity = modelBuilder.Entity<TEntity>();
+
+        entity.Property<string?>("DemoSessionId")
+            .HasMaxLength(DemoSessionContext.MaxSessionIdLength);
+        entity.HasIndex("DemoSessionId");
+        entity.HasQueryFilter(item =>
+            !_demoSessionContext.IsDemoMode
+            || _demoSessionContext.SessionId == null
+            || EF.Property<string?>(item, "DemoSessionId")
+                == _demoSessionContext.SessionId);
+    }
+
+    public override int SaveChanges()
+    {
+        StampDemoSession();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        StampDemoSession();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void StampDemoSession()
+    {
+        var sessionId = _demoSessionContext.SessionId;
+        if (!_demoSessionContext.IsDemoMode || sessionId == null)
+        {
+            return;
+        }
+
+        foreach (var entry in ChangeTracker.Entries()
+                     .Where(entry =>
+                         entry.State == EntityState.Added
+                         && entry.Entity is not DemoSession))
+        {
+            entry.Property("DemoSessionId").CurrentValue = sessionId;
+        }
     }
 }

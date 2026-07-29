@@ -531,6 +531,32 @@ public class DemoController : ControllerBase
         });
     }
 
+    [HttpPost("ensure")]
+    public async Task<ActionResult<DemoSeedResult>> Ensure(
+        CancellationToken cancellationToken)
+    {
+        var guardResult = ValidateDemoAccess();
+        if (guardResult != null)
+        {
+            return guardResult;
+        }
+
+        if (!await _context.Animals.AnyAsync(cancellationToken))
+        {
+            return await Reset(cancellationToken);
+        }
+
+        return Ok(new DemoSeedResult
+        {
+            Message = "Demo session is ready.",
+            Animals = await _context.Animals.CountAsync(cancellationToken),
+            HeatEvents = await _context.HeatEvents.CountAsync(cancellationToken),
+            BreedingEvents = await _context.BreedingEvents.CountAsync(cancellationToken),
+            CalvingEvents = await _context.CalvingEvents.CountAsync(cancellationToken),
+            LutalyseEvents = await _context.LutalyseEvents.CountAsync(cancellationToken)
+        });
+    }
+
     private ActionResult? ValidateDemoAccess()
     {
         var enabled = _configuration.GetValue<bool>("DemoMode:Enabled");

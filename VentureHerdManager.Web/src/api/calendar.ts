@@ -27,9 +27,17 @@ export async function getCalendarEvents(
     endDate: formatApiDate(endDate)
   })
 
-  const response = await fetch(
-    `${getApiUrl()}/Calendar?${query.toString()}`
-  )
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 30_000)
+  let response: Response
+  try {
+    response = await fetch(
+      `${getApiUrl()}/Calendar?${query.toString()}`,
+      { signal: controller.signal }
+    )
+  } finally {
+    window.clearTimeout(timeout)
+  }
 
   if (!response.ok) {
     const errorText = await response.text()

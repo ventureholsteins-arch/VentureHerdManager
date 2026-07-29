@@ -35,6 +35,7 @@ public class AnimalSnapshotService
             var classificationRecords = new List<ClassificationRecord>();
             var notes = new List<AnimalNote>();
             var photos = new List<AnimalPhoto>();
+            var donorEmbryos = new List<EmbryoRecord>();
 
             try
             {
@@ -105,6 +106,16 @@ public class AnimalSnapshotService
                     .ToListAsync(cancellationToken);
             }
             catch (Exception ex) { Console.WriteLine($"Animal photos error: {ex.Message}"); }
+
+            try
+            {
+                donorEmbryos = await _context.EmbryoRecords
+                    .AsNoTracking()
+                    .Where(embryo => embryo.DonorAnimalId == animalId)
+                    .OrderByDescending(embryo => embryo.CreatedAt)
+                    .ToListAsync(cancellationToken);
+            }
+            catch (Exception ex) { Console.WriteLine($"Donor embryo records error: {ex.Message}"); }
 
         var timeline = new List<AnimalTimelineEntryDto>();
 
@@ -186,6 +197,28 @@ public class AnimalSnapshotService
             Notes = photo.Caption,
             PhotoUrl = photo.PhotoUrl
         }));
+
+        timeline.AddRange(donorEmbryos
+            .GroupBy(embryo => new
+            {
+                Date = embryo.CreatedAt.Date,
+                embryo.Code,
+                embryo.Grade,
+                embryo.Sire
+            })
+            .Select(group => new AnimalTimelineEntryDto
+            {
+                EventId = group.Min(embryo => embryo.EmbryoRecordId),
+                EventType = "EmbryoCollection",
+                Title = "Embryos collected",
+                Summary =
+                    $"{group.Count()} embryo{(group.Count() == 1 ? "" : "s")}"
+                    + $"{(string.IsNullOrWhiteSpace(group.Key.Grade) ? "" : $" · {group.Key.Grade}")}"
+                    + $"{(string.IsNullOrWhiteSpace(group.Key.Sire) ? "" : $" · {group.Key.Sire}")}",
+                EventDate = group.Min(embryo => embryo.CreatedAt),
+                Notes = group.Key.Code,
+                PhotoUrl = null
+            }));
 
         timeline = timeline
             .OrderByDescending(entry => entry.EventDate)

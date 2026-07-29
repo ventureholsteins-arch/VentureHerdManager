@@ -64,7 +64,11 @@ public class CalvingEventsController : ControllerBase
             var calf = new Animal
             {
                 BarnName = calving.CalfBarnName,
-                RegisteredName = calving.CalfRegisteredName,
+                RegisteredName = !string.IsNullOrWhiteSpace(calving.CalfRegisteredName)
+                    ? calving.CalfRegisteredName
+                    : (!string.IsNullOrWhiteSpace(request.CalfDamName) || !string.IsNullOrWhiteSpace(request.CalfSireName))
+                        ? $"{request.CalfDamName ?? animal.RegisteredName ?? animal.BarnName ?? "Dam"} x {request.CalfSireName ?? "Sire not entered"}"
+                        : null,
                 BirthDate = DateOnly.FromDateTime(calving.CalvingDate),
                 Sex = calving.CalfSex switch
                 {
@@ -138,7 +142,12 @@ public class CalvingEventsController : ControllerBase
         return CreatedAtAction(
             nameof(GetByAnimal),
             new { animalId = calving.AnimalId },
-            calving);
+            new
+            {
+                calving.CalvingEventId,
+                calving.AnimalId,
+                calving.CalfAnimalId
+            });
     }
 
     [HttpPut("{calvingEventId}")]

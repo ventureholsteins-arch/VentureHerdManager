@@ -52,13 +52,13 @@ async function openDemoFast() {
     <div class="app-background" />
 
     <div v-if="isDemoOnly" class="demo-banner">
-      <span>{{ demoResetEnabled ? 'DEMO MODE - open instantly or reset for fresh seed data' : 'DEMO MODE - running without API reset' }}</span>
+      <span>{{ demoResetEnabled ? 'DEMO MODE · SAMPLE HERD DATA' : 'DEMO MODE' }}</span>
       <div class="demo-actions">
         <button type="button" class="secondary" :disabled="demoResetting" @click="openDemoFast">
-          Open Fast
+          Enter Demo
         </button>
         <button type="button" :disabled="demoResetting || !demoResetEnabled" @click="handleDemoReset">
-          {{ demoResetting ? 'Resetting...' : 'Reset Demo' }}
+          {{ demoResetting ? 'Resetting...' : 'Reset Sample Data' }}
         </button>
       </div>
     </div>

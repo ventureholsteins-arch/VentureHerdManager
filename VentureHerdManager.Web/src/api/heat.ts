@@ -1,5 +1,7 @@
 import type { HeatEvent } from '../models/HeatEvent'
 
+const API_BASE = import.meta.env.VITE_API_URL
+
 export async function recordHeat(heatData: {
   animalId: number
   heatDateTime: string
@@ -10,7 +12,7 @@ export async function recordHeat(heatData: {
   hasEmbryoTransfer?: boolean
   embryoImplantDate?: string
 }): Promise<HeatEvent> {
-  const response = await fetch('http://localhost:5051/api/HeatEvents', {
+  const response = await fetch(`${API_BASE}/HeatEvents`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -19,7 +21,8 @@ export async function recordHeat(heatData: {
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to record heat: ${response.statusText}`)
+    const details = await response.text()
+    throw new Error(details || `Failed to record heat (${response.status})`)
   }
 
   return response.json()

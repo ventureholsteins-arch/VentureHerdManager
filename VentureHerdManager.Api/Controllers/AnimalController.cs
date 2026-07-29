@@ -176,24 +176,6 @@ public class AnimalsController : ControllerBase
             createdAnimal);
     }
 
-    [HttpPut("{animalId:int}")]
-    public IActionResult UpdateAnimal(
-        int animalId,
-        Animal updatedAnimal)
-    {
-        var animal =
-            _animalService.UpdateAnimal(
-                animalId,
-                updatedAnimal);
-
-        if (animal == null)
-        {
-            return NotFound("Animal not found.");
-        }
-
-        return Ok(animal);
-    }
-
     [HttpDelete("{animalId:int}")]
     public IActionResult DeleteAnimal(int animalId)
     {

@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
   getDashboardSummary,
   type DashboardSummary
 } from '../api/dashboard'
+import type { Animal } from '../models/Animal'
+import HerdLoadingScene from './HerdLoadingScene.vue'
+import RetroIcon from './RetroIcon.vue'
 
 const router = useRouter()
+const props = defineProps<{ animals?: Animal[] }>()
 
 const emptyDashboard: DashboardSummary = {
   totalAnimals: 0,
@@ -41,6 +45,23 @@ const dueSoonSectionRef = ref<HTMLElement | null>(null)
 const lutTrackingSectionRef = ref<HTMLElement | null>(null)
 const embryoSectionRef = ref<HTMLElement | null>(null)
 const expandedLists = ref<Record<string, boolean>>({})
+const summaryFailed = ref(false)
+const dueWithin60 = ref(false)
+let retryTimer: number | null = null
+
+function applyAnimalFallback(animals: Animal[]) {
+  if (animals.length === 0) return
+  dashboard.value = {
+    ...dashboard.value,
+    totalAnimals: animals.length,
+    calves: animals.filter(animal => animal.animalStage === 1).length,
+    heifers: animals.filter(animal => animal.animalStage === 2).length,
+    milking: animals.filter(animal => animal.animalStage === 3).length,
+    dry: animals.filter(animal => animal.animalStage === 4).length,
+    bulls: animals.filter(animal => animal.sex === 2).length
+  }
+  errorMessage.value = ''
+}
 
 function visibleItems<T>(items: T[] | undefined, list: string): T[] {
   const safeItems = items ?? []
@@ -60,15 +81,48 @@ type ReportSection =
   | 'lutTracking'
   | 'embryo'
 
-onMounted(async () => {
+async function loadDashboardSummary(allowRetry = true) {
   try {
-    dashboard.value = await getDashboardSummary()
+    dashboard.value = await getDashboardSummary(dueWithin60.value ? 60 : 30)
+    summaryFailed.value = false
+    errorMessage.value = ''
   } catch (error) {
     console.error('Failed to load dashboard:', error)
-    errorMessage.value = 'Summary panel is temporarily unavailable. Herd cards are still up to date.'
-    dashboard.value = { ...emptyDashboard }
+    summaryFailed.value = true
+    const animals = props.animals ?? []
+    if (animals.length > 0) {
+      applyAnimalFallback(animals)
+    } else {
+      errorMessage.value = 'Summary panel is temporarily unavailable. Herd cards are still up to date.'
+      dashboard.value = { ...emptyDashboard }
+    }
+    if (allowRetry) {
+      retryTimer = window.setTimeout(() => {
+        void loadDashboardSummary(false)
+      }, 4000)
+    }
   } finally {
     loading.value = false
+  }
+}
+
+watch(
+  () => props.animals,
+  animals => {
+    if (summaryFailed.value && animals?.length) {
+      applyAnimalFallback(animals)
+    }
+  },
+  { deep: false }
+)
+
+onMounted(async () => {
+  await loadDashboardSummary()
+})
+
+onBeforeUnmount(() => {
+  if (retryTimer !== null) {
+    window.clearTimeout(retryTimer)
   }
 })
 
@@ -78,25 +132,25 @@ function openAnimal(animalId: number) {
 
 function formatDate(value?: string | null) {
   if (!value) {
-    return '—'
+    return '-'
   }
 
   const parsed = new Date(value)
 
   return Number.isNaN(parsed.getTime())
-    ? '—'
+    ? '-'
     : parsed.toLocaleDateString()
 }
 
 function formatDateTime(value?: string | null) {
   if (!value) {
-    return '—'
+    return '-'
   }
 
   const parsed = new Date(value)
 
   return Number.isNaN(parsed.getTime())
-    ? '—'
+    ? '-'
     : parsed.toLocaleString()
 }
 
@@ -131,9 +185,7 @@ async function openReportSection(section: ReportSection) {
 
 <template>
   <section class="dashboard-summary">
-    <p v-if="loading" class="message">
-      Loading dashboard...
-    </p>
+    <HerdLoadingScene v-if="loading" message="Waking up your herd..." />
 
     <template v-else>
       <p v-if="errorMessage" class="error-message">
@@ -146,19 +198,23 @@ async function openReportSection(section: ReportSection) {
           <h2>Today at a glance</h2>
         </div>
       </div>
+      <label class="due-window-toggle">
+        <input v-model="dueWithin60" type="checkbox" @change="loading = true; loadDashboardSummary(false)">
+        Show due within 60 days
+      </label>
 
       <div class="herd-metrics-row">
         <div class="metric-mini">
           <small>Avg Score</small>
-          <span class="metric-value">{{ dashboard.herdScoreAverage ? dashboard.herdScoreAverage.toFixed(1) : '—' }}</span>
+          <span class="metric-value">{{ dashboard.herdScoreAverage ? dashboard.herdScoreAverage.toFixed(1) : '-' }}</span>
         </div>
         <div class="metric-mini">
           <small>EX (2nd+ Lac)</small>
-          <span class="metric-value">{{ dashboard.percentExcellent2ndLactationOrHigher ? dashboard.percentExcellent2ndLactationOrHigher.toFixed(0) : '—' }}%</span>
+          <span class="metric-value">{{ dashboard.percentExcellent2ndLactationOrHigher ? dashboard.percentExcellent2ndLactationOrHigher.toFixed(0) : '-' }}%</span>
         </div>
         <div class="metric-mini">
           <small>Avg BAA</small>
-          <span class="metric-value">{{ dashboard.herdBaaAverage ? dashboard.herdBaaAverage.toFixed(1) : '—' }}</span>
+          <span class="metric-value">{{ dashboard.herdBaaAverage ? dashboard.herdBaaAverage.toFixed(1) : '-' }}</span>
         </div>
       </div>
 
@@ -168,7 +224,7 @@ async function openReportSection(section: ReportSection) {
           class="summary-card summary-card-button"
           @click="openReportSection('pregChecks')"
         >
-          <span class="icon">🤰</span>
+          <RetroIcon name="pregCheck" />
 
           <div>
             <strong>{{ dashboard.pregChecksDueCount }}</strong>
@@ -181,7 +237,7 @@ async function openReportSection(section: ReportSection) {
           class="summary-card summary-card-button"
           @click="openReportSection('dueSoon')"
         >
-          <span class="icon">📅</span>
+          <RetroIcon name="calving" />
 
           <div>
             <strong>{{ dashboard.dueSoonCount }}</strong>
@@ -194,7 +250,7 @@ async function openReportSection(section: ReportSection) {
           class="summary-card summary-card-button"
           @click="openReportSection('lutTracking')"
         >
-          <span class="icon">💉</span>
+          <RetroIcon name="lut" />
 
           <div>
             <strong>{{ dashboard.lutTrackingCount }}</strong>
@@ -207,7 +263,7 @@ async function openReportSection(section: ReportSection) {
           class="summary-card summary-card-button important"
           @click="openReportSection('embryo')"
         >
-          <span class="icon">🧬</span>
+          <RetroIcon name="embryo" />
 
           <div>
             <strong>{{ dashboard.embryoImplantsCount }}</strong>
@@ -238,7 +294,7 @@ async function openReportSection(section: ReportSection) {
           class="event-row"
           @click="openAnimal(item.animalId)"
         >
-          <span class="event-icon">🤰</span>
+          <RetroIcon name="pregCheck" />
 
           <div class="event-content">
             <strong>{{ item.animalName }}</strong>
@@ -253,7 +309,7 @@ async function openReportSection(section: ReportSection) {
             </p>
           </div>
 
-          <span class="arrow">›</span>
+          <span class="arrow">></span>
         </button>
 
         <button
@@ -288,7 +344,7 @@ async function openReportSection(section: ReportSection) {
           class="event-row"
           @click="openAnimal(item.animalId)"
         >
-          <span class="event-icon">📅</span>
+          <RetroIcon name="calving" />
 
           <div class="event-content">
             <strong>{{ item.animalName }}</strong>
@@ -299,11 +355,11 @@ async function openReportSection(section: ReportSection) {
 
             <p>
               Due {{ formatDate(item.expectedDueDate) }}
-              · {{ item.daysUntilDue }} days
+              - {{ item.daysUntilDue }} days
             </p>
           </div>
 
-          <span class="arrow">›</span>
+          <span class="arrow">></span>
         </button>
       </section>
 
@@ -329,7 +385,7 @@ async function openReportSection(section: ReportSection) {
           class="event-row"
           @click="openAnimal(item.animalId)"
         >
-          <span class="event-icon">💉</span>
+          <RetroIcon name="lut" />
 
           <div class="event-content">
             <strong>{{ item.animalName }}</strong>
@@ -340,11 +396,11 @@ async function openReportSection(section: ReportSection) {
 
             <p>
               Heat watch through {{ formatDate(item.expectedHeatWatchEnd) }}
-              · {{ item.daysRemaining }} days remaining
+              - {{ item.daysRemaining }} days remaining
             </p>
           </div>
 
-          <span class="arrow">›</span>
+          <span class="arrow">></span>
         </button>
       </section>
 
@@ -370,7 +426,7 @@ async function openReportSection(section: ReportSection) {
           class="event-row"
           @click="openAnimal(item.animalId)"
         >
-          <span class="event-icon">🧬</span>
+          <RetroIcon name="embryo" />
 
           <div class="event-content">
             <strong>{{ item.animalName }}</strong>
@@ -381,11 +437,11 @@ async function openReportSection(section: ReportSection) {
 
             <p>
               Implant day {{ 7 - item.daysTracked }} of 7
-              · {{ item.daysUntilImplant }} days to implant
+              - {{ item.daysUntilImplant }} {{ item.daysUntilImplant === 1 ? 'day' : 'days' }} to implant
             </p>
           </div>
 
-          <span class="arrow">›</span>
+          <span class="arrow">></span>
         </button>
       </section>
 
@@ -406,7 +462,14 @@ async function openReportSection(section: ReportSection) {
           class="event-row"
           @click="openAnimal(heat.animalId)"
         >
-          <span class="event-icon">❤️</span>
+          <img
+            v-if="heat.pictureUrl"
+            class="event-photo"
+            :src="heat.pictureUrl"
+            :alt="`${heat.animalName} heat record`"
+            loading="lazy"
+          />
+          <RetroIcon v-else name="heat" />
 
           <div class="event-content">
             <strong>{{ heat.animalName }}</strong>
@@ -418,7 +481,7 @@ async function openReportSection(section: ReportSection) {
             <p>{{ heat.notes || 'No notes' }}</p>
           </div>
 
-          <span class="arrow">›</span>
+          <span class="arrow">></span>
         </button>
 
         <button
@@ -452,7 +515,7 @@ async function openReportSection(section: ReportSection) {
           class="event-row"
           @click="openAnimal(breeding.animalId)"
         >
-          <span class="event-icon">🧬</span>
+          <RetroIcon name="embryo" />
 
           <div class="event-content">
             <strong>
@@ -461,7 +524,7 @@ async function openReportSection(section: ReportSection) {
 
             <small>
               Bred to {{ breeding.sireUsed }}
-              · {{ pregnancyStatusLabel(breeding.pregnancyStatus) }}
+              - {{ pregnancyStatusLabel(breeding.pregnancyStatus) }}
             </small>
 
             <p>
@@ -469,7 +532,7 @@ async function openReportSection(section: ReportSection) {
             </p>
           </div>
 
-          <span class="arrow">›</span>
+          <span class="arrow">></span>
         </button>
       </section>
     </template>
@@ -580,6 +643,16 @@ async function openReportSection(section: ReportSection) {
   background: linear-gradient(180deg, #f7faf8, #edf3ee);
   font-size: 1.25rem;
   flex-shrink: 0;
+}
+
+.event-photo {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border: 2px solid #31572c;
+  border-radius: 8px;
+  background: #edf3ee;
 }
 
 .summary-card strong {

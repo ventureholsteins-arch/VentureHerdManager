@@ -6,6 +6,7 @@ import { getAnimals } from '../api/animals'
 import { getAppearance, type AppearanceSetting } from '../api/appearance'
 import { recordHeat } from '../api/heat'
 import { getLatestPregnancyStatuses, recordBreeding } from '../api/breeding'
+import { assignEmbryo, implantEmbryo } from '../api/embryoRecords'
 import { recordCalving } from '../api/calving'
 import { addNote } from '../api/notes'
 import { recordLUT } from '../api/lut'
@@ -18,6 +19,8 @@ import RecordCalvingModal from '../components/RecordCalvingModal.vue'
 import AddNoteModal from '../components/AddNoteModal.vue'
 import RecordLUTModal from '../components/RecordLUTModal.vue'
 import EditAnimalModal from '../components/EditAnimalModal.vue'
+import HerdLoadingScene from '../components/HerdLoadingScene.vue'
+import RetroIcon from '../components/RetroIcon.vue'
 
 const router = useRouter()
 
@@ -32,6 +35,10 @@ const mobileQuickOpen = ref(false)
 const lastUpdatedAt = ref<string | null>(null)
 
 const DASHBOARD_CACHE_KEY = 'venture-herd-dashboard-cache-v1'
+const dashboardStorage =
+  import.meta.env.VITE_DEMO_ONLY === 'true'
+    ? sessionStorage
+    : localStorage
 
 interface DashboardCachePayload {
   savedAt: string
@@ -76,6 +83,16 @@ const animalCounts = computed(() => ({
   calves: animals.value.filter(animal => animal.animalStage === 1).length
 }))
 
+function dashboardAnimalName(animal: Animal): string {
+  return animal.barnName
+    || animal.registeredName
+    || (
+      animal.damName || animal.sireName
+        ? `${animal.damName || 'Unknown dam'} x ${animal.sireName || 'Unknown sire'}`
+        : `Animal #${animal.animalId}`
+    )
+}
+
 const filteredAnimals = computed(() => {
   let result = animals.value
 
@@ -110,6 +127,7 @@ const filteredAnimals = computed(() => {
       // Check sire/dam/breed
       if (fuzzyMatch(query, animal.sireName || '')) return true
       if (fuzzyMatch(query, animal.damName || '')) return true
+      if (fuzzyMatch(query, dashboardAnimalName(animal))) return true
       if (fuzzyMatch(query, animal.breed || '')) return true
       return false
     })
@@ -168,16 +186,28 @@ async function loadAnimals() {
   warningMessage.value = ''
 
   try {
-    const [appearanceResponse, animalsResponse, latestStatuses] = await Promise.all([
-      getAppearance(),
-      getAnimals(),
-      getLatestPregnancyStatuses().catch(() => ({}))
+    // The animal list is the required dashboard request. Appearance and
+    // pregnancy status are enhancements and should not make live herd data
+    // appear stale when either optional request is temporarily unavailable.
+    const animalsResponse = await getAnimals()
+    animals.value = Array.isArray(animalsResponse) ? animalsResponse : []
+    lastUpdatedAt.value = new Date().toISOString()
+
+    const [appearanceResponse, latestStatuses] = await Promise.all([
+      getAppearance().catch((error) => {
+        console.warn('Appearance settings are temporarily unavailable:', error)
+        return undefined
+      }),
+      getLatestPregnancyStatuses().catch((error) => {
+        console.warn('Pregnancy statuses are temporarily unavailable:', error)
+        return {}
+      })
     ])
 
-    appearance.value = appearanceResponse
-    animals.value = Array.isArray(animalsResponse) ? animalsResponse : []
+    if (appearanceResponse) {
+      appearance.value = appearanceResponse
+    }
     latestPregnancyStatuses.value = latestStatuses
-    lastUpdatedAt.value = new Date().toISOString()
 
     const payload: DashboardCachePayload = {
       savedAt: lastUpdatedAt.value,
@@ -185,7 +215,7 @@ async function loadAnimals() {
       latestPregnancyStatuses: latestPregnancyStatuses.value
     }
 
-    localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(payload))
+    dashboardStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(payload))
   } catch (error) {
     console.error('Failed to load dashboard information:', error)
 
@@ -204,7 +234,7 @@ async function loadAnimals() {
 }
 
 function loadDashboardCache() {
-  const cached = localStorage.getItem(DASHBOARD_CACHE_KEY)
+  const cached = dashboardStorage.getItem(DASHBOARD_CACHE_KEY)
   if (!cached) {
     return
   }
@@ -273,26 +303,50 @@ const onRecordHeat = async (data: any) => {
       notes: data.notes,
       hasEmbryoTransfer: data.hasEmbryoTransfer
     })
-    
-    await refreshDashboard()
+    if (data.hasEmbryoTransfer && data.embryoRecordId) {
+      try {
+        await assignEmbryo(data.embryoRecordId, data.animalId)
+      } catch (error) {
+        console.warn('Heat saved, but the embryo could not be reserved:', error)
+        alert('Heat was saved, but the embryo could not be reserved. Select it again when recording the transfer.')
+      }
+    }
+    data.complete?.(true)
     alert('Heat event recorded successfully!')
   } catch (error) {
-    alert(`Error recording heat: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    data.complete?.(false, message)
+    alert(`Error recording heat: ${message}`)
     console.error('Failed to record heat:', error)
+    return
+  }
+
+  try {
+    await refreshDashboard()
+  } catch (error) {
+    console.warn('Heat saved, but the dashboard could not be refreshed:', error)
   }
 }
 
 // Handle breeding recording
 const onRecordBreeding = async (data: any) => {
   try {
-    await recordBreeding({
-      animalId: data.animalId,
-      breedingDate: data.breedingDate,
-      sireUsed: data.sireUsed,
-      breedingType: data.breedingType,
-      pregnancyStatus: data.pregnancyStatus,
-      notes: data.notes
-    })
+    if (data.breedingType === 2 && data.embryoRecordId) {
+      await implantEmbryo(
+        data.embryoRecordId,
+        data.animalId,
+        data.breedingDate
+      )
+    } else {
+      await recordBreeding({
+        animalId: data.animalId,
+        breedingDate: data.breedingDate,
+        sireUsed: data.sireUsed,
+        breedingType: data.breedingType,
+        pregnancyStatus: data.pregnancyStatus,
+        notes: data.notes
+      })
+    }
     
     await refreshDashboard()
     alert('Breeding event recorded successfully!')
@@ -320,12 +374,20 @@ const onRecordCalving = async (data: any) => {
       stillborn: data.stillborn,
       notes: data.notes
     })
-    
-    await refreshDashboard()
+    data.complete?.(true)
     alert('Calving event recorded successfully! Cow moved to Milking status.')
   } catch (error) {
-    alert(`Error recording calving: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    data.complete?.(false, message)
+    alert(`Error recording calving: ${message}`)
     console.error('Failed to record calving:', error)
+    return
+  }
+
+  try {
+    await refreshDashboard()
+  } catch (error) {
+    console.warn('Calving saved, but the dashboard could not be refreshed:', error)
   }
 }
 
@@ -526,9 +588,9 @@ onMounted(() => {
 
     <section
       v-if="loading"
-      class="card"
+      class="card dashboard-loader"
     >
-      <p>Loading dashboard...</p>
+      <HerdLoadingScene message="Opening your herd..." />
     </section>
 
     <section
@@ -546,10 +608,10 @@ onMounted(() => {
       </section>
 
       <section class="quick-actions-bar">
-        <button @click="openHeatModal" class="quick-btn heat-btn">💉 Record Heat</button>
-        <button @click="openLUTModal()" class="quick-btn lut-btn">💉 LUT Injection</button>
-        <button @click="router.push('/reports?tab=embryos')" class="quick-btn embryo-btn">🧬 Embryo Inventory</button>
-        <button @click="openReports" class="quick-btn report-btn">📋 Reports</button>
+        <button @click="openHeatModal" class="quick-btn heat-btn"><RetroIcon name="heat" :size="28" /> Record Heat</button>
+        <button @click="openLUTModal()" class="quick-btn lut-btn"><RetroIcon name="lut" :size="28" /> LUT Injection</button>
+        <button @click="router.push('/reports?tab=embryos')" class="quick-btn embryo-btn"><RetroIcon name="embryo" :size="28" /> Embryo Inventory</button>
+        <button @click="openReports" class="quick-btn report-btn"><RetroIcon name="reports" :size="28" /> Reports</button>
       </section>
 
       <div class="mobile-fab-wrap">
@@ -572,7 +634,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <DashboardSummary :key="dashboardRefreshKey" />
+      <DashboardSummary :key="dashboardRefreshKey" :animals="animals" />
 
       <section class="herd-section">
         <div class="herd-header">
@@ -654,7 +716,7 @@ onMounted(() => {
             <!-- Main clickable area -->
             <button class="player-card-body" type="button" @click="router.push(`/animals/${animal.animalId}`)">
               <div class="player-name">
-                {{ animal.barnName || animal.registeredName || `Animal #${animal.animalId}` }}
+                {{ dashboardAnimalName(animal) }}
               </div>
 
               <div class="player-meta">
@@ -690,7 +752,7 @@ onMounted(() => {
             <!-- Action row -->
             <div class="player-card-actions">
               <button @click.stop="openHeatModal" class="pca-btn pca-heat" title="Record Heat">Heat</button>
-              <button @click.stop="openBreedingModal(animal.animalId, animal.barnName || animal.registeredName || `#${animal.animalId}`)" class="pca-btn pca-breed" title="Record Breeding">Breed</button>
+              <button @click.stop="openBreedingModal(animal.animalId, dashboardAnimalName(animal))" class="pca-btn pca-breed" title="Record Breeding">Breed</button>
               <button @click.stop="openEditModal(animal)" class="pca-btn pca-edit" title="Edit">Edit</button>
               <button @click.stop="router.push(`/animals/${animal.animalId}`)" class="pca-btn pca-open" title="Open">Open →</button>
             </div>
@@ -944,6 +1006,66 @@ onMounted(() => {
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 8px 24px rgba(17, 33, 20, 0.05);
+}
+
+.dashboard-loader {
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  color: #18311f;
+  text-align: left;
+}
+
+.dashboard-loader h2,
+.dashboard-loader p {
+  margin: 0;
+}
+
+.loader-kicker {
+  color: #6b7c6d;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.dashboard-loader h2 {
+  margin-top: 4px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.55rem, 5vw, 2.1rem);
+}
+
+.loader-copy {
+  margin-top: 6px !important;
+  color: #667369;
+  font-size: 0.82rem;
+}
+
+.loader-mark {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  border-radius: 50%;
+  background: #e7efe8;
+}
+
+.loader-mark span {
+  width: 5px;
+  border-radius: 999px;
+  background: #31572c;
+  animation: herd-loading 0.9s ease-in-out infinite alternate;
+}
+
+.loader-mark span:nth-child(1) { height: 9px; }
+.loader-mark span:nth-child(2) { height: 18px; animation-delay: 0.15s; }
+.loader-mark span:nth-child(3) { height: 13px; animation-delay: 0.3s; }
+
+@keyframes herd-loading {
+  to { height: 24px; opacity: 0.55; }
 }
 
 .error-card {
@@ -1347,7 +1469,12 @@ onMounted(() => {
 }
 
 .quick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
   flex: 1 1 180px;
+  min-height: 54px;
   padding: 10px 14px;
   border: 1px solid #31572c;
   border-bottom: 3px solid #244f2f;
@@ -1446,7 +1573,8 @@ onMounted(() => {
 
   .quick-btn {
     flex: 1 1 calc(50% - 8px);
-    padding: 8px 10px;
+    min-height: 52px;
+    padding: 8px 12px;
     font-size: 0.84rem;
   }
 
@@ -1469,9 +1597,7 @@ onMounted(() => {
     top: 2px;
   }
 
-  .quick-btn {
-    flex: 1 1 100%;
-  }
+  .quick-btn { flex: 1 1 calc(50% - 8px); }
 }
 
 /* Enhanced Search Input */

@@ -34,10 +34,26 @@
         <div class="form-group">
           <label>Breeding Type:</label>
           <select v-model="breedingType" class="form-input">
-            <option value="0">Natural</option>
-            <option value="1">AI (Artificial Insemination)</option>
+            <option value="0">AI (Artificial Insemination)</option>
+            <option value="1">Natural</option>
             <option value="2">Embryo Transfer</option>
           </select>
+        </div>
+
+        <div v-if="breedingType === '2'" class="form-group">
+          <label>Embryo:</label>
+          <select v-model="selectedEmbryoId" class="form-input">
+            <option value="">-- Select Inventory Embryo --</option>
+            <option
+              v-for="embryo in availableEmbryos"
+              :key="embryo.embryoRecordId"
+              :value="String(embryo.embryoRecordId)"
+            >
+              {{ embryo.code || `Embryo #${embryo.embryoRecordId}` }}
+              <template v-if="embryo.sire"> · {{ embryo.sire }}</template>
+            </option>
+          </select>
+          <small>The transfer will link this embryo to {{ animalName }} and remove it from available inventory.</small>
         </div>
 
         <div class="form-group">
@@ -65,6 +81,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { getAllEmbryos, type EmbryoRecord } from '../api/embryoRecords'
 
 const isOpen = ref(false)
 const animalId = ref<number | null>(null)
@@ -73,6 +90,8 @@ const breedingDate = ref(new Date().toISOString().split('T')[0])
 const sireUsed = ref('')
 const customSire = ref('')
 const breedingType = ref('1')
+const selectedEmbryoId = ref('')
+const availableEmbryos = ref<EmbryoRecord[]>([])
 const notes = ref('')
 const pregnancyStatus = ref('3')
 const recentSires = ref<string[]>(['Seashore', 'Robust', 'Elevation'])
@@ -82,16 +101,26 @@ const emit = defineEmits<{
   recordBreeding: [data: any]
 }>()
 
-const openModal = (id: number, name: string) => {
+const openModal = async (id: number, name: string) => {
   animalId.value = id
   animalName.value = name
   breedingDate.value = new Date().toISOString().split('T')[0]
   sireUsed.value = ''
   customSire.value = ''
-  breedingType.value = '1'
+  breedingType.value = '0'
+  selectedEmbryoId.value = ''
   notes.value = ''
   pregnancyStatus.value = '3'
   isOpen.value = true
+  try {
+    availableEmbryos.value = (await getAllEmbryos())
+      .filter(embryo =>
+        embryo.status === 0
+        || (embryo.status === 1 && embryo.recipientAnimalId === id))
+  } catch (error) {
+    console.error('Failed to load embryo inventory:', error)
+    availableEmbryos.value = []
+  }
 }
 
 const closeModal = () => {
@@ -106,6 +135,10 @@ const recordBreeding = async () => {
   }
 
   const finalSire = sireUsed.value === '---' ? customSire.value : sireUsed.value
+  if (breedingType.value === '2' && !selectedEmbryoId.value) {
+    alert('Please select the embryo being transferred')
+    return
+  }
 
   emit('recordBreeding', {
     animalId: animalId.value,
@@ -113,7 +146,10 @@ const recordBreeding = async () => {
     sireUsed: finalSire || 'Unknown',
     breedingType: parseInt(breedingType.value),
     notes: notes.value || null,
-    pregnancyStatus: parseInt(pregnancyStatus.value)
+    pregnancyStatus: parseInt(pregnancyStatus.value),
+    embryoRecordId: selectedEmbryoId.value
+      ? parseInt(selectedEmbryoId.value)
+      : null
   })
 
   closeModal()

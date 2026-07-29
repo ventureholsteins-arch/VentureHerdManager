@@ -1,4 +1,27 @@
 const API_BASE = import.meta.env.VITE_API_URL
+// A fresh isolated demo session may need to wake Azure SQL and seed all sample
+// records. Do not cancel that one-time setup while the server is still working.
+const DEMO_REQUEST_TIMEOUT_MS = 180_000
+
+async function fetchDemo(
+  path: string,
+  options: RequestInit
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(
+    () => controller.abort(),
+    DEMO_REQUEST_TIMEOUT_MS
+  )
+
+  try {
+    return await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: controller.signal
+    })
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
 
 export interface DemoSeedResult {
   message: string
@@ -36,7 +59,26 @@ export interface DemoStatusResponse {
 export async function resetDemo(): Promise<DemoSeedResult> {
   const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
 
-  const response = await fetch(`${API_BASE}/demo/reset`, {
+  const response = await fetchDemo('/demo/reset', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(demoKey ? { 'X-Demo-Key': demoKey } : {})
+    }
+  })
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ message: 'Unknown error' }))
+    throw new Error((body as DemoSeedResult).message || `HTTP ${response.status}`)
+  }
+
+  return response.json() as Promise<DemoSeedResult>
+}
+
+export async function ensureDemo(): Promise<DemoSeedResult> {
+  const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
+
+  const response = await fetchDemo('/demo/ensure', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -55,7 +97,7 @@ export async function resetDemo(): Promise<DemoSeedResult> {
 export async function getDemoStatus(): Promise<DemoStatusResponse> {
   const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
 
-  const response = await fetch(`${API_BASE}/demo/status`, {
+  const response = await fetchDemo('/demo/status', {
     headers: {
       ...(demoKey ? { 'X-Demo-Key': demoKey } : {})
     }

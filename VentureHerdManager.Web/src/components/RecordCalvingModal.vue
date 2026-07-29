@@ -18,10 +18,20 @@
 
         <div class="form-group">
           <label>Upload Calf Photo:</label>
+          <small class="upload-hint">Camera Roll / Existing Photo</small>
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp"
+            aria-label="Choose existing calving photo from camera roll"
+            class="form-input"
+            @change="onCalfPhotoSelected"
+          >
+          <small class="upload-hint">Take New Photo</small>
           <input
             type="file"
             accept="image/*"
             capture="environment"
+            aria-label="Take a new calving photo"
             class="form-input"
             @change="onCalfPhotoSelected"
           >
@@ -97,9 +107,10 @@
         </div>
 
         <div class="form-group">
-          <button @click="recordCalving" class="btn-primary">
-            Record Calving (Move to Milking)
+          <button :disabled="saving" @click="recordCalving" class="btn-primary">
+            {{ saveButtonText }}
           </button>
+          <small v-if="saveError" class="save-error">{{ saveError }}</small>
         </div>
       </div>
     </div>
@@ -107,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { uploadPhoto } from '../api/photos'
 
 const isOpen = ref(false)
@@ -126,6 +137,8 @@ const stillborn = ref(false)
 const notes = ref('')
 const calfPhotoFile = ref<File | null>(null)
 const isUploadingPhoto = ref(false)
+const saving = ref(false)
+const saveError = ref('')
 
 const emit = defineEmits<{
   close: []
@@ -148,6 +161,8 @@ const openModal = (id: number, name: string) => {
   notes.value = ''
   calfPhotoFile.value = null
   isUploadingPhoto.value = false
+  saving.value = false
+  saveError.value = ''
   isOpen.value = true
 }
 
@@ -161,12 +176,20 @@ const onCalfPhotoSelected = (event: Event) => {
   calfPhotoFile.value = input.files?.[0] ?? null
 }
 
+const saveButtonText = computed(() => {
+  if (isUploadingPhoto.value) return 'Uploading Photo…'
+  if (saving.value) return 'Saving Calving…'
+  return 'Record Calving (Move to Milking)'
+})
+
 const recordCalving = async () => {
   if (!animalId.value || !calvingDate.value) {
     alert('Please fill in required fields')
     return
   }
 
+  saving.value = true
+  saveError.value = ''
   let pictureUrl: string | null = null
 
   if (calfPhotoFile.value) {
@@ -174,7 +197,10 @@ const recordCalving = async () => {
       isUploadingPhoto.value = true
       pictureUrl = await uploadPhoto(calfPhotoFile.value, 'calving-events')
     } catch (error) {
-      alert(`Error uploading photo: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      saveError.value = error instanceof Error
+        ? error.message
+        : 'Photo could not be uploaded.'
+      saving.value = false
       isUploadingPhoto.value = false
       return
     } finally {
@@ -195,10 +221,16 @@ const recordCalving = async () => {
     calvingEase: parseInt(calvingEase.value),
     twins: twins.value,
     stillborn: stillborn.value,
-    notes: notes.value || null
+    notes: notes.value || null,
+    complete: (success: boolean, message?: string) => {
+      saving.value = false
+      if (success) {
+        closeModal()
+      } else {
+        saveError.value = message || 'Calving could not be saved. Please try again.'
+      }
+    }
   })
-
-  closeModal()
 }
 
 defineExpose({
@@ -312,10 +344,22 @@ textarea.form-input {
   background: #254520;
 }
 
+.btn-primary:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .upload-hint {
   display: block;
   margin-top: 6px;
   color: #475569;
+  font-size: 0.85rem;
+}
+
+.save-error {
+  display: block;
+  margin-top: 10px;
+  color: #b91c1c;
   font-size: 0.85rem;
 }
 </style>

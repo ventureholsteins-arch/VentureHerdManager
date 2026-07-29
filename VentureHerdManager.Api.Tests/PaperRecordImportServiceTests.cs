@@ -107,6 +107,31 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MatchesConfirmedChaChingPaperAlias()
+    {
+        _context.Animals.Add(new Animal
+        {
+            BarnName = "Cha Ching",
+            RegisteredName = "VENTURE BEEMER CHA CHING",
+            RegistrationNumber = "3249920156"
+        });
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Chaching,,,,Paper spelling omits the space,Yes"],
+            ["Chaching,2026-05-02,Venmo,,Breeding,"],
+            []);
+
+        var report = await _service.ReconcileAsync(_sourceDirectory, true);
+
+        Assert.Equal(1, report.AnimalMatches);
+        Assert.Equal(0, report.AnimalsCreated);
+        Assert.Single(await _context.Animals.ToListAsync());
+        Assert.Equal(
+            "Cha Ching",
+            (await _context.BreedingEvents.SingleAsync()).Animal!.BarnName);
+    }
+
+    [Fact]
     public async Task ReconcilesAllProvidedPaperFilesOnAnEmptyDatabase()
     {
         var source = Path.GetFullPath(Path.Combine(

@@ -436,12 +436,16 @@ public sealed class PaperRecordImportService
         {
             return string.Empty;
         }
-        return string.Join(
+        var normalized = string.Join(
                 ' ',
                 value.Normalize(NormalizationForm.FormKC)
                     .Trim()
                     .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
             .ToLowerInvariant();
+
+        // Confirmed paper/database spelling variant. Keep aliases explicit so
+        // unrelated animals are never joined by broad fuzzy matching.
+        return normalized == "chaching" ? "cha ching" : normalized;
     }
 
     private static void PreservePaperNote(Animal animal, CsvRow row)

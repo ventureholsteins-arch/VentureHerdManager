@@ -43,6 +43,17 @@ public class EmbryoRecordsController : ControllerBase
         return record;
     }
 
+    [HttpGet("recipient/{animalId:int}")]
+    public async Task<ActionResult<List<EmbryoRecord>>> GetForRecipient(int animalId)
+    {
+        return await _context.EmbryoRecords
+            .AsNoTracking()
+            .Where(e => e.RecipientAnimalId == animalId)
+            .OrderByDescending(e => e.ImplantDate)
+            .ThenByDescending(e => e.CreatedAt)
+            .ToListAsync();
+    }
+
     [HttpPost]
     public async Task<ActionResult<EmbryoRecord>> Create(EmbryoRecord record)
     {
@@ -73,6 +84,7 @@ public class EmbryoRecordsController : ControllerBase
                 Code = request.Embryo.Code,
                 Sire = request.Embryo.Sire,
                 Donor = request.Embryo.Donor,
+                Mating = request.Embryo.Mating,
                 DonorAnimalId = request.Embryo.DonorAnimalId,
                 Grade = request.Embryo.Grade,
                 GroupName = request.Embryo.GroupName,
@@ -118,6 +130,7 @@ public class EmbryoRecordsController : ControllerBase
         existing.Code = record.Code;
         existing.Sire = record.Sire;
         existing.Donor = record.Donor;
+        existing.Mating = record.Mating;
         existing.DonorAnimalId = record.DonorAnimalId;
         existing.Grade = record.Grade;
         existing.GroupName = record.GroupName;
@@ -370,6 +383,7 @@ public class EmbryoRecordsController : ControllerBase
         record.Code = Clean(record.Code);
         record.Sire = Clean(record.Sire);
         record.Donor = Clean(record.Donor);
+        record.Mating = Clean(record.Mating) ?? BuildEmbryoName(record);
         record.Grade = Clean(record.Grade);
         record.GroupName = Clean(record.GroupName)
             ?? BuildEmbryoName(record);
@@ -399,7 +413,7 @@ public class EmbryoRecordsController : ControllerBase
 
         breeding.AnimalId = record.RecipientAnimalId!.Value;
         breeding.BreedingDate = implantDate;
-        breeding.SireUsed = record.Sire ?? record.Code ?? "Embryo transfer";
+        breeding.SireUsed = record.Mating ?? record.Sire ?? record.Code ?? "Embryo transfer";
         breeding.BreedingType = BreedingType.EmbryoTransfer;
         breeding.PregnancyCheckDueDate =
             implantDate.AddDays(PregnancyCheckAfterTransferDays);

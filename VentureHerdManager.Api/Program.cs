@@ -56,6 +56,7 @@ builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<CalendarService>();
 builder.Services.AddScoped<DemoSessionMaintenanceService>();
 builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
+builder.Services.AddScoped<PaperRecordImportService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -400,6 +401,7 @@ static async Task InitializeDatabaseAsync(WebApplication app)
                     [Code]                  NVARCHAR(200) NULL,
                     [Sire]                  NVARCHAR(200) NULL,
                     [Donor]                 NVARCHAR(200) NULL,
+                    [Mating]                NVARCHAR(400) NULL,
                     [DonorAnimalId]         INT NULL,
                     [Grade]                 NVARCHAR(100) NULL,
                     [GroupName]             NVARCHAR(200) NULL,

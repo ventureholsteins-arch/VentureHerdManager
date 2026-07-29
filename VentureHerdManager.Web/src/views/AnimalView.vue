@@ -35,6 +35,7 @@ import {
 import {
   assignEmbryo,
   getAllEmbryos,
+  getEmbryosForRecipient,
   implantEmbryo,
   type EmbryoRecord
 } from '../api/embryoRecords'
@@ -152,6 +153,7 @@ const breedingNotes = ref('')
 const breedingDate = ref(new Date().toISOString().slice(0, 10))
 const selectedEmbryoId = ref<number | null>(null)
 const availableEmbryos = ref<EmbryoRecord[]>([])
+const recipientEmbryos = ref<EmbryoRecord[]>([])
 
 const showPregCheckForm = ref(false)
 const selectedBreedingId = ref<number | null>(null)
@@ -360,14 +362,16 @@ async function loadAnimalDetails() {
     loadedCalvings,
     loadedDryOffs,
     loadedLut,
-    loadedNotes
+    loadedNotes,
+    loadedRecipientEmbryos
   ] = await Promise.all([
     getHeatEvents(animalId.value).catch(() => null),
     getBreedings(animalId.value).catch(() => null),
     getCalvings(animalId.value).catch(() => null),
     getDryOffEvents(animalId.value).catch(() => null),
     getLutEvents(animalId.value).catch(() => null),
-    getAnimalNotes(animalId.value).catch(() => null)
+    getAnimalNotes(animalId.value).catch(() => null),
+    getEmbryosForRecipient(animalId.value).catch(() => null)
   ])
 
   if (loadedHeats) heatEvents.value = loadedHeats
@@ -376,6 +380,7 @@ async function loadAnimalDetails() {
   if (loadedDryOffs) dryOffEvents.value = loadedDryOffs
   if (loadedLut) lutEvents.value = loadedLut
   if (loadedNotes) animalNotes.value = loadedNotes
+  if (loadedRecipientEmbryos) recipientEmbryos.value = loadedRecipientEmbryos
   detailsLoading.value = false
 }
 
@@ -669,6 +674,18 @@ function pregnancyStatusLabel(status: number) {
     2: 'Open',
     3: 'Recheck',
     4: 'Aborted'
+  }
+
+  return statuses[status] ?? 'Unknown'
+}
+
+function embryoStatusLabel(status: number) {
+  const statuses: Record<number, string> = {
+    0: 'In storage',
+    1: 'Assigned',
+    2: 'Implanted — outcome pending',
+    3: 'Did not stick',
+    4: 'Successful — pregnancy confirmed'
   }
 
   return statuses[status] ?? 'Unknown'
@@ -1030,6 +1047,31 @@ const scoreLabel = computed(() => {
         <div class="info-card">
           <span>Score</span>
           <strong>{{ scoreLabel }}</strong>
+        </div>
+      </section>
+
+      <section v-if="recipientEmbryos.length > 0" class="panel">
+        <h2>Embryo Transfers</h2>
+
+        <div
+          v-for="embryo in recipientEmbryos"
+          :key="`recipient-embryo-${embryo.embryoRecordId}`"
+          class="timeline-card"
+        >
+          <strong>
+            <RetroIcon name="embryo" :size="26" />
+            {{ embryo.mating || `${embryo.donor || 'Unknown dam'} × ${embryo.sire || 'Unknown sire'}` }}
+          </strong>
+          <small>{{ embryoStatusLabel(embryo.status) }}</small>
+          <p><b>Embryo dam:</b> {{ embryo.donor || 'Not recorded' }}</p>
+          <p><b>Embryo sire:</b> {{ embryo.sire || 'Not recorded' }}</p>
+          <p><b>Mating:</b> {{ embryo.mating || 'Not recorded' }}</p>
+          <p>
+            <b>Implant date:</b>
+            {{ embryo.implantDate ? new Date(`${embryo.implantDate}T00:00:00`).toLocaleDateString() : 'Not recorded' }}
+          </p>
+          <p><b>Recipient:</b> {{ animalDisplayName }}</p>
+          <p v-if="embryo.failureNotes"><b>Outcome notes:</b> {{ embryo.failureNotes }}</p>
         </div>
       </section>
 

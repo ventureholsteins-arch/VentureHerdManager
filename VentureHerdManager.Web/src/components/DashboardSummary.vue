@@ -57,12 +57,13 @@ const pregCheckStageOptions: Array<[PregCheckStage, string]> = [
 ]
 const filteredPregChecks = computed(() => {
   const items = dashboard.value.pregChecksDue ?? []
-  const stage = {
+  if (pregCheckStage.value === 'all') return items
+  const stage: number = {
     milking: 3,
     heifers: 2,
     dry: 4
   }[pregCheckStage.value]
-  return stage ? items.filter(item => item.animalStage === stage) : items
+  return items.filter(item => item.animalStage === stage)
 })
 let retryTimer: number | null = null
 

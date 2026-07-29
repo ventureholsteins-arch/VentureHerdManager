@@ -410,12 +410,12 @@ public class ApplicationDbContext : DbContext
         entity.HasKey(e => e.EmbryoRecordId);
 
         entity.HasOne(e => e.RecipientAnimal)
-            .WithMany()
+            .WithMany(a => a.EmbryosAsRecipient)
             .HasForeignKey(e => e.RecipientAnimalId)
             .OnDelete(DeleteBehavior.SetNull);
 
         entity.HasOne(e => e.DonorAnimal)
-            .WithMany()
+            .WithMany(a => a.EmbryosAsDonor)
             .HasForeignKey(e => e.DonorAnimalId)
             .OnDelete(DeleteBehavior.NoAction);
 

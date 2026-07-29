@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "VentureHerdManager.Api/**"
+      - ".github/workflows/main_ventureherdmanager-api.yml"
   workflow_dispatch:
 
 jobs:
@@ -54,6 +57,15 @@ jobs:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_265FF0F656EF47FBBF9E835F11A0D45B }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_0F4DB77FC3974DDEBD9612AD32C69E84 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_68D5FF2F7C4F4A2680AD4B782F204519 }}
+
+      - name: Configure API startup
+        uses: azure/cli@v2
+        with:
+          inlineScript: >
+            az webapp config set
+            --resource-group VentureHerdMananger
+            --name ventureherdmanager-api
+            --startup-file "dotnet VentureHerdManager.Api.dll"
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp

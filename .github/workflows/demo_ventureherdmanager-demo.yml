@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - demo
+    paths:
+      - "VentureHerdManager.Web/**"
+      - ".github/workflows/demo_ventureherdmanager-demo.yml"
 
 jobs:
   build_and_deploy:

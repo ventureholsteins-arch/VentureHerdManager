@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - demo
+    paths:
+      - "VentureHerdManager.Api/**"
+      - ".github/workflows/demo-api.yml"
   workflow_dispatch:
 
 jobs:
@@ -54,6 +57,15 @@ jobs:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_834846F655154FD2B2367AF471B74BFC }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_42FA626C45354D3BB3461FCEBCD0838D }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F9A546A8675146939A9EC31824FDA1B2 }}
+
+      - name: Configure API startup
+        uses: azure/cli@v2
+        with:
+          inlineScript: >
+            az webapp config set
+            --resource-group VentureHerdMananger
+            --name Demo-API-123
+            --startup-file "dotnet VentureHerdManager.Api.dll"
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp

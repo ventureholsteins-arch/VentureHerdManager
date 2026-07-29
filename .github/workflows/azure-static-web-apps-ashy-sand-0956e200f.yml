@@ -4,10 +4,16 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "VentureHerdManager.Web/**"
+      - ".github/workflows/azure-static-web-apps-ashy-sand-0956e200f.yml"
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
       - main
+    paths:
+      - "VentureHerdManager.Web/**"
+      - ".github/workflows/azure-static-web-apps-ashy-sand-0956e200f.yml"
 
 jobs:
   build_and_deploy_job:

@@ -198,11 +198,6 @@ async function openReportSection(section: ReportSection) {
           <h2>Today at a glance</h2>
         </div>
       </div>
-      <label class="due-window-toggle">
-        <input v-model="dueWithin60" type="checkbox" @change="loading = true; loadDashboardSummary(false)">
-        Show due within 60 days
-      </label>
-
       <div class="herd-metrics-row">
         <div class="metric-mini">
           <small>Avg Score</small>
@@ -241,7 +236,7 @@ async function openReportSection(section: ReportSection) {
 
           <div>
             <strong>{{ dashboard.dueSoonCount }}</strong>
-            <small>Due within 30 days</small>
+            <small>Due within {{ dueWithin60 ? 60 : 30 }} days</small>
           </div>
         </button>
 
@@ -330,7 +325,15 @@ async function openReportSection(section: ReportSection) {
         <div class="panel-heading">
           <div>
             <p class="eyebrow">UPCOMING</p>
-            <h3>Due within 30 days</h3>
+            <h3>Due within {{ dueWithin60 ? 60 : 30 }} days</h3>
+            <label class="due-window-toggle" @click.stop>
+              <input
+                v-model="dueWithin60"
+                type="checkbox"
+                @change="loading = true; loadDashboardSummary(false)"
+              >
+              Show due within 60 days
+            </label>
           </div>
 
           <span class="count-badge">
@@ -725,6 +728,24 @@ async function openReportSection(section: ReportSection) {
 
 .panel-heading h3 {
   font-size: 1.3rem;
+}
+
+.due-window-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: #35543c;
+  font-size: 0.84rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.due-window-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #31572c;
 }
 
 .count-badge {

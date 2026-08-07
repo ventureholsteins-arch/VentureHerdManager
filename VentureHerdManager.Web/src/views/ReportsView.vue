@@ -517,6 +517,7 @@ const showStringUnassigned = computed(() =>
 )
 const embryosActive = computed(() => embryoRecords.value.filter(e => e.status !== 'Failed'))
 const embryosFailed = computed(() => embryoRecords.value.filter(e => e.status === 'Failed'))
+const hasNoAnimals = computed(() => animals.value.length === 0)
 
 function getAnimalLabel(animalId: number | null): string {
   if (!animalId) return 'Unassigned'
@@ -1130,6 +1131,10 @@ onMounted(async () => {
       </div>
       <p class="rp-hint">Track storage, assign recipients, log implants. Mark Failed when it didn't stick — those show below.</p>
 
+      <div v-if="hasNoAnimals" class="rp-error">
+        Herd data is empty right now, so embryos and bagging may look missing. Use Reload Data above.
+      </div>
+
       <p v-if="embryoLoadError" class="rp-error">{{ embryoLoadError }}</p>
 
       <div v-if="embryosActive.length === 0 && embryosFailed.length === 0" class="rp-empty">No embryos found yet. Add your first record.</div>
@@ -1390,7 +1395,14 @@ onMounted(async () => {
     <section v-else-if="activeTab === 'showBagging'" class="rp-panel">
       <div class="rp-ph">
         <h2>Show Bagging Planner</h2>
-        <button type="button" class="rp-add-btn" @click="addBlankBaggingRow">+ Blank Row</button>
+        <div class="rp-ph-actions">
+          <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload Data</button>
+          <button type="button" class="rp-add-btn" @click="addBlankBaggingRow">+ Blank Row</button>
+        </div>
+      </div>
+
+      <div v-if="hasNoAnimals" class="rp-error" style="margin-bottom: 12px;">
+        No cows are loaded in this environment yet. Bagging add/search needs herd animals. Try Reload Data.
       </div>
 
       <div class="bagging-top-grid">

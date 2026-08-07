@@ -17,6 +17,7 @@ import {
   previewPcdartImport,
   type PcdartImportResult
 } from '../api/pcdartImport'
+import { ensureDemo } from '../api/demo'
 import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 
@@ -92,6 +93,7 @@ interface AchievementRecord {
 
 const router = useRouter()
 const route = useRoute()
+const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
 const activeTab = ref<HubTab>('embryos')
 const loading = ref(true)
 const animals = ref<Animal[]>([])
@@ -864,6 +866,30 @@ function addAchievement() {
   achievements.value.push({ id: nextAchievementId.value++, animalId: null, showName: '', showDate: '', bagged: '', placed: '', notes: '' })
 }
 
+async function reloadReportsData() {
+  loading.value = true
+  embryoLoadError.value = ''
+  embryoImplantsError.value = ''
+  analyticsError.value = ''
+
+  try {
+    if (isDemoOnly) {
+      await ensureDemo()
+    }
+
+    animals.value = await getAnimals()
+    await loadRemoteEmbryos()
+    await loadRemoteAchievements()
+    await loadEmbryoImplants()
+    await loadAnalytics()
+  } catch (error) {
+    console.error('Failed to reload reports data:', error)
+    embryoLoadError.value = 'Could not refresh report data right now. Try again in a moment.'
+  } finally {
+    loading.value = false
+  }
+}
+
 function openAchievementsForShow(showName: string) {
   activeTab.value = 'achievements'
   achievementSearch.value = showName
@@ -936,11 +962,7 @@ onMounted(async () => {
       activeTab.value = 'achievements'
     }
   }
-  try { animals.value = await getAnimals() } catch (e) { console.error('Failed to load animals:', e) } finally { loading.value = false }
-  await loadRemoteEmbryos()
-  await loadRemoteAchievements()
-  loadAnalytics()
-  loadEmbryoImplants()
+  await reloadReportsData()
 })
 </script>
 
@@ -1101,7 +1123,10 @@ onMounted(async () => {
     <section v-else-if="activeTab === 'embryos'" class="rp-panel">
       <div class="rp-ph">
         <h2>Embryo Inventory</h2>
-        <button type="button" class="rp-add-btn" @click="addEmbryoRecord">+ Add Embryo</button>
+        <div class="rp-ph-actions">
+          <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload Data</button>
+          <button type="button" class="rp-add-btn" @click="addEmbryoRecord">+ Add Embryo</button>
+        </div>
       </div>
       <p class="rp-hint">Track storage, assign recipients, log implants. Mark Failed when it didn't stick — those show below.</p>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { getAnimals } from '../api/animals'
@@ -145,6 +145,7 @@ const pcdartResult = ref<PcdartImportResult | null>(null)
 const pcdartError = ref('')
 const pcdartApplySuggested = ref(true)
 const embryoLoadError = ref('')
+const baggingActionStatus = ref('')
 
 const listKey = 'venture-herd-lists-v2'
 const showStringKey = 'venture-herd-show-string-v2'
@@ -439,9 +440,25 @@ const showBaggingBrowseAnimals = computed(() => {
   const q = showBaggingSearch.value.trim().toLowerCase()
   if (!q) return animalOptions.value.slice(0, 40)
   return animalOptions.value
-    .filter(a => (a.barnName || a.registeredName || '').toLowerCase().includes(q))
+    .filter(a => {
+      const haystack = [
+        a.barnName,
+        a.registeredName,
+        a.registrationNumber,
+        a.sireName,
+        a.damName,
+        a.breed
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return haystack.includes(q)
+    })
     .slice(0, 40)
 })
+
+const showBaggingMatchCount = computed(() => showBaggingBrowseAnimals.value.length)
 
 const showBaggingRowsSorted = computed(() => [...showBaggingRows.value].sort((left, right) => left.lineupOrder - right.lineupOrder))
 
@@ -534,6 +551,15 @@ function addToShowString(animal: Animal) {
 }
 
 function addShowBaggingRow(animal: Animal) {
+  const existing = showBaggingRows.value.find(row => row.animalId === animal.animalId)
+  if (existing) {
+    baggingActionStatus.value = `${animal.barnName || animal.registeredName || `#${animal.animalId}`} is already in bagging rows.`
+    nextTick(() => {
+      document.getElementById('bagging-rows')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return
+  }
+
   const entryTime = showBaggingStartTime.value || toLocalDateTimeInput(new Date())
   const quarters = createDefaultBaggingQuarters()
 
@@ -548,6 +574,23 @@ function addShowBaggingRow(animal: Animal) {
     notes: '',
     quarters
   })
+
+  baggingActionStatus.value = `Added ${animal.barnName || animal.registeredName || `#${animal.animalId}`} to bagging rows.`
+  showBaggingSearch.value = ''
+
+  nextTick(() => {
+    document.getElementById('bagging-rows')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function quickAddFirstBaggingMatch() {
+  const first = showBaggingBrowseAnimals.value[0]
+  if (!first) {
+    baggingActionStatus.value = 'No matching cow found for this search.'
+    return
+  }
+
+  addShowBaggingRow(first)
 }
 
 function addBlankBaggingRow() {
@@ -1354,6 +1397,11 @@ onMounted(async () => {
       <div class="bagging-search-panel">
         <div class="browse-label">Quick Cow Search</div>
         <input v-model="showBaggingSearch" type="search" class="rp-list-search" placeholder="Search barn name or registered name…" />
+        <div class="bagging-search-tools">
+          <span>{{ showBaggingMatchCount }} matches</span>
+          <button type="button" class="rp-add-btn" @click="quickAddFirstBaggingMatch">Add First Match</button>
+        </div>
+        <p v-if="baggingActionStatus" class="rp-hint">{{ baggingActionStatus }}</p>
         <div class="browse-grid">
           <div v-for="animal in showBaggingBrowseAnimals" :key="`bag-${animal.animalId}`" class="browse-row">
             <div class="browse-info">
@@ -1368,6 +1416,8 @@ onMounted(async () => {
       </div>
 
       <div v-if="showBaggingRowsSorted.length === 0" class="rp-empty">Add a cow above to start bagging.</div>
+
+      <div id="bagging-rows" />
 
       <div v-for="row in showBaggingRowsSorted" :key="row.id" class="bagging-card">
         <div class="bagging-card-hd">
@@ -1880,6 +1930,31 @@ textarea { min-height: 72px; resize: vertical; }
 .rp-lm-rm:hover { background: #fee2e2; }
 .lbl-notes { display: grid; gap: 6px; margin-top: 10px; color: #5d6f63; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; }
 
+/* show bagging */
+.bagging-top-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.bagging-summary-card { border: 1px solid #d9e3dc; border-radius: 8px; background: #f8fbf8; padding: 10px 12px; display: grid; gap: 4px; align-content: center; }
+.bagging-summary-card strong { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: #31572c; }
+.bagging-summary-card span { font-size: 1rem; font-weight: 900; color: #0f1f16; }
+.bagging-summary-card small { font-size: 0.8rem; color: #5d6f63; }
+.bagging-search-panel { border: 1px solid #d9e3dc; border-radius: 10px; padding: 12px; background: #f8fbf8; margin-bottom: 14px; }
+.bagging-search-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 0.82rem; color: #5d6f63; }
+.bagging-card { border: 1px solid #d9e3dc; border-radius: 10px; padding: 12px; background: #fff; margin: 10px 0; }
+.bagging-card-hd { display: flex; align-items: start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.bagging-show-link { border: none; background: transparent; color: #31572c; font-size: 1rem; font-weight: 900; padding: 0; cursor: pointer; text-align: left; }
+.bagging-cow-line { font-size: 0.85rem; color: #5d6f63; margin-top: 4px; }
+.bagging-card-actions { display: flex; gap: 8px; align-items: center; }
+.bagging-meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.bagging-success-toggle { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-size: 0.86rem; color: #0f1f16; }
+.bagging-entry-summary { border: 1px solid #e0e8e1; border-radius: 8px; padding: 10px; background: #f8fbf8; display: grid; gap: 4px; align-content: center; }
+.bagging-entry-summary strong { color: #0f1f16; font-size: 0.86rem; }
+.bagging-entry-summary span { color: #5d6f63; font-size: 0.82rem; }
+.bagging-udder-grid { display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.udder-quarter { border: 1px solid #c8d4cb; border-radius: 8px; background: #fff; color: #0f1f16; padding: 10px; display: grid; gap: 4px; cursor: pointer; text-align: left; }
+.udder-quarter:hover { border-color: #31572c; background: #f0f7f1; }
+.udder-quarter strong { font-size: 0.9rem; }
+.udder-quarter small { color: #5d6f63; font-size: 0.8rem; }
+.bagging-notes { display: grid; gap: 6px; }
+
 /* checklist */
 .rp-checklist { display: grid; gap: 6px; }
 .rp-check-row { display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; background: #f8fbf8; border: 1px solid #e0e8e1; }
@@ -1935,5 +2010,11 @@ textarea { min-height: 72px; resize: vertical; }
   .rp-row-card { grid-template-columns: 1fr; }
   .rp-full { grid-column: 1; }
   .rp-tabs button { padding: 12px 12px 9px; font-size: 0.75rem; }
+  .bagging-top-grid { grid-template-columns: 1fr; }
+  .bagging-meta-grid { grid-template-columns: 1fr; }
+  .bagging-udder-grid { grid-template-columns: 1fr; }
+  .bagging-card-hd { flex-direction: column; }
+  .bagging-card-actions { width: 100%; justify-content: space-between; }
+  .bagging-search-tools { flex-direction: column; align-items: stretch; }
 }
 </style>

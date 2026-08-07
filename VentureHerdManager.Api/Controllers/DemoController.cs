@@ -93,23 +93,37 @@ public class DemoController : ControllerBase
         await using var transaction =
             await _context.Database.BeginTransactionAsync(cancellationToken);
 
-        await _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken);
-        await _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken);
-        await _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken);
-        await _context.ShowAchievements.ExecuteDeleteAsync(cancellationToken);
-        await _context.EmbryoRecords.ExecuteDeleteAsync(cancellationToken);
-        await _context.HeatEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.BreedingEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.DryOffEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.LutalyseEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.CalvingEvents.ExecuteDeleteAsync(cancellationToken);
-        await _context.Animals.ExecuteUpdateAsync(
-            setters => setters
-                .SetProperty(a => a.DamId, (int?)null)
-                .SetProperty(a => a.SireId, (int?)null),
-            cancellationToken);
+        async Task SafeDbStep(string stepName, Func<Task> action)
+        {
+            try
+            {
+                await action();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DemoReset] Step '{stepName}' skipped: {ex.Message}");
+            }
+        }
 
-        await _context.Animals.ExecuteDeleteAsync(cancellationToken);
+        await SafeDbStep("AnimalPhotos delete", () => _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("AnimalNotes delete", () => _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("ClassificationRecords delete", () => _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("ShowAchievements delete", () => _context.ShowAchievements.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("EmbryoRecords delete", () => _context.EmbryoRecords.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("HeatEvents delete", () => _context.HeatEvents.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("BreedingEvents delete", () => _context.BreedingEvents.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("DryOffEvents delete", () => _context.DryOffEvents.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("LutalyseEvents delete", () => _context.LutalyseEvents.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("CalvingEvents delete", () => _context.CalvingEvents.ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep(
+            "Animals FK clear",
+            () => _context.Animals.ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(a => a.DamId, (int?)null)
+                    .SetProperty(a => a.SireId, (int?)null),
+                cancellationToken));
+
+        await SafeDbStep("Animals delete", () => _context.Animals.ExecuteDeleteAsync(cancellationToken));
 
         var utcNow = DateTime.UtcNow;
         const string seedUser = "DemoSeeder";

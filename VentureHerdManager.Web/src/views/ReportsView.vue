@@ -144,6 +144,7 @@ const pcdartImporting = ref(false)
 const pcdartResult = ref<PcdartImportResult | null>(null)
 const pcdartError = ref('')
 const pcdartApplySuggested = ref(true)
+const embryoLoadError = ref('')
 
 const listKey = 'venture-herd-lists-v2'
 const showStringKey = 'venture-herd-show-string-v2'
@@ -356,6 +357,8 @@ function embryoToApi(record: EmbryoRecord): Omit<ApiEmbryoRecord, 'embryoRecordI
 }
 
 async function loadRemoteEmbryos() {
+  embryoLoadError.value = ''
+
   try {
     const remote = await getAllEmbryos()
     if (remote.length === 0) {
@@ -366,6 +369,7 @@ async function loadRemoteEmbryos() {
     nextEmbryoId.value = Math.max(1, ...embryoRecords.value.map(record => record.id + 1), 1)
   } catch (error) {
     console.error('Failed to load embryo records:', error)
+    embryoLoadError.value = 'Embryo records could not be loaded from the server. Existing local data is still shown if available.'
   }
 }
 
@@ -1058,7 +1062,10 @@ onMounted(async () => {
       </div>
       <p class="rp-hint">Track storage, assign recipients, log implants. Mark Failed when it didn't stick — those show below.</p>
 
-      <div v-if="embryosActive.length === 0" class="rp-empty">No embryos in storage. Add your first record.</div>
+      <p v-if="embryoLoadError" class="rp-error">{{ embryoLoadError }}</p>
+
+      <div v-if="embryosActive.length === 0 && embryosFailed.length === 0" class="rp-empty">No embryos found yet. Add your first record.</div>
+      <div v-else-if="embryosActive.length === 0 && embryosFailed.length > 0" class="rp-empty">No embryos currently In Storage or Assigned. Check the Failed/Not Confirmed section below.</div>
 
       <div v-for="rec in embryosActive" :key="rec.id" class="emb-card" :class="`emb-${rec.status.toLowerCase().replace(' ', '-')}`">
         <div class="emb-hd">

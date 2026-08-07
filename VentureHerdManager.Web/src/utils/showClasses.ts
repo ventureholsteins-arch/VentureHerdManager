@@ -8,9 +8,11 @@ export function parseDateOnly(value: string | null | undefined): Date | null {
     return null
   }
 
-  const year = parts[0]!
-  const month = parts[1]!
-  const day = parts[2]!
+  const [year, month, day] = parts
+  if (year === undefined || month === undefined || day === undefined) {
+    return null
+  }
+
   return new Date(year, month - 1, day)
 }
 

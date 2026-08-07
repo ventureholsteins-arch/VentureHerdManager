@@ -11,6 +11,25 @@ export interface HeatEvent {
   createdBy?: string | null
 }
 
+export interface HeatRecordData {
+  animalId: number
+  heatDateTime: string
+  heatStrength: number
+  standingHeat: boolean
+  pictureUrl?: string | null
+  notes?: string | null
+  hasEmbryoTransfer?: boolean
+  embryoImplantDate?: string | null
+  createdBy?: string | null
+}
+
+type LegacyHeatRecordArgs = [
+  animalId: number,
+  notes: string,
+  pictureUrl?: string | null,
+  hasEmbryoTransfer?: boolean
+]
+
 export async function getHeatEvents(animalId: number): Promise<HeatEvent[]> {
   const response = await fetch(`${API_BASE}/HeatEvents/animal/${animalId}`)
 
@@ -22,14 +41,26 @@ export async function getHeatEvents(animalId: number): Promise<HeatEvent[]> {
 }
 
 export async function recordHeat(
-  animalId: number,
-  notes: string,
-  pictureUrl?: string | null,
-  hasEmbryoTransfer?: boolean
+  ...args: [HeatRecordData] | LegacyHeatRecordArgs
 ): Promise<void> {
-  const embryoImplantDate = hasEmbryoTransfer
-    ? new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    : null
+  const heatData =
+    typeof args[0] === 'object'
+      ? args[0]
+      : {
+          animalId: args[0],
+          heatDateTime: new Date().toISOString(),
+          heatStrength: 2,
+          standingHeat: false,
+          notes: args[1],
+          pictureUrl: args[2] ?? null,
+          hasEmbryoTransfer: args[3] ?? false,
+          embryoImplantDate: args[3]
+            ? new Date(
+                new Date().getTime() + 7 * 24 * 60 * 60 * 1000
+              ).toISOString()
+            : null,
+          createdBy: 'Austin'
+        }
 
   const response = await fetch(`${API_BASE}/HeatEvents`, {
     method: 'POST',
@@ -37,13 +68,15 @@ export async function recordHeat(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      animalId,
-      heatDateTime: new Date().toISOString(),
-      notes,
-      pictureUrl: pictureUrl ?? null,
-      hasEmbryoTransfer: hasEmbryoTransfer ?? false,
-      embryoImplantDate,
-      createdBy: 'Austin'
+      animalId: heatData.animalId,
+      heatDateTime: heatData.heatDateTime,
+      heatStrength: heatData.heatStrength,
+      standingHeat: heatData.standingHeat,
+      notes: heatData.notes ?? null,
+      pictureUrl: heatData.pictureUrl ?? null,
+      hasEmbryoTransfer: heatData.hasEmbryoTransfer ?? false,
+      embryoImplantDate: heatData.embryoImplantDate ?? null,
+      createdBy: heatData.createdBy ?? 'Austin'
     })
   })
 

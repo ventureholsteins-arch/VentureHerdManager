@@ -1,9 +1,8 @@
 <script setup lang="ts">
-// Heat and calving uploads intentionally provide separate library and camera controls.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
-import { getAnimalsBasic, setAnimalFavorite } from '../api/animals'
+import { getAnimal } from '../api/animals'
 import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
@@ -32,13 +31,6 @@ import {
   updatePregnancyStatus,
   type BreedingEvent
 } from '../api/breeding'
-import {
-  assignEmbryo,
-  getAllEmbryos,
-  getEmbryosForRecipient,
-  implantEmbryo,
-  type EmbryoRecord
-} from '../api/embryoRecords'
 
 import {
   getCalvings,
@@ -61,15 +53,17 @@ import {
 } from '../api/breeding'
 
 import {
+  getAchievementsForAnimal,
+  type ShowAchievement
+} from '../api/showAchievements'
+
+import {
   deleteHeatEvent,
   updateHeatEvent
 } from '../api/heats'
 
 import { uploadPhoto } from '../api/photos'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
-import { animalDisplayName as getAnimalDisplayName } from '../utils/animalDisplay'
-import HerdLoadingScene from '../components/HerdLoadingScene.vue'
-import RetroIcon from '../components/RetroIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,81 +78,23 @@ const dryOffEvents = ref<DryOffEvent[]>([])
 const lutEvents = ref<LutalyseEvent[]>([])
 const animalNotes = ref<AnimalNote[]>([])
 const timelineEntries = ref<AnimalTimelineEntry[]>([])
-const timelineExpanded = ref(false)
-const visibleTimelineEntries = computed(() =>
-  timelineExpanded.value
-    ? timelineEntries.value
-    : timelineEntries.value.slice(0, 6)
-)
-const animalDisplayName = computed(() =>
-  animal.value ? getAnimalDisplayName(animal.value) : 'Animal'
-)
-const animalImageUrl = computed(() =>
-  animal.value?.profilePictureUrl
-  || snapshot.value?.photos?.[0]?.photoUrl
-  || timelineEntries.value.find(entry => !!entry.photoUrl)?.photoUrl
-  || null
-)
-const expandedHistories = ref<Record<string, boolean>>({})
-
-function visibleHistory<T>(items: T[], history: string): T[] {
-  return expandedHistories.value[history] ? items : items.slice(0, 6)
-}
-
-function toggleHistory(history: string) {
-  expandedHistories.value = {
-    ...expandedHistories.value,
-    [history]: !expandedHistories.value[history]
-  }
-}
+const showAchievements = ref<ShowAchievement[]>([])
 
 const loading = ref(true)
-const loadError = ref('')
-const detailsLoading = ref(false)
-const profileImageFailed = ref(false)
-const savingFavorite = ref(false)
-
-async function toggleFavorite() {
-  if (!animal.value || savingFavorite.value) return
-
-  savingFavorite.value = true
-  try {
-    animal.value = await setAnimalFavorite(
-      animal.value.animalId,
-      !animal.value.isFavorite
-    )
-  } catch (error) {
-    console.error('Failed to update favorite:', error)
-  } finally {
-    savingFavorite.value = false
-  }
-}
 
 const showHeatForm = ref(false)
 const heatNotes = ref('')
 const heatPhotoFile = ref<File | null>(null)
 const hasEmbryoTransfer = ref(false)
-const selectedHeatEmbryoId = ref<number | null>(null)
 
 const showBreedingForm = ref(false)
 const sireUsed = ref('')
 const breedingType = ref(0)
 const breedingNotes = ref('')
-const breedingDate = ref(new Date().toISOString().slice(0, 10))
-const selectedEmbryoId = ref<number | null>(null)
-const availableEmbryos = ref<EmbryoRecord[]>([])
-const recipientEmbryos = ref<EmbryoRecord[]>([])
 
 const showPregCheckForm = ref(false)
 const selectedBreedingId = ref<number | null>(null)
 const pregnancyStatus = ref(1)
-const editingBreedingId = ref<number | null>(null)
-const editingBreedingDate = ref('')
-const editingSireUsed = ref('')
-const editingBreedingType = ref(0)
-const editingPregnancyStatus = ref(0)
-const editingBreedingNotes = ref('')
-const savingBreedingEdit = ref(false)
 
 const showCalvingForm = ref(false)
 const calfSex = ref(0)
@@ -182,24 +118,21 @@ const showNoteForm = ref(false)
 const noteText = ref('')
 
 const animalId = computed(() => Number(route.params.animalId))
-const DASHBOARD_CACHE_KEY = 'venture-herd-dashboard-cache-v1'
-const animalCacheStorage =
-  import.meta.env.VITE_DEMO_ONLY === 'true'
-    ? sessionStorage
-    : localStorage
 
-function getCachedAnimal(): Animal | null {
-  const cached = animalCacheStorage.getItem(DASHBOARD_CACHE_KEY)
-  if (!cached) return null
+async function reloadAnimalData() {
+  const animalSnapshot = await getAnimalSnapshot(animalId.value)
 
-  try {
-    const payload = JSON.parse(cached) as { animals?: Animal[] }
-    return payload.animals?.find(
-      item => item.animalId === animalId.value
-    ) ?? null
-  } catch {
-    return null
-  }
+  snapshot.value = animalSnapshot
+  animal.value = animalSnapshot.animal
+  timelineEntries.value = animalSnapshot.timeline
+
+  heatEvents.value = await getHeatEvents(animalId.value)
+  breedingEvents.value = await getBreedings(animalId.value)
+  calvingEvents.value = await getCalvings(animalId.value)
+  dryOffEvents.value = await getDryOffEvents(animalId.value)
+  lutEvents.value = await getLutEvents(animalId.value)
+  animalNotes.value = await getAnimalNotes(animalId.value)
+  showAchievements.value = await getAchievementsForAnimal(animalId.value)
 }
 
 const hasUnsavedFormChanges = computed(() => {
@@ -207,7 +140,6 @@ const hasUnsavedFormChanges = computed(() => {
     showHeatForm.value ||
     showBreedingForm.value ||
     showPregCheckForm.value ||
-    editingBreedingId.value !== null ||
     showCalvingForm.value ||
     showDryOffForm.value ||
     showNoteForm.value
@@ -261,37 +193,16 @@ function closeAllForms() {
   showCalvingForm.value = false
   showDryOffForm.value = false
   showNoteForm.value = false
-  editingBreedingId.value = null
   hasEmbryoTransfer.value = false
 }
 
-async function openHeatForm() {
+function openHeatForm() {
   closeAllForms()
-  selectedHeatEmbryoId.value = null
-  try {
-    availableEmbryos.value = (await getAllEmbryos())
-      .filter(embryo => embryo.status === 0)
-  } catch (error) {
-    console.error('Failed to load embryo inventory:', error)
-    availableEmbryos.value = []
-  }
   showHeatForm.value = true
 }
 
-async function openBreedingForm() {
+function openBreedingForm() {
   closeAllForms()
-  breedingDate.value = new Date().toISOString().slice(0, 10)
-  selectedEmbryoId.value = null
-  try {
-    availableEmbryos.value = (await getAllEmbryos())
-      .filter(embryo =>
-        embryo.status === 0
-        || (embryo.status === 1
-          && embryo.recipientAnimalId === animalId.value))
-  } catch (error) {
-    console.error('Failed to load embryo inventory:', error)
-    availableEmbryos.value = []
-  }
   showBreedingForm.value = true
 }
 
@@ -347,123 +258,47 @@ function openPendingAction() {
   sessionStorage.removeItem('pendingAnimalAction')
 }
 
-function settleWithin<T>(
-  request: Promise<T>,
-  label: string,
-  timeoutMs = 12_000
-): Promise<T | null> {
-  return new Promise(resolve => {
-    const timer = window.setTimeout(() => {
-        console.warn(`${label} is taking longer than expected.`)
-        resolve(null)
-    }, timeoutMs)
-
-    request
-      .then(result => {
-        window.clearTimeout(timer)
-        resolve(result)
-      })
-      .catch(error => {
-        window.clearTimeout(timer)
-        console.warn(`${label} could not be loaded:`, error)
-        resolve(null)
-      })
-  })
-}
-
-async function loadAnimalSnapshot(): Promise<Animal | null> {
-  const animalSnapshot = await settleWithin(
-    getAnimalSnapshot(animalId.value),
-    'Animal summary'
-  )
-
-  if (animalSnapshot) {
-    snapshot.value = animalSnapshot
-    animal.value = animalSnapshot.animal
-    timelineEntries.value = animalSnapshot.timeline
-    profileImageFailed.value = false
-    return animalSnapshot.animal
-  }
-
-  const herd = await settleWithin(
-    getAnimalsBasic(),
-    'Herd list'
-  )
-  const basicAnimal = herd?.find(item => item.animalId === animalId.value) ?? null
-  if (basicAnimal) {
-    animal.value = basicAnimal
-  }
-  return basicAnimal
-}
-
-async function loadAnimalHistory() {
-  const [
-    loadedHeats,
-    loadedBreedings,
-    loadedCalvings,
-    loadedDryOffs,
-    loadedLut,
-    loadedNotes,
-    loadedRecipientEmbryos
-  ] = await Promise.all([
-    settleWithin(getHeatEvents(animalId.value), 'Heat history'),
-    settleWithin(getBreedings(animalId.value), 'Breeding history'),
-    settleWithin(getCalvings(animalId.value), 'Calving history'),
-    settleWithin(getDryOffEvents(animalId.value), 'Dry-off history'),
-    settleWithin(getLutEvents(animalId.value), 'LUT history'),
-    settleWithin(getAnimalNotes(animalId.value), 'Animal notes'),
-    settleWithin(getEmbryosForRecipient(animalId.value), 'Embryo transfer history')
-  ])
-
-  if (loadedHeats) heatEvents.value = loadedHeats
-  if (loadedBreedings) breedingEvents.value = loadedBreedings
-  if (loadedCalvings) calvingEvents.value = loadedCalvings
-  if (loadedDryOffs) dryOffEvents.value = loadedDryOffs
-  if (loadedLut) lutEvents.value = loadedLut
-  if (loadedNotes) animalNotes.value = loadedNotes
-  if (loadedRecipientEmbryos) recipientEmbryos.value = loadedRecipientEmbryos
-}
-
-async function loadAnimalDetails() {
-  detailsLoading.value = true
-  await Promise.all([
-    loadAnimalSnapshot(),
-    loadAnimalHistory()
-  ])
-  detailsLoading.value = false
-}
-
 onMounted(async () => {
   window.addEventListener('beforeunload', beforeUnloadHandler)
 
-  const cachedAnimal = getCachedAnimal()
-  if (cachedAnimal) {
-    animal.value = cachedAnimal
-    loading.value = false
-    openPendingAction()
-    void loadAnimalDetails()
-    return
-  }
-
   try {
-    const loadedAnimal = await loadAnimalSnapshot()
-    if (loadedAnimal) {
-      openPendingAction()
-    } else {
-      loadError.value = 'This animal record could not be loaded. Return to the herd and try again.'
-    }
+    const animalSnapshot = await getAnimalSnapshot(
+      animalId.value
+    )
+
+    snapshot.value = animalSnapshot
+    animal.value = animalSnapshot.animal
+    timelineEntries.value = animalSnapshot.timeline
+
+    heatEvents.value = await getHeatEvents(
+      animalId.value
+    )
+
+    breedingEvents.value = await getBreedings(
+      animalId.value
+    )
+
+    calvingEvents.value = await getCalvings(
+      animalId.value
+    )
+
+    dryOffEvents.value = await getDryOffEvents(
+      animalId.value
+    )
+
+    lutEvents.value = await getLutEvents(
+      animalId.value
+    )
+
+    animalNotes.value = await getAnimalNotes(
+      animalId.value
+    )
+
+    openPendingAction()
   } catch (error) {
     console.error('Failed to load animal:', error)
-    loadError.value = 'This animal record could not be loaded. Return to the herd and try again.'
   } finally {
     loading.value = false
-  }
-
-  if (animal.value) {
-    detailsLoading.value = true
-    void loadAnimalHistory().finally(() => {
-      detailsLoading.value = false
-    })
   }
 })
 
@@ -481,7 +316,6 @@ onBeforeRouteLeave(() => {
 
 async function saveHeat() {
   if (!animal.value) return
-  const savedAnimalId = animal.value.animalId
 
   try {
     let pictureUrl: string | null = null
@@ -491,72 +325,52 @@ async function saveHeat() {
       pictureUrl = await uploadPhoto(heatPhotoFile.value, 'heat-events')
     }
 
-    await recordHeat(
-      animal.value.animalId,
-      heatNotes.value,
+    await recordHeat({
+      animalId: animal.value.animalId,
+      heatDateTime: new Date().toISOString(),
+      heatStrength: 2,
+      standingHeat: false,
       pictureUrl,
-      hasEmbryoTransfer.value
-    )
-    if (hasEmbryoTransfer.value && selectedHeatEmbryoId.value) {
-      try {
-        await assignEmbryo(
-          selectedHeatEmbryoId.value,
-          animal.value.animalId
-        )
-      } catch (error) {
-        console.warn('Heat saved, but the embryo could not be reserved:', error)
-        alert('Heat was saved, but the embryo could not be reserved. You can select it again when recording the transfer.')
-      }
-    }
+      notes: heatNotes.value,
+      hasEmbryoTransfer: hasEmbryoTransfer.value,
+      embryoImplantDate: hasEmbryoTransfer.value
+        ? new Date(
+            new Date().getTime() + 7 * 24 * 60 * 60 * 1000
+          ).toISOString()
+        : null,
+      createdBy: 'Austin'
+    })
 
     heatNotes.value = ''
     heatPhotoFile.value = null
     hasEmbryoTransfer.value = false
-    selectedHeatEmbryoId.value = null
     showHeatForm.value = false
+
+    await reloadAnimalData()
   } catch (error) {
     console.error('Failed to save heat:', error)
     alert('Failed to save heat event.')
-    return
   } finally {
     isUploadingHeatPhoto.value = false
-  }
-
-  try {
-    heatEvents.value = await getHeatEvents(savedAnimalId)
-  } catch (error) {
-    console.warn('Heat saved, but the refreshed history could not be loaded:', error)
   }
 }
 
 async function saveBreeding() {
-  if (!animal.value) return
-  if (breedingType.value === 2 && !selectedEmbryoId.value) {
-    alert('Please select the embryo being transferred.')
-    return
-  }
+  if (!animal.value || !sireUsed.value.trim()) return
+
   try {
-    if (breedingType.value === 2 && selectedEmbryoId.value) {
-      await implantEmbryo(
-        selectedEmbryoId.value,
-        animal.value.animalId,
-        breedingDate.value
-      )
-    } else {
-      await recordBreeding({
-        animalId: animal.value.animalId,
-        breedingDate: breedingDate.value,
-        sireUsed: sireUsed.value.trim() || 'Service information pending',
-        breedingType: breedingType.value,
-        pregnancyStatus: 0,
-        notes: breedingNotes.value
-      })
-    }
+    await recordBreeding({
+      animalId: animal.value.animalId,
+      breedingDate: new Date().toISOString(),
+      sireUsed: sireUsed.value.trim(),
+      breedingType: breedingType.value,
+      pregnancyStatus: 0,
+      notes: breedingNotes.value
+    })
 
     sireUsed.value = ''
     breedingType.value = 0
     breedingNotes.value = ''
-    selectedEmbryoId.value = null
     showBreedingForm.value = false
 
     breedingEvents.value = await getBreedings(
@@ -564,7 +378,6 @@ async function saveBreeding() {
     )
   } catch (error) {
     console.error('Failed to save breeding:', error)
-    alert(error instanceof Error ? error.message : 'Failed to save breeding record.')
   }
 }
 
@@ -582,21 +395,16 @@ async function savePregCheck() {
     breedingEvents.value = await getBreedings(
       animalId.value
     )
-    recipientEmbryos.value = await getEmbryosForRecipient(
-      animalId.value
-    )
   } catch (error) {
     console.error(
       'Failed to save pregnancy check:',
       error
     )
-    alert('Failed to save pregnancy check.')
   }
 }
 
 async function saveCalving() {
   if (!animal.value) return
-  const savedAnimalId = animal.value.animalId
 
   try {
     let pictureUrl: string | null = null
@@ -631,22 +439,13 @@ async function saveCalving() {
     stillborn.value = false
     calvingNotes.value = ''
     showCalvingForm.value = false
+
+    await reloadAnimalData()
   } catch (error) {
     console.error('Failed to save calving:', error)
     alert('Failed to save calving event.')
-    return
   } finally {
     isUploadingCalvingPhoto.value = false
-  }
-
-  try {
-    const [updatedCalvings] = await Promise.all([
-      getCalvings(savedAnimalId),
-      loadAnimalSnapshot()
-    ])
-    calvingEvents.value = updatedCalvings
-  } catch (error) {
-    console.warn('Calving saved, but the refreshed animal record could not be loaded:', error)
   }
 }
 
@@ -678,7 +477,9 @@ async function saveDryOff() {
       animal.value.animalId
     )
 
-    await loadAnimalSnapshot()
+    animal.value = await getAnimal(
+      animal.value.animalId
+    )
   } catch (error) {
     console.error('Failed to save dry off:', error)
   }
@@ -721,18 +522,6 @@ function pregnancyStatusLabel(status: number) {
     2: 'Open',
     3: 'Recheck',
     4: 'Aborted'
-  }
-
-  return statuses[status] ?? 'Unknown'
-}
-
-function embryoStatusLabel(status: number) {
-  const statuses: Record<number, string> = {
-    0: 'In storage',
-    1: 'Assigned',
-    2: 'Implanted — outcome pending',
-    3: 'Did not stick',
-    4: 'Successful — pregnancy confirmed'
   }
 
   return statuses[status] ?? 'Unknown'
@@ -784,16 +573,14 @@ async function editHeat(heat: HeatEvent) {
     alert('Invalid heat date/time format.')
     return
   }
-  const nextNotes = window.prompt('Edit heat notes', heat.notes ?? '')
-  if (nextNotes === null) return
 
   try {
     await updateHeatEvent(heat.heatEventId, {
       heatDateTime: nextIso,
-      notes: nextNotes.trim() || null,
+      notes: heat.notes ?? null,
       pictureUrl: heat.pictureUrl ?? null
     })
-    await loadAnimalDetails()
+    heatEvents.value = await getHeatEvents(animalId.value)
   } catch (error) {
     console.error('Failed to edit heat:', error)
     alert('Failed to edit heat event.')
@@ -806,56 +593,38 @@ async function deleteHeat(heat: HeatEvent) {
 
   try {
     await deleteHeatEvent(heat.heatEventId)
-    await loadAnimalDetails()
+    heatEvents.value = await getHeatEvents(animalId.value)
   } catch (error) {
     console.error('Failed to delete heat:', error)
     alert('Failed to delete heat event.')
   }
 }
 
-function editBreeding(breeding: BreedingEvent) {
-  editingBreedingId.value = breeding.breedingEventId
-  editingBreedingDate.value = toLocalDateTimeInput(breeding.breedingDate)
-  editingSireUsed.value = breeding.sireUsed ?? ''
-  editingBreedingType.value = breeding.breedingType
-  editingPregnancyStatus.value = breeding.pregnancyStatus
-  editingBreedingNotes.value = breeding.notes ?? ''
-}
+async function editBreeding(breeding: BreedingEvent) {
+  const nextDate = window.prompt(
+    'Edit breeding date/time (YYYY-MM-DDTHH:mm)',
+    toLocalDateTimeInput(breeding.breedingDate)
+  )
+  if (!nextDate) return
 
-function cancelBreedingEdit() {
-  editingBreedingId.value = null
-  editingBreedingDate.value = ''
-  editingSireUsed.value = ''
-  editingBreedingType.value = 0
-  editingPregnancyStatus.value = 0
-  editingBreedingNotes.value = ''
-}
-
-async function saveBreedingEdit() {
-  if (editingBreedingId.value === null) return
-
-  const nextIso = toIsoFromInput(editingBreedingDate.value)
+  const nextIso = toIsoFromInput(nextDate)
   if (!nextIso) {
     alert('Invalid breeding date/time format.')
     return
   }
 
-  savingBreedingEdit.value = true
   try {
-    await updateBreedingEvent(editingBreedingId.value, {
+    await updateBreedingEvent(breeding.breedingEventId, {
       breedingDate: nextIso,
-      sireUsed: editingSireUsed.value.trim() || 'Service information pending',
-      breedingType: editingBreedingType.value,
-      pregnancyStatus: editingPregnancyStatus.value,
-      notes: editingBreedingNotes.value.trim() || null
+      sireUsed: breeding.sireUsed,
+      breedingType: breeding.breedingType,
+      pregnancyStatus: breeding.pregnancyStatus,
+      notes: breeding.notes ?? null
     })
     breedingEvents.value = await getBreedings(animalId.value)
-    cancelBreedingEdit()
   } catch (error) {
     console.error('Failed to edit breeding:', error)
     alert('Failed to edit breeding event.')
-  } finally {
-    savingBreedingEdit.value = false
   }
 }
 
@@ -894,8 +663,7 @@ async function editCalving(calving: CalvingEvent) {
       calvingEase: calving.calvingEase,
       twins: calving.twins,
       stillborn: calving.stillborn,
-      notes: calving.notes ?? null,
-      pictureUrl: calving.pictureUrl ?? null
+      notes: calving.notes ?? null
     })
     calvingEvents.value = await getCalvings(animalId.value)
   } catch (error) {
@@ -1021,27 +789,14 @@ const scoreLabel = computed(() => {
       ← Herd
     </button>
 
-    <HerdLoadingScene
-      v-if="loading"
-      message="Opening animal record..."
-      scene="walk"
-    />
-
-    <section v-else-if="loadError" class="error-card">
-      <strong>Unable to open animal</strong>
-      <p>{{ loadError }}</p>
-    </section>
+    <p v-if="loading">
+      Loading...
+    </p>
 
     <div v-else-if="animal">
       <section class="hero">
         <div class="avatar">
-          <img
-            v-if="animalImageUrl && !profileImageFailed"
-            :src="animalImageUrl"
-            :alt="`${animalDisplayName} profile`"
-            @error="profileImageFailed = true"
-          />
-          <span v-else>🐄</span>
+          🐄
         </div>
 
         <div>
@@ -1050,7 +805,7 @@ const scoreLabel = computed(() => {
           </p>
 
           <h1>
-            {{ animalDisplayName }}
+            {{ animal.barnName || 'Unnamed Animal' }}
           </h1>
 
           <p>
@@ -1061,21 +816,7 @@ const scoreLabel = computed(() => {
             Reg #: {{ animal.registrationNumber || 'None' }}
           </small>
         </div>
-
-        <button
-          type="button"
-          class="favorite-button"
-          :class="{ active: animal.isFavorite }"
-          :disabled="savingFavorite"
-          @click="toggleFavorite"
-        >
-          {{ animal.isFavorite ? '★ Favorited' : '☆ Add to Favorites' }}
-        </button>
       </section>
-
-      <p v-if="detailsLoading" class="details-loading">
-        Loading timeline and event history...
-      </p>
 
       <section class="info-grid">
         <div class="info-card">
@@ -1116,31 +857,6 @@ const scoreLabel = computed(() => {
         </div>
       </section>
 
-      <section v-if="recipientEmbryos.length > 0" class="panel">
-        <h2>Embryo Transfers</h2>
-
-        <div
-          v-for="embryo in recipientEmbryos"
-          :key="`recipient-embryo-${embryo.embryoRecordId}`"
-          class="timeline-card"
-        >
-          <strong>
-            <RetroIcon name="embryo" :size="26" />
-            {{ embryo.mating || `${embryo.donor || 'Unknown dam'} × ${embryo.sire || 'Unknown sire'}` }}
-          </strong>
-          <small>{{ embryoStatusLabel(embryo.status) }}</small>
-          <p><b>Embryo dam:</b> {{ embryo.donor || 'Not recorded' }}</p>
-          <p><b>Embryo sire:</b> {{ embryo.sire || 'Not recorded' }}</p>
-          <p><b>Mating:</b> {{ embryo.mating || 'Not recorded' }}</p>
-          <p>
-            <b>Implant date:</b>
-            {{ embryo.implantDate ? new Date(`${embryo.implantDate}T00:00:00`).toLocaleDateString() : 'Not recorded' }}
-          </p>
-          <p><b>Recipient:</b> {{ animalDisplayName }}</p>
-          <p v-if="embryo.failureNotes"><b>Outcome notes:</b> {{ embryo.failureNotes }}</p>
-        </div>
-      </section>
-
       <section class="panel">
         <h2>Pedigree</h2>
 
@@ -1168,27 +884,27 @@ const scoreLabel = computed(() => {
 
         <div class="actions">
           <button @click="openHeatForm">
-            <RetroIcon name="heat" :size="28" /> Record Heat
+            ❤️ Record Heat
           </button>
 
           <button @click="openBreedingForm">
-            <RetroIcon name="embryo" :size="28" /> Breed
+            🧬 Breed
           </button>
 
           <button @click="openPregCheckForm">
-            <RetroIcon name="pregCheck" :size="28" /> Preg Check
+            🤰 Preg Check
           </button>
 
           <button @click="openCalvingForm">
-            <RetroIcon name="calving" :size="28" /> Calved
+            🐄 Calved
           </button>
 
           <button @click="openDryOffForm">
-            <RetroIcon name="dryOff" :size="28" /> Dry Off
+            🌾 Dry Off
           </button>
 
           <button @click="openNoteForm">
-            <RetroIcon name="note" :size="28" /> Notes
+            📝 Notes
           </button>
         </div>
 
@@ -1207,26 +923,10 @@ const scoreLabel = computed(() => {
 
           <label>Upload Heat Photo</label>
 
-          <small class="upload-hint">
-            Camera Roll / Existing Photo
-          </small>
-
-          <input
-            type="file"
-            accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp"
-            aria-label="Choose existing heat photo from camera roll"
-            @change="onHeatPhotoSelected"
-          >
-
-          <small class="upload-hint">
-            Take New Photo
-          </small>
-
           <input
             type="file"
             accept="image/*"
             capture="environment"
-            aria-label="Take a new heat photo"
             @change="onHeatPhotoSelected"
           >
 
@@ -1252,21 +952,6 @@ const scoreLabel = computed(() => {
             <span class="day7-label">Plan embryo transfer<br>on day 7</span>
           </label>
 
-          <template v-if="hasEmbryoTransfer">
-            <label>Reserve an Embryo (optional)</label>
-            <select v-model.number="selectedHeatEmbryoId">
-              <option :value="null">Choose at transfer</option>
-              <option
-                v-for="embryo in availableEmbryos"
-                :key="`heat-embryo-${embryo.embryoRecordId}`"
-                :value="embryo.embryoRecordId"
-              >
-                {{ embryo.code || `Embryo #${embryo.embryoRecordId}` }}
-                {{ embryo.sire ? ` · ${embryo.sire}` : '' }}
-              </option>
-            </select>
-          </template>
-
           <div class="form-actions">
             <button
               class="save"
@@ -1290,14 +975,9 @@ const scoreLabel = computed(() => {
         >
           <h3>Record Breeding</h3>
 
-          <label>Breeding / Implant Date</label>
-
-          <input v-model="breedingDate" type="date">
-
-          <label v-if="breedingType !== 2">Sire Used</label>
+          <label>Sire Used</label>
 
           <input
-            v-if="breedingType !== 2"
             v-model="sireUsed"
             placeholder="Master, Detective, Unix, etc."
           >
@@ -1309,21 +989,6 @@ const scoreLabel = computed(() => {
             <option :value="1">Natural</option>
             <option :value="2">Embryo Transfer</option>
           </select>
-
-          <template v-if="breedingType === 2">
-            <label>Embryo</label>
-            <select v-model.number="selectedEmbryoId">
-              <option :value="null">Select inventory embryo</option>
-              <option
-                v-for="embryo in availableEmbryos"
-                :key="embryo.embryoRecordId"
-                :value="embryo.embryoRecordId"
-              >
-                {{ embryo.code || `Embryo #${embryo.embryoRecordId}` }}
-                {{ embryo.sire ? ` · ${embryo.sire}` : '' }}
-              </option>
-            </select>
-          </template>
 
           <label>Breeding Notes</label>
 
@@ -1442,26 +1107,10 @@ const scoreLabel = computed(() => {
 
           <label>Upload Calving Photo</label>
 
-          <small class="upload-hint">
-            Camera Roll / Existing Photo
-          </small>
-
-          <input
-            type="file"
-            accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp"
-            aria-label="Choose existing calving photo from camera roll"
-            @change="onCalvingPhotoSelected"
-          >
-
-          <small class="upload-hint">
-            Take New Photo
-          </small>
-
           <input
             type="file"
             accept="image/*"
             capture="environment"
-            aria-label="Take a new calving photo"
             @change="onCalvingPhotoSelected"
           >
 
@@ -1613,7 +1262,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="entry in visibleTimelineEntries"
+          v-for="entry in timelineEntries"
           :key="`${entry.eventType}-${entry.eventId}`"
           class="timeline-card"
         >
@@ -1638,18 +1287,50 @@ const scoreLabel = computed(() => {
             :src="entry.photoUrl"
             class="timeline-photo"
             alt="Timeline photo"
-            loading="lazy"
           >
         </div>
+      </section>
 
-        <button
-          v-if="timelineEntries.length > 6"
-          type="button"
-          class="timeline-toggle"
-          @click="timelineExpanded = !timelineExpanded"
+      <section class="panel">
+        <h2>Show Achievements</h2>
+
+        <div
+          v-if="showAchievements.length === 0"
+          class="timeline-card"
         >
-          {{ timelineExpanded ? 'Show Less' : `Show More (${timelineEntries.length - 6})` }}
-        </button>
+          <strong>No show achievements recorded</strong>
+
+          <small>
+            Save a bagging record in Reports to see it here.
+          </small>
+        </div>
+
+        <div
+          v-for="achievement in showAchievements"
+          :key="achievement.showAchievementId"
+          class="timeline-card"
+        >
+          <strong>
+            🏆
+            {{ achievement.showName || 'Show Achievement' }}
+          </strong>
+
+          <small>
+            {{ achievement.showDate ? new Date(achievement.showDate).toLocaleDateString() : '—' }}
+          </small>
+
+          <p>
+            Bagged: {{ achievement.bagged || '—' }}
+          </p>
+
+          <p>
+            Result: {{ achievement.placed || '—' }}
+          </p>
+
+          <p v-if="achievement.notes">
+            {{ achievement.notes }}
+          </p>
+        </div>
       </section>
 
       <section class="panel">
@@ -1667,7 +1348,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="calving in visibleHistory(calvingEvents, 'calvings')"
+          v-for="calving in calvingEvents"
           :key="calving.calvingEventId"
           class="timeline-card"
         >
@@ -1681,7 +1362,7 @@ const scoreLabel = computed(() => {
           </div>
 
           <strong>
-            <RetroIcon name="calving" :size="26" /> Calved · {{ calfSexLabel(calving.calfSex) }}
+            🐄 Calved · {{ calfSexLabel(calving.calfSex) }}
           </strong>
 
           <small>
@@ -1723,19 +1404,9 @@ const scoreLabel = computed(() => {
             v-if="calving.pictureUrl"
             :src="calving.pictureUrl"
             class="timeline-photo"
-            alt="Calving record"
-            loading="lazy"
+            alt="Calving event photo"
           >
         </div>
-
-        <button
-          v-if="calvingEvents.length > 6"
-          type="button"
-          class="timeline-toggle"
-          @click="toggleHistory('calvings')"
-        >
-          {{ expandedHistories.calvings ? 'Show Less' : `Show More (${calvingEvents.length - 6})` }}
-        </button>
       </section>
 
       <section class="panel">
@@ -1753,12 +1424,12 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="dry in visibleHistory(dryOffEvents, 'dryOffs')"
+          v-for="dry in dryOffEvents"
           :key="dry.dryOffEventId"
           class="timeline-card"
         >
           <strong>
-            <RetroIcon name="dryOff" :size="26" /> Dry Off
+            🌾 Dry Off
           </strong>
 
           <small>
@@ -1777,15 +1448,6 @@ const scoreLabel = computed(() => {
             {{ dry.notes }}
           </p>
         </div>
-
-        <button
-          v-if="dryOffEvents.length > 6"
-          type="button"
-          class="timeline-toggle"
-          @click="toggleHistory('dryOffs')"
-        >
-          {{ expandedHistories.dryOffs ? 'Show Less' : `Show More (${dryOffEvents.length - 6})` }}
-        </button>
       </section>
 
       <section class="panel">
@@ -1803,7 +1465,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="breeding in visibleHistory(breedingEvents, 'breedings')"
+          v-for="breeding in breedingEvents"
           :key="breeding.breedingEventId"
           class="timeline-card"
         >
@@ -1816,63 +1478,8 @@ const scoreLabel = computed(() => {
             </button>
           </div>
 
-          <div
-            v-if="editingBreedingId === breeding.breedingEventId"
-            class="breeding-edit-grid"
-          >
-            <label>
-              Breeding date and time
-              <input v-model="editingBreedingDate" type="datetime-local">
-            </label>
-            <label>
-              Sire or service
-              <input
-                v-model="editingSireUsed"
-                placeholder="Leave pending if service details are not known"
-              >
-            </label>
-            <label>
-              Breeding type
-              <select v-model.number="editingBreedingType">
-                <option :value="0">AI</option>
-                <option :value="1">Natural</option>
-                <option :value="2">Embryo Transfer</option>
-              </select>
-            </label>
-            <label>
-              Pregnancy status
-              <select v-model.number="editingPregnancyStatus">
-                <option :value="0">Unconfirmed</option>
-                <option :value="1">Pregnant</option>
-                <option :value="2">Open / Not Pregnant</option>
-                <option :value="3">Recheck</option>
-                <option :value="4">Aborted</option>
-              </select>
-            </label>
-            <label class="breeding-edit-notes">
-              Notes
-              <textarea
-                v-model="editingBreedingNotes"
-                rows="2"
-                placeholder="Service details can be completed later"
-              />
-            </label>
-            <div class="form-actions breeding-edit-actions">
-              <button
-                class="save"
-                :disabled="savingBreedingEdit"
-                @click="saveBreedingEdit"
-              >
-                {{ savingBreedingEdit ? 'Saving...' : 'Save Changes' }}
-              </button>
-              <button class="cancel" @click="cancelBreedingEdit">
-                Cancel
-              </button>
-            </div>
-          </div>
-
           <strong>
-            <RetroIcon name="embryo" :size="26" /> Bred to {{ breeding.sireUsed }}
+            🧬 Bred to {{ breeding.sireUsed }}
           </strong>
 
           <small>
@@ -1913,15 +1520,6 @@ const scoreLabel = computed(() => {
             {{ breeding.notes }}
           </p>
         </div>
-
-        <button
-          v-if="breedingEvents.length > 6"
-          type="button"
-          class="timeline-toggle"
-          @click="toggleHistory('breedings')"
-        >
-          {{ expandedHistories.breedings ? 'Show Less' : `Show More (${breedingEvents.length - 6})` }}
-        </button>
       </section>
 
       <section class="panel">
@@ -1939,7 +1537,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="lut in visibleHistory(lutEvents, 'lut')"
+          v-for="lut in lutEvents"
           :key="lut.lutalyseEventId"
           class="timeline-card"
         >
@@ -1953,7 +1551,7 @@ const scoreLabel = computed(() => {
           </div>
 
           <strong>
-            <RetroIcon name="lut" :size="26" /> LUT Injection
+            💉 LUT Injection
           </strong>
 
           <small>
@@ -1971,15 +1569,6 @@ const scoreLabel = computed(() => {
             {{ lut.notes }}
           </p>
         </div>
-
-        <button
-          v-if="lutEvents.length > 6"
-          type="button"
-          class="timeline-toggle"
-          @click="toggleHistory('lut')"
-        >
-          {{ expandedHistories.lut ? 'Show Less' : `Show More (${lutEvents.length - 6})` }}
-        </button>
       </section>
 
       <section class="panel">
@@ -1997,7 +1586,7 @@ const scoreLabel = computed(() => {
         </div>
 
         <div
-          v-for="heat in visibleHistory(heatEvents, 'heats')"
+          v-for="heat in heatEvents"
           :key="heat.heatEventId"
           class="timeline-card"
         >
@@ -2011,7 +1600,7 @@ const scoreLabel = computed(() => {
           </div>
 
           <strong>
-            <RetroIcon name="heat" :size="26" /> Heat
+            ❤️ Heat
           </strong>
 
           <small>
@@ -2026,31 +1615,13 @@ const scoreLabel = computed(() => {
             {{ heat.notes || 'No notes' }}
           </p>
 
-          <a
+          <img
             v-if="heat.pictureUrl"
-            :href="heat.pictureUrl"
-            target="_blank"
-            rel="noopener"
-            class="event-photo-link"
+            :src="heat.pictureUrl"
+            class="timeline-photo"
+            alt="Heat event photo"
           >
-            <img
-              :src="heat.pictureUrl"
-              class="timeline-photo"
-              alt="Heat record photo"
-              loading="lazy"
-            >
-            <span>Open photo</span>
-          </a>
         </div>
-
-        <button
-          v-if="heatEvents.length > 6"
-          type="button"
-          class="timeline-toggle"
-          @click="toggleHistory('heats')"
-        >
-          {{ expandedHistories.heats ? 'Show Less' : `Show More (${heatEvents.length - 6})` }}
-        </button>
       </section>
     </div>
   </div>
@@ -2063,16 +1634,6 @@ const scoreLabel = computed(() => {
   max-width: 900px;
   margin: auto;
   padding: 24px;
-}
-
-.event-photo-link {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  color: #31572c;
-  font-weight: 800;
-  text-decoration: none;
 }
 
 .page::before {
@@ -2126,32 +1687,6 @@ const scoreLabel = computed(() => {
   border: 1px solid #c4d3c4;
   background: linear-gradient(160deg, #f4f8f4, #e7efe7);
   font-size: 42px;
-  overflow: hidden;
-}
-
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar span {
-  line-height: 1;
-}
-
-.details-loading {
-  margin: -12px 0 18px;
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.error-card {
-  padding: 20px;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  background: #fff7f7;
-  color: #991b1b;
 }
 
 .eyebrow {
@@ -2168,29 +1703,6 @@ const scoreLabel = computed(() => {
 .hero p {
   margin: 6px 0;
   color: #64748b;
-}
-
-.favorite-button {
-  margin-left: auto;
-  padding: 10px 14px;
-  border: 1px solid #b8c5ba;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #31572c;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.favorite-button.active {
-  border-color: #d9a514;
-  background: #fff8dc;
-  color: #795b00;
-}
-
-.favorite-button:disabled {
-  opacity: 0.65;
-  cursor: wait;
 }
 
 .info-grid {
@@ -2343,62 +1855,12 @@ const scoreLabel = computed(() => {
   background: linear-gradient(180deg, #f8fafc, #f1f5f9);
 }
 
-.timeline-toggle {
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #31572c;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #31572c;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.timeline-toggle:hover {
-  background: #f3f7f1;
-}
-
 .timeline-actions {
   position: absolute;
   top: 10px;
   right: 10px;
   display: flex;
   gap: 8px;
-}
-
-.breeding-edit-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 38px 0 16px;
-  padding: 14px;
-  border: 1px solid #c8d4cb;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.breeding-edit-grid label {
-  display: grid;
-  gap: 6px;
-  color: #334155;
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.breeding-edit-grid input,
-.breeding-edit-grid select,
-.breeding-edit-grid textarea {
-  width: 100%;
-}
-
-.breeding-edit-notes,
-.breeding-edit-actions {
-  grid-column: 1 / -1;
-}
-
-.breeding-edit-actions {
-  margin-top: 0;
 }
 
 .mini-btn {
@@ -2500,24 +1962,6 @@ const scoreLabel = computed(() => {
 
   .hero h1 {
     font-size: 32px;
-  }
-
-  .hero {
-    flex-wrap: wrap;
-  }
-
-  .favorite-button {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .breeding-edit-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .breeding-edit-notes,
-  .breeding-edit-actions {
-    grid-column: auto;
   }
 }
 </style>

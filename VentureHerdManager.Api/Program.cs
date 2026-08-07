@@ -61,6 +61,7 @@ builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<CalendarService>();
 builder.Services.AddScoped<DemoSessionMaintenanceService>();
 builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
+builder.Services.AddScoped<PcdartImportService>();
 builder.Services.AddScoped<PaperRecordImportService>();
 builder.Services.AddScoped<NaabSireCatalogService>();
 builder.Services.AddSingleton<DatabaseInitializationState>();

@@ -237,6 +237,10 @@ static async Task EnsureEmbryoRecordsReadyAsync(WebApplication app)
     await context.Database.ExecuteSqlRawAsync(
         @"IF OBJECT_ID(N'dbo.EmbryoRecords', N'U') IS NOT NULL
           BEGIN
+                        IF COL_LENGTH(N'dbo.EmbryoRecords', N'Mating') IS NULL
+                            ALTER TABLE [dbo].[EmbryoRecords]
+                                ADD [Mating] NVARCHAR(400) NULL;
+
             IF COL_LENGTH(N'dbo.EmbryoRecords', N'BreedingEventId') IS NULL
               ALTER TABLE [dbo].[EmbryoRecords]
                 ADD [BreedingEventId] INT NULL;

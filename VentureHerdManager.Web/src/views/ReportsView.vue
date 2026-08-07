@@ -20,6 +20,7 @@ import {
 import { ensureDemo } from '../api/demo'
 import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
+import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'showBagging' | 'lists' | 'checklist' | 'pcdartImport' | 'achievements'
 
@@ -72,7 +73,7 @@ export interface EmbryoRecord {
   sire: string
   donor: string
   grade: string
-  status: 'In Storage' | 'Assigned' | 'Implanted' | 'Failed'
+  status: 'In Storage' | 'Assigned' | 'Implanted' | 'Failed' | 'Confirmed Pregnant'
   recipientAnimalId: number | null
   implantDate: string
   linkedBreedingNote: string
@@ -315,6 +316,7 @@ function statusFromApi(status: ApiEmbryoRecord['status']): EmbryoRecord['status'
   if (status === 1) return 'Assigned'
   if (status === 2) return 'Implanted'
   if (status === 3) return 'Failed'
+  if (status === 4) return 'Confirmed Pregnant'
   return 'In Storage'
 }
 
@@ -322,6 +324,7 @@ function statusToApi(status: EmbryoRecord['status']): ApiEmbryoRecord['status'] 
   if (status === 'Assigned') return 1
   if (status === 'Implanted') return 2
   if (status === 'Failed') return 3
+  if (status === 'Confirmed Pregnant') return 4
   return 0
 }
 
@@ -991,7 +994,9 @@ onMounted(async () => {
       <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">📊 Analytics</button>
     </nav>
 
-    <section v-if="loading" class="rp-panel"><p>Loading animals...</p></section>
+    <section v-if="loading" class="rp-panel">
+      <HerdLoadingScene message="Loading reports and herd data..." />
+    </section>
 
     <!-- ANALYTICS -->
     <section v-else-if="activeTab === 'analytics'" class="rp-panel">
@@ -1164,6 +1169,7 @@ onMounted(async () => {
               <option value="In Storage">In Storage</option>
               <option value="Assigned">Assigned to Recipient</option>
               <option value="Implanted">Implanted</option>
+              <option value="Confirmed Pregnant">Confirmed Pregnant</option>
               <option value="Failed">Failed / Not Confirmed</option>
             </select>
           </label>
@@ -1433,7 +1439,7 @@ onMounted(async () => {
 
       <div class="bagging-search-panel">
         <div class="browse-label">Quick Cow Search</div>
-        <input v-model="showBaggingSearch" type="search" class="rp-list-search" placeholder="Search barn name or registered name…" />
+        <input v-model="showBaggingSearch" type="search" class="rp-list-search" placeholder="Search barn name or registered name…" @keyup.enter="quickAddFirstBaggingMatch" />
         <div class="bagging-search-tools">
           <span>{{ showBaggingMatchCount }} matches</span>
           <button type="button" class="rp-add-btn" @click="quickAddFirstBaggingMatch">Add First Match</button>
@@ -1696,6 +1702,7 @@ onMounted(async () => {
 .emb-in-storage { border-left-color: #31572c; }
 .emb-assigned { border-left-color: #d97706; }
 .emb-implanted { border-left-color: #2563eb; background: #f8fbff; }
+.emb-confirmed-pregnant { border-left-color: #0f766e; background: #f0fdfa; }
 .emb-failed { border-left-color: #dc2626; background: #fff8f8; }
 .emb-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .emb-id { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1705,6 +1712,7 @@ onMounted(async () => {
 .ebadge-in-storage { background: #dcfce7; color: #14532d; }
 .ebadge-assigned { background: #fef3c7; color: #92400e; }
 .ebadge-implanted { background: #dbeafe; color: #1d4ed8; }
+.ebadge-confirmed-pregnant { background: #ccfbf1; color: #115e59; }
 .ebadge-failed { background: #fee2e2; color: #991b1b; }
 .emb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .emb-full { grid-column: 1 / -1; }

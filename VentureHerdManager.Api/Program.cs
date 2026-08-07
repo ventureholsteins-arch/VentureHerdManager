@@ -193,15 +193,25 @@ static async Task InitializeDatabaseInBackgroundAsync(
                 }
             }
 
-            // Existing production data routes should not be held offline while
-            // optional compatibility repairs and seed checks run. Once SQL is
-            // reachable, serve the herd and finish maintenance in background.
-            app.Services
-                .GetRequiredService<DatabaseInitializationState>()
-                .MarkReady();
+            var initializationState = app.Services
+                .GetRequiredService<DatabaseInitializationState>();
+
+            // Production can safely serve as soon as SQL is reachable while
+            // compatibility checks finish in background. Demo mode cannot,
+            // because session-scoped filters depend on schema that must exist
+            // before API requests are handled.
+            if (!isDemoMode)
+            {
+                initializationState.MarkReady();
+            }
 
             await EnsureEmbryoRecordsReadyAsync(app);
             await InitializeDatabaseAsync(app, isDemoMode);
+
+            if (isDemoMode)
+            {
+                initializationState.MarkReady();
+            }
 
             app.Logger.LogInformation(
                 "Database initialization completed; API data routes are ready.");

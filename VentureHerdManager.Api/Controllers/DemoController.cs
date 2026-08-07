@@ -86,6 +86,10 @@ public class DemoController : ControllerBase
             return guardResult;
         }
 
+        // Demo databases can drift if they are long-lived. Ensure schema is current
+        // before destructive reset/seed operations.
+        await _context.Database.MigrateAsync(cancellationToken);
+
         await using var transaction =
             await _context.Database.BeginTransactionAsync(cancellationToken);
 
@@ -540,6 +544,8 @@ public class DemoController : ControllerBase
         {
             return guardResult;
         }
+
+        await _context.Database.MigrateAsync(cancellationToken);
 
         if (!await _context.Animals.AnyAsync(cancellationToken))
         {

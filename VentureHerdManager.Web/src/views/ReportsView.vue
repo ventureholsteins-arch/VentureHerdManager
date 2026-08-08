@@ -454,15 +454,32 @@ const showClassOptions = computed(() => {
 })
 
 const showStringBrowseAnimals = computed(() => {
+  const query = showStringSearch.value.trim().toLowerCase()
+  if (query.length < 2) {
+    return []
+  }
+
   let result = animalOptions.value
   if (showStringClassFilter.value !== 'all') {
     result = result.filter(a => getShowClassLabel(a.birthDate, a.animalStage) === showStringClassFilter.value)
   }
-  if (showStringSearch.value.trim()) {
-    const q = showStringSearch.value.trim().toLowerCase()
-    result = result.filter(a => (a.barnName || a.registeredName || '').toLowerCase().includes(q))
-  }
-  return result
+  result = result.filter(a => {
+    const haystack = [
+      a.barnName,
+      a.registeredName,
+      a.registrationNumber,
+      a.sireName,
+      a.damName,
+      a.breed
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    return haystack.includes(query)
+  })
+
+  return result.slice(0, 12)
 })
 
 const showBaggingBrowseAnimals = computed(() => {
@@ -522,6 +539,42 @@ const achievementMatches = computed(() => {
       .toLowerCase()
       .includes(q)
   )
+})
+
+const achievementGroups = computed(() => {
+  const grouped = new Map<string, AchievementRecord[]>()
+  for (const record of achievementMatches.value) {
+    const key = record.showName.trim() || 'Ungrouped'
+    const list = grouped.get(key)
+    if (list) list.push(record)
+    else grouped.set(key, [record])
+  }
+
+  return Array.from(grouped.entries())
+    .sort((left, right) => {
+      if (left[0] === 'Ungrouped') return 1
+      if (right[0] === 'Ungrouped') return -1
+      return left[0].localeCompare(right[0])
+    })
+    .map(([name, records]) => ({ name, records }))
+})
+
+const baggingRowGroups = computed(() => {
+  const grouped = new Map<string, ShowBaggingRow[]>()
+  for (const record of showBaggingRowsSorted.value) {
+    const key = record.showName.trim() || showBaggingShowName.value.trim() || 'Ungrouped'
+    const list = grouped.get(key)
+    if (list) list.push(record)
+    else grouped.set(key, [record])
+  }
+
+  return Array.from(grouped.entries())
+    .sort((left, right) => {
+      if (left[0] === 'Ungrouped') return 1
+      if (right[0] === 'Ungrouped') return -1
+      return left[0].localeCompare(right[0])
+    })
+    .map(([name, records]) => ({ name, records }))
 })
 
 const baggingHistoryMatches = computed(() => {
@@ -1278,7 +1331,10 @@ onMounted(async () => {
     <header class="rp-hero">
       <div class="rp-hero-top">
         <button class="rp-back" type="button" @click="router.push('/')">← Dashboard</button>
-        <span class="rp-brand">Venture Herd Manager</span>
+        <div class="rp-hero-actions">
+          <span class="rp-brand">Venture Herd Manager</span>
+          <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/print')">Print Reports</button>
+        </div>
       </div>
       <h1 class="rp-title">Reports &amp; Show Planner</h1>
       <p class="rp-sub">Embryo Inventory · Show String · Herd Lists · Checklist · Achievements</p>
@@ -1451,43 +1507,47 @@ onMounted(async () => {
       <div v-else-if="embryosActive.length === 0 && embryosFailed.length > 0" class="rp-empty">No embryos currently In Storage or Assigned. Check the Failed/Not Confirmed section below.</div>
 
       <template v-for="group in embryosActiveGroups" :key="`grp-${group.name}`">
-        <div class="emb-group-title">{{ group.name }} ({{ group.records.length }})</div>
-        <div v-for="rec in group.records" :key="rec.id" class="emb-card" :class="`emb-${rec.status.toLowerCase().replace(' ', '-')}`">
-          <div class="emb-hd">
-            <div class="emb-id">
-              <span class="emb-code">{{ rec.code || 'No Code' }}</span>
-              <span class="emb-badge" :class="`ebadge-${rec.status.toLowerCase().replace(' ', '-')}`">{{ rec.status }}</span>
-              <span v-if="rec.implantDate && rec.status === 'Implanted'" class="emb-date">{{ rec.implantDate }}</span>
-            </div>
-            <div class="emb-actions">
-              <button type="button" class="rp-add-btn emb-action-btn" @click="markEmbryoImplanted(rec)">Mark Implanted</button>
-              <button type="button" class="rp-add-btn emb-action-btn emb-loss" @click="markEmbryoLost(rec)">Did Not Stick</button>
-              <button type="button" class="rp-add-btn emb-action-btn" @click="saveEmbryoRecord(rec)">Save</button>
-              <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.id)">✕</button>
+        <details class="emb-group-details" open>
+          <summary class="emb-group-title">{{ group.name }} ({{ group.records.length }})</summary>
+          <div class="emb-group-body">
+            <div v-for="rec in group.records" :key="rec.id" class="emb-card" :class="`emb-${rec.status.toLowerCase().replace(' ', '-')}`">
+              <div class="emb-hd">
+                <div class="emb-id">
+                  <span class="emb-code">{{ rec.code || 'No Code' }}</span>
+                  <span class="emb-badge" :class="`ebadge-${rec.status.toLowerCase().replace(' ', '-')}`">{{ rec.status }}</span>
+                  <span v-if="rec.implantDate && rec.status === 'Implanted'" class="emb-date">{{ rec.implantDate }}</span>
+                </div>
+                <div class="emb-actions">
+                  <button type="button" class="rp-add-btn emb-action-btn" @click="markEmbryoImplanted(rec)">Mark Implanted</button>
+                  <button type="button" class="rp-add-btn emb-action-btn emb-loss" @click="markEmbryoLost(rec)">Did Not Stick</button>
+                  <button type="button" class="rp-add-btn emb-action-btn" @click="saveEmbryoRecord(rec)">Save</button>
+                  <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.id)">✕</button>
+                </div>
+              </div>
+              <p class="emb-workflow-hint">Workflow: Save edits → Mark Implanted → Did Not Stick (if failed).</p>
+              <div class="emb-grid">
+                <label>Code / ID<input v-model="rec.code" type="text" placeholder="ET-2026-001"></label>
+                <label>Group<input v-model="rec.groupName" type="text" placeholder="Donor line, flush, or custom group"></label>
+                <label>Sire<input v-model="rec.sire" type="text" placeholder="Sire name"></label>
+                <label>Donor Cow<input v-model="rec.donor" type="text" placeholder="Donor name"></label>
+                <label>Mating<input v-model="rec.mating" type="text" placeholder="Donor x Sire"></label>
+                <label>Grade<input v-model="rec.grade" type="text" placeholder="Grade 1, Excellent…"></label>
+                <label>Current Status<input :value="rec.status" type="text" readonly></label>
+                <label>Recipient Animal
+                  <select v-model.number="rec.recipientAnimalId">
+                    <option :value="null">No recipient yet</option>
+                    <option v-for="a in animalOptions" :key="`r-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option>
+                  </select>
+                </label>
+                <label>Implant Date<input v-model="rec.implantDate" type="date"></label>
+                <label>Collection Location<input v-model="rec.collectionLocation" type="text" placeholder="Farm, flush date, or facility"></label>
+                <label>Storage Location<input v-model="rec.storageLocation" type="text" placeholder="Tank/straw location"></label>
+                <label>Breeding Link Note<input v-model="rec.linkedBreedingNote" type="text" placeholder="Breeding date or event ref"></label>
+                <label class="emb-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Tank, straw info, vet notes" /></label>
+              </div>
             </div>
           </div>
-          <p class="emb-workflow-hint">Workflow: Save edits → Mark Implanted → Did Not Stick (if failed).</p>
-          <div class="emb-grid">
-            <label>Code / ID<input v-model="rec.code" type="text" placeholder="ET-2026-001"></label>
-            <label>Group<input v-model="rec.groupName" type="text" placeholder="Donor line, flush, or custom group"></label>
-            <label>Sire<input v-model="rec.sire" type="text" placeholder="Sire name"></label>
-            <label>Donor Cow<input v-model="rec.donor" type="text" placeholder="Donor name"></label>
-            <label>Mating<input v-model="rec.mating" type="text" placeholder="Donor x Sire"></label>
-            <label>Grade<input v-model="rec.grade" type="text" placeholder="Grade 1, Excellent…"></label>
-            <label>Current Status<input :value="rec.status" type="text" readonly></label>
-            <label>Recipient Animal
-              <select v-model.number="rec.recipientAnimalId">
-                <option :value="null">No recipient yet</option>
-                <option v-for="a in animalOptions" :key="`r-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option>
-              </select>
-            </label>
-            <label>Implant Date<input v-model="rec.implantDate" type="date"></label>
-            <label>Collection Location<input v-model="rec.collectionLocation" type="text" placeholder="Farm, flush date, or facility"></label>
-            <label>Storage Location<input v-model="rec.storageLocation" type="text" placeholder="Tank/straw location"></label>
-            <label>Breeding Link Note<input v-model="rec.linkedBreedingNote" type="text" placeholder="Breeding date or event ref"></label>
-            <label class="emb-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Tank, straw info, vet notes" /></label>
-          </div>
-        </div>
+        </details>
       </template>
 
       <template v-if="embryosFailed.length > 0">
@@ -1797,101 +1857,114 @@ onMounted(async () => {
 
       <div class="bagging-glance-panel">
         <div class="browse-label">Bagging At A Glance</div>
-        <p class="bagging-search-hint">Quick view for every planned cow. Tap Jump to Edit to open the full card.</p>
-        <div v-if="baggingRowsGlance.length === 0" class="rp-empty-sm">No bagging rows yet. Add cows above and they will appear here.</div>
-        <div v-else class="bagging-glance-grid">
-          <article v-for="row in baggingRowsGlance" :key="`glance-${row.id}`" class="bagging-glance-card">
-            <div class="bagging-glance-head">
-              <strong>{{ getBaggingRowAnimalLabel(row) }}</strong>
-              <button type="button" class="bagging-jump-btn" @click="jumpToBaggingRow(row.id)">Jump to Edit</button>
-            </div>
-            <div class="bagging-glance-meta">{{ row.groupLabel }} · {{ row.showDate || showBaggingShowDate }}</div>
-            <div class="bagging-glance-entry">Entry: {{ row.entryLabel }}</div>
-            <div class="bagging-glance-quarters">
-              <div v-for="quarter in row.quarters" :key="`g-${row.id}-${quarter.key}`" class="bagging-glance-quarter">
-                <span>{{ quarterShortLabel(quarter.key) }}</span>
-                <strong>{{ quarter.hoursBeforeRing === null ? '--' : `${quarter.hoursBeforeRing}h` }}</strong>
-                <small>{{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</small>
+        <p class="bagging-search-hint">Each group is collapsed into one summary so you can glance and open only the row you need.</p>
+        <div v-if="baggingRowGroups.length === 0" class="rp-empty-sm">No bagging rows yet. Add cows above and they will appear here.</div>
+        <details v-for="group in baggingRowGroups" :key="`bag-group-${group.name}`" class="bagging-group-details" open>
+          <summary class="bagging-group-summary">
+            <strong>{{ group.name }}</strong>
+            <span>{{ group.records.length }} cow{{ group.records.length === 1 ? '' : 's' }}</span>
+          </summary>
+          <div class="bagging-group-glance">
+            <article v-for="row in group.records" :key="`glance-${row.id}`" class="bagging-glance-card">
+              <div class="bagging-glance-head">
+                <strong>{{ getBaggingRowAnimalLabel(row) }}</strong>
+                <button type="button" class="bagging-jump-btn" @click="jumpToBaggingRow(row.id)">Jump</button>
               </div>
-            </div>
-          </article>
-        </div>
+              <div class="bagging-glance-meta">{{ row.showDate || showBaggingShowDate }} · Entry {{ formatTime(row.entryTime) }}</div>
+              <div class="bagging-glance-quarters">
+                <div v-for="quarter in row.quarters" :key="`g-${row.id}-${quarter.key}`" class="bagging-glance-quarter">
+                  <span>{{ quarterShortLabel(quarter.key) }}</span>
+                  <strong>{{ quarter.hoursBeforeRing === null ? '--' : `${quarter.hoursBeforeRing}h` }}</strong>
+                  <small>{{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</small>
+                </div>
+              </div>
+            </article>
+          </div>
+        </details>
       </div>
 
       <div v-if="showBaggingRowsSorted.length === 0" class="rp-empty">Add a cow above to start bagging.</div>
 
       <div id="bagging-rows" />
 
-      <div v-for="row in showBaggingRowsSorted" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-card">
-        <div class="bagging-card-hd">
-          <div>
-            <button type="button" class="bagging-show-link" @click="openBaggingHistoryForGroup(row.showName || showBaggingShowName)">
-              {{ row.showName || showBaggingShowName || 'Select a group' }}
-            </button>
-            <div class="bagging-cow-line">{{ getBaggingRowAnimalLabel(row) }}</div>
-          </div>
-          <div class="bagging-card-actions">
-            <button type="button" class="rp-add-btn emb-action-btn" @click="saveBaggingRow(row)">Save Bagging</button>
-            <button type="button" class="rp-x" @click="removeShowBaggingRow(row.id)">✕</button>
+      <details v-for="group in baggingRowGroups" :key="`group-edit-${group.name}`" class="bagging-edit-group" open>
+        <summary class="bagging-edit-summary">
+          <strong>{{ group.name }}</strong>
+          <span>{{ group.records.length }} editable row{{ group.records.length === 1 ? '' : 's' }}</span>
+        </summary>
+        <div class="bagging-edit-group-body">
+          <div v-for="row in group.records" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-card">
+            <div class="bagging-card-hd">
+              <div>
+                <button type="button" class="bagging-show-link" @click="openBaggingHistoryForGroup(row.showName || showBaggingShowName)">
+                  {{ row.showName || showBaggingShowName || 'Select a group' }}
+                </button>
+                <div class="bagging-cow-line">{{ getBaggingRowAnimalLabel(row) }}</div>
+              </div>
+              <div class="bagging-card-actions">
+                <button type="button" class="rp-add-btn emb-action-btn" @click="saveBaggingRow(row)">Save Bagging</button>
+                <button type="button" class="rp-x" @click="removeShowBaggingRow(row.id)">✕</button>
+              </div>
+            </div>
+
+            <div class="bagging-meta-grid">
+              <label>
+                Cow
+                <select v-model.number="row.animalId">
+                  <option :value="null">Select cow</option>
+                  <option v-for="animal in animalOptions" :key="`bag-select-${animal.animalId}`" :value="animal.animalId">{{ animal.barnName || animal.registeredName || `#${animal.animalId}` }}</option>
+                </select>
+              </label>
+
+              <label>
+                Bagging Group
+                <input v-model="row.showName" type="text" placeholder="Group name" />
+              </label>
+
+              <label>
+                Group Date
+                <input v-model="row.showDate" type="date" />
+              </label>
+
+              <label>
+                Ring Entry Time
+                <input v-model="row.entryTime" type="datetime-local" />
+              </label>
+
+              <label class="bagging-success-toggle">
+                <input v-model="row.wasSuccessful" type="checkbox" />
+                Successful bagging / result
+              </label>
+
+              <div class="bagging-entry-summary">
+                <strong>Entry in {{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</strong>
+                <span>{{ formatTime(row.entryTime) }}</span>
+              </div>
+            </div>
+
+            <div class="bagging-udder-grid">
+              <button
+                v-for="quarter in row.quarters"
+                :key="quarter.key"
+                type="button"
+                class="udder-quarter"
+                @click="editQuarterHours(row, quarter.key)"
+              >
+                <span class="quarter-label">{{ quarter.label }}</span>
+                <strong class="quarter-hours-label">Hours Before Ring</strong>
+                <strong class="quarter-hours-value">{{ quarter.hoursBeforeRing === null ? 'Tap to set' : `${quarter.hoursBeforeRing}h` }}</strong>
+                <small class="quarter-time-label">Milk Time</small>
+                <small class="quarter-time-value">{{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</small>
+              </button>
+            </div>
+
+            <label class="bagging-notes">
+              Notes / what happened
+              <textarea v-model="row.notes" rows="3" placeholder="Milk letdown, timing adjustments, success notes, problems..." />
+            </label>
           </div>
         </div>
-
-        <div class="bagging-meta-grid">
-          <label>
-            Cow
-            <select v-model.number="row.animalId">
-              <option :value="null">Select cow</option>
-              <option v-for="animal in animalOptions" :key="`bag-select-${animal.animalId}`" :value="animal.animalId">{{ animal.barnName || animal.registeredName || `#${animal.animalId}` }}</option>
-            </select>
-          </label>
-
-          <label>
-            Bagging Group
-            <input v-model="row.showName" type="text" placeholder="Group name" />
-          </label>
-
-          <label>
-            Group Date
-            <input v-model="row.showDate" type="date" />
-          </label>
-
-          <label>
-            Ring Entry Time
-            <input v-model="row.entryTime" type="datetime-local" />
-          </label>
-
-          <label class="bagging-success-toggle">
-            <input v-model="row.wasSuccessful" type="checkbox" />
-            Successful bagging / result
-          </label>
-
-          <div class="bagging-entry-summary">
-            <strong>Entry in {{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</strong>
-            <span>{{ formatTime(row.entryTime) }}</span>
-          </div>
-        </div>
-
-        <div class="bagging-udder-grid">
-          <button
-            v-for="quarter in row.quarters"
-            :key="quarter.key"
-            type="button"
-            class="udder-quarter"
-            @click="editQuarterHours(row, quarter.key)"
-          >
-            <span class="quarter-label">{{ quarter.label }}</span>
-            <strong class="quarter-hours-label">Hours Before Ring</strong>
-            <strong class="quarter-hours-value">{{ quarter.hoursBeforeRing === null ? 'Tap to set' : `${quarter.hoursBeforeRing}h` }}</strong>
-            <small class="quarter-time-label">Milk Time</small>
-            <small class="quarter-time-value">{{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</small>
-          </button>
-        </div>
-
-        <label class="bagging-notes">
-          Notes / what happened
-          <textarea v-model="row.notes" rows="3" placeholder="Milk letdown, timing adjustments, success notes, problems..." />
-        </label>
-      </div>
+      </details>
     </section>
 
     <!-- HERD LISTS -->
@@ -2017,21 +2090,29 @@ onMounted(async () => {
       <p v-if="achievementsShareStatus" class="rp-hint">{{ achievementsShareStatus }}</p>
       <input v-model="achievementSearch" type="search" class="rp-list-search" placeholder="Search by show, cow, or notes…" />
       <div v-if="achievementMatches.length === 0" class="rp-empty">No achievements logged yet.</div>
-      <div v-for="rec in achievementMatches" :key="rec.id" class="rp-row-card">
-        <label>Animal
-          <select v-model.number="rec.animalId">
-            <option :value="null">Select animal</option>
-            <option v-for="a in animalOptions" :key="`ach-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option>
-          </select>
-        </label>
-        <label>Bagging Group<input v-model="rec.showName" type="text" placeholder="Spring Classic Group"></label>
-        <label>Group Date<input v-model="rec.showDate" type="date"></label>
-        <label>Bagged<input v-model="rec.bagged" type="text" placeholder="How she bagged up"></label>
-        <label>Result<input v-model="rec.placed" type="text" placeholder="Successful / Not Successful"></label>
-        <label class="rp-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Judge comments, prep notes" /></label>
-        <button type="button" class="rp-add-btn" @click="saveAchievement(rec)">Save</button>
-        <button type="button" class="rp-danger" @click="removeAchievement(rec.id)">Remove</button>
-      </div>
+      <details v-for="group in achievementGroups" :key="`ach-${group.name}`" class="achievement-group-details" open>
+        <summary class="achievement-group-summary">
+          <strong>{{ group.name }}</strong>
+          <span>{{ group.records.length }} record{{ group.records.length === 1 ? '' : 's' }}</span>
+        </summary>
+        <div class="achievement-group-body">
+          <div v-for="rec in group.records" :key="rec.id" class="rp-row-card">
+            <label>Animal
+              <select v-model.number="rec.animalId">
+                <option :value="null">Select animal</option>
+                <option v-for="a in animalOptions" :key="`ach-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option>
+              </select>
+            </label>
+            <label>Bagging Group<input v-model="rec.showName" type="text" placeholder="Spring Classic Group"></label>
+            <label>Group Date<input v-model="rec.showDate" type="date"></label>
+            <label>Bagged<input v-model="rec.bagged" type="text" placeholder="How she bagged up"></label>
+            <label>Result<input v-model="rec.placed" type="text" placeholder="Successful / Not Successful"></label>
+            <label class="rp-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Judge comments, prep notes" /></label>
+            <button type="button" class="rp-add-btn" @click="saveAchievement(rec)">Save</button>
+            <button type="button" class="rp-danger" @click="removeAchievement(rec.id)">Remove</button>
+          </div>
+        </div>
+      </details>
     </section>
   </main>
 </template>
@@ -2039,7 +2120,8 @@ onMounted(async () => {
 <style scoped>
 .rp { max-width: 1240px; margin: 0 auto; padding: 0 0 60px; font-family: 'Bahnschrift', 'Arial Narrow', 'Segoe UI', sans-serif; background: #f5f7f2; min-height: 100vh; }
 .rp-hero { background: linear-gradient(135deg, #0f2318 0%, #1a3d22 60%, #244f2f 100%); padding: 22px 24px 18px; border-bottom: 3px solid #31572c; }
-.rp-hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.rp-hero-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 12px; }
+.rp-hero-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rp-brand { color: #7dd3a0; font-size: 0.75rem; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
 .rp-title { margin: 0; font-size: 1.85rem; font-weight: 900; color: #fff; letter-spacing: -0.02em; text-transform: uppercase; }
 .rp-sub { margin: 6px 0 0; color: rgba(255,255,255,0.6); font-size: 0.88rem; }
@@ -2047,6 +2129,7 @@ onMounted(async () => {
 .rp-powered strong { color: rgba(255,255,255,0.55); font-weight: 900; }
 .rp-back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.07); color: #e2e8f0; font-weight: 800; font-size: 0.85rem; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
 .rp-back:hover { background: rgba(255,255,255,0.14); }
+.rp-print-link { border-color: rgba(125,211,160,0.45); }
 
 .rp-tabs { display: flex; overflow-x: auto; gap: 0; background: #fff; border-bottom: 2px solid #e0e8e1; padding: 0 16px; }
 .rp-tabs::-webkit-scrollbar { height: 0; }
@@ -2080,7 +2163,24 @@ onMounted(async () => {
 .ebadge-implanted { background: #dbeafe; color: #1d4ed8; }
 .ebadge-confirmed-pregnant { background: #ccfbf1; color: #115e59; }
 .ebadge-failed { background: #fee2e2; color: #991b1b; }
-.emb-group-title { margin: 14px 0 8px; padding: 8px 12px; border-radius: 8px; background: #f0f7f1; border-left: 4px solid #31572c; color: #1f3a25; font-size: 0.8rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; }
+.emb-group-details,
+.bagging-group-details,
+.bagging-edit-group,
+.achievement-group-details { margin: 14px 0; border: 1px solid #d9e3dc; border-radius: 10px; background: #fff; overflow: hidden; }
+.emb-group-details[open],
+.bagging-group-details[open],
+.bagging-edit-group[open],
+.achievement-group-details[open] { box-shadow: 0 1px 0 rgba(0,0,0,0.02); }
+.emb-group-details summary,
+.bagging-group-details summary,
+.bagging-edit-group summary,
+.achievement-group-details summary { list-style: none; cursor: pointer; }
+.emb-group-details summary::-webkit-details-marker,
+.bagging-group-details summary::-webkit-details-marker,
+.bagging-edit-group summary::-webkit-details-marker,
+.achievement-group-details summary::-webkit-details-marker { display: none; }
+.emb-group-title { margin: 0; padding: 10px 12px; background: #f0f7f1; border-left: 4px solid #31572c; color: #1f3a25; font-size: 0.8rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; }
+.emb-group-body { padding: 12px; display: grid; gap: 10px; }
 .emb-workflow-hint { margin: 0 0 10px; font-size: 0.8rem; font-weight: 700; color: #31572c; }
 .emb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .emb-full { grid-column: 1 / -1; }
@@ -2354,6 +2454,15 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-search-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 0.82rem; color: #5d6f63; }
 .bagging-tools-note { font-weight: 700; color: #31572c; }
 .bagging-glance-panel { border: 1px solid #d9e3dc; border-radius: 10px; padding: 12px; background: #f8fbf8; margin-bottom: 14px; }
+.bagging-group-summary,
+.bagging-edit-summary,
+.achievement-group-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: #f0f7f1; color: #17331f; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; }
+.bagging-group-summary span,
+.bagging-edit-summary span,
+.achievement-group-summary span { font-size: 0.74rem; color: #31572c; }
+.bagging-group-glance,
+.bagging-edit-group-body,
+.achievement-group-body { padding: 12px; display: grid; gap: 10px; }
 .bagging-glance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
 .bagging-glance-card { border: 1px solid #d0ddd3; border-radius: 10px; background: #fff; padding: 10px; display: grid; gap: 6px; }
 .bagging-glance-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

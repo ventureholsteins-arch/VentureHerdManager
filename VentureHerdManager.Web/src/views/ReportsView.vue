@@ -69,6 +69,8 @@ interface ChecklistItem {
 export interface EmbryoRecord {
   id: number
   embryoRecordId?: number
+  createdAt?: string
+  updatedAt?: string
   code: string
   sire: string
   donor: string
@@ -157,6 +159,7 @@ const pcdartError = ref('')
 const pcdartApplySuggested = ref(true)
 const embryoLoadError = ref('')
 const baggingActionStatus = ref('')
+const reportsLoadError = ref('')
 
 const listKey = 'venture-herd-lists-v2'
 const showStringKey = 'venture-herd-show-string-v2'
@@ -310,6 +313,8 @@ function loadData() {
   checklistItems.value = parseStored<ChecklistItem[]>(checklistKey, defaultChecklist.map(i => ({ ...i })))
   embryoRecords.value = parseStored<EmbryoRecord[]>(embryoKey, []).map(e => ({
     ...e,
+    createdAt: e.createdAt,
+    updatedAt: e.updatedAt,
     mating: e.mating || '',
     groupName: e.groupName || '',
     implantDate: e.implantDate || '',
@@ -344,6 +349,8 @@ function embryoFromApi(record: ApiEmbryoRecord): EmbryoRecord {
   return {
     id: record.embryoRecordId,
     embryoRecordId: record.embryoRecordId,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
     code: record.code ?? '',
     sire: record.sire ?? '',
     donor: record.donor ?? '',
@@ -385,10 +392,6 @@ async function loadRemoteEmbryos() {
 
   try {
     const remote = await getAllEmbryos()
-    if (remote.length === 0) {
-      return
-    }
-
     embryoRecords.value = remote.map(embryoFromApi)
     nextEmbryoId.value = Math.max(1, ...embryoRecords.value.map(record => record.id + 1), 1)
   } catch (error) {
@@ -581,8 +584,32 @@ const showStringYoungstock = computed(() =>
 const showStringUnassigned = computed(() =>
   showStringSorted.value.filter(row => !row.animalId)
 )
-const embryosActive = computed(() => embryoRecords.value.filter(e => e.status !== 'Failed'))
-const embryosFailed = computed(() => embryoRecords.value.filter(e => e.status === 'Failed'))
+function compareEmbryos(left: EmbryoRecord, right: EmbryoRecord): number {
+  const leftGroup = left.groupName.trim().toLowerCase()
+  const rightGroup = right.groupName.trim().toLowerCase()
+  if (leftGroup !== rightGroup) {
+    return leftGroup.localeCompare(rightGroup)
+  }
+
+  const leftDate = left.createdAt ? Date.parse(left.createdAt) : 0
+  const rightDate = right.createdAt ? Date.parse(right.createdAt) : 0
+  if (leftDate !== rightDate) {
+    return rightDate - leftDate
+  }
+
+  return right.id - left.id
+}
+
+const embryosActive = computed(() =>
+  embryoRecords.value
+    .filter(e => e.status !== 'Failed')
+    .sort(compareEmbryos)
+)
+const embryosFailed = computed(() =>
+  embryoRecords.value
+    .filter(e => e.status === 'Failed')
+    .sort(compareEmbryos)
+)
 const hasNoAnimals = computed(() => animals.value.length === 0)
 
 function getAnimalLabel(animalId: number | null): string {
@@ -1011,23 +1038,49 @@ async function reloadReportsData() {
   embryoLoadError.value = ''
   embryoImplantsError.value = ''
   analyticsError.value = ''
+  reportsLoadError.value = ''
+
+  if (isDemoOnly) {
+    try {
+      await ensureDemo()
+    } catch (error) {
+      console.error('Demo seed check failed:', error)
+      reportsLoadError.value =
+        'Demo seed check failed. Your local planner data is still available.'
+    }
+  }
 
   try {
-    if (isDemoOnly) {
-      await ensureDemo()
-    }
-
     animals.value = await getAnimals()
-    await loadRemoteEmbryos()
-    await loadRemoteAchievements()
-    await loadEmbryoImplants()
-    await loadAnalytics()
   } catch (error) {
-    console.error('Failed to reload reports data:', error)
-    embryoLoadError.value = 'Could not refresh report data right now. Try again in a moment.'
-  } finally {
-    loading.value = false
+    console.error('Failed to load animals during refresh:', error)
+    const message = error instanceof Error
+      ? error.message
+      : 'Herd data could not be loaded from the API.'
+    reportsLoadError.value =
+      `${message} Local planner data remains available while the API recovers.`
   }
+
+  const results = await Promise.allSettled([
+    loadRemoteEmbryos(),
+    loadRemoteAchievements(),
+    loadEmbryoImplants(),
+    loadAnalytics()
+  ])
+
+  const failed = results
+    .filter((result): result is PromiseRejectedResult =>
+      result.status === 'rejected')
+
+  if (failed.length > 0) {
+    console.error('One or more report loaders failed:', failed)
+    if (!reportsLoadError.value) {
+      reportsLoadError.value =
+        'Some live sections failed to refresh. Saved planner data is still loaded.'
+    }
+  }
+
+  loading.value = false
 }
 
 function openAchievementsForShow(showName: string) {
@@ -1149,6 +1202,8 @@ onMounted(async () => {
       <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'">🏆 Achievements</button>
       <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">📊 Analytics</button>
     </nav>
+
+    <p v-if="reportsLoadError" class="rp-error" style="margin: 12px 16px 0;">{{ reportsLoadError }}</p>
 
     <section v-if="loading" class="rp-panel">
       <HerdLoadingScene message="Loading reports and herd data..." />

@@ -128,20 +128,24 @@ public class EmbryoRecordsController : ControllerBase
             return NotFound();
         }
 
-        existing.Code = record.Code;
+        existing.Code = Clean(record.Code);
         existing.Sire = Clean(record.Sire);
         existing.Donor = Clean(record.Donor);
         existing.Mating = Clean(record.Mating)
+            ?? existing.Mating
             ?? BuildEmbryoName(existing);
         existing.DonorAnimalId = record.DonorAnimalId;
-        existing.Grade = record.Grade;
-        existing.GroupName = record.GroupName;
-        existing.LinkedBreedingNote = record.LinkedBreedingNote;
-        existing.FailureNotes = record.FailureNotes;
-        existing.Notes = record.Notes;
-        existing.CollectionLocation = record.CollectionLocation;
-        existing.StorageLocation = record.StorageLocation;
-        existing.UpdatedBy = record.UpdatedBy;
+        existing.Grade = Clean(record.Grade);
+        existing.GroupName = Clean(record.GroupName)
+            ?? existing.GroupName
+            ?? existing.Mating
+            ?? BuildEmbryoName(existing);
+        existing.LinkedBreedingNote = Clean(record.LinkedBreedingNote);
+        existing.FailureNotes = Clean(record.FailureNotes);
+        existing.Notes = Clean(record.Notes);
+        existing.CollectionLocation = Clean(record.CollectionLocation);
+        existing.StorageLocation = Clean(record.StorageLocation);
+        existing.UpdatedBy = Clean(record.UpdatedBy);
         existing.UpdatedAt = DateTime.UtcNow;
 
         var hasImplantHistory =

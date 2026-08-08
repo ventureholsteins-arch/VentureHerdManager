@@ -72,6 +72,8 @@ export interface EmbryoRecord {
   code: string
   sire: string
   donor: string
+  mating: string
+  groupName: string
   grade: string
   status: 'In Storage' | 'Assigned' | 'Implanted' | 'Failed' | 'Confirmed Pregnant'
   recipientAnimalId: number | null
@@ -79,6 +81,8 @@ export interface EmbryoRecord {
   linkedBreedingNote: string
   failureNotes: string
   notes: string
+  collectionLocation: string
+  storageLocation: string
 }
 
 interface AchievementRecord {
@@ -140,6 +144,10 @@ const showBaggingShowDate = ref(new Date().toISOString().slice(0, 10))
 const showBaggingStartTime = ref(toLocalDateTimeInput(new Date()))
 const showBaggingRows = ref<ShowBaggingRow[]>([])
 const achievementSearch = ref('')
+const baggingHistorySearch = ref('')
+const baggingHistoryGroupOnly = ref(false)
+const baggingShareStatus = ref('')
+const achievementsShareStatus = ref('')
 const pcdartRawText = ref('')
 const pcdartReportLabel = ref(`PCDART Monthly ${new Date().toLocaleDateString()}`)
 const pcdartFileName = ref('')
@@ -302,8 +310,12 @@ function loadData() {
   checklistItems.value = parseStored<ChecklistItem[]>(checklistKey, defaultChecklist.map(i => ({ ...i })))
   embryoRecords.value = parseStored<EmbryoRecord[]>(embryoKey, []).map(e => ({
     ...e,
+    mating: e.mating || '',
+    groupName: e.groupName || '',
     implantDate: e.implantDate || '',
-    failureNotes: e.failureNotes || ''
+    failureNotes: e.failureNotes || '',
+    collectionLocation: e.collectionLocation || '',
+    storageLocation: e.storageLocation || ''
   }))
   achievements.value = parseStored<AchievementRecord[]>(achievementsKey, [])
   nextRowId.value = Math.max(1, ...showStringRows.value.map(r => r.id + 1), 1)
@@ -335,13 +347,17 @@ function embryoFromApi(record: ApiEmbryoRecord): EmbryoRecord {
     code: record.code ?? '',
     sire: record.sire ?? '',
     donor: record.donor ?? '',
+    mating: record.mating ?? '',
+    groupName: record.groupName ?? '',
     grade: record.grade ?? '',
     status: statusFromApi(record.status),
     recipientAnimalId: record.recipientAnimalId,
     implantDate: record.implantDate ?? '',
     linkedBreedingNote: record.linkedBreedingNote ?? '',
     failureNotes: record.failureNotes ?? '',
-    notes: record.notes ?? ''
+    notes: record.notes ?? '',
+    collectionLocation: record.collectionLocation ?? '',
+    storageLocation: record.storageLocation ?? ''
   }
 }
 
@@ -350,6 +366,8 @@ function embryoToApi(record: EmbryoRecord): Omit<ApiEmbryoRecord, 'embryoRecordI
     code: record.code || null,
     sire: record.sire || null,
     donor: record.donor || null,
+    mating: record.mating || null,
+    groupName: record.groupName || null,
     grade: record.grade || null,
     status: statusToApi(record.status),
     recipientAnimalId: record.recipientAnimalId,
@@ -357,8 +375,8 @@ function embryoToApi(record: EmbryoRecord): Omit<ApiEmbryoRecord, 'embryoRecordI
     linkedBreedingNote: record.linkedBreedingNote || null,
     failureNotes: record.failureNotes || null,
     notes: record.notes || null,
-    collectionLocation: null,
-    storageLocation: null
+    collectionLocation: record.collectionLocation || null,
+    storageLocation: record.storageLocation || null
   }
 }
 
@@ -477,6 +495,10 @@ const showNameOptions = computed(() => {
   return Array.from(names).sort()
 })
 
+const baggingGroupOptions = computed(() =>
+  showNameOptions.value.filter(name => name.trim().length > 0)
+)
+
 const achievementMatches = computed(() => {
   const q = achievementSearch.value.trim().toLowerCase()
   if (!q) return achievements.value
@@ -486,6 +508,47 @@ const achievementMatches = computed(() => {
       .toLowerCase()
       .includes(q)
   )
+})
+
+const baggingHistoryMatches = computed(() => {
+  const search = baggingHistorySearch.value.trim().toLowerCase()
+  const currentGroup = showBaggingShowName.value.trim().toLowerCase()
+
+  return achievements.value
+    .filter(record => {
+      const hasBaggingHistory =
+        record.bagged.trim().length > 0
+        || record.notes.trim().length > 0
+
+      if (!hasBaggingHistory) {
+        return false
+      }
+
+      const recordGroup = record.showName.trim()
+      const haystack = [
+        recordGroup,
+        getAnimalLabel(record.animalId),
+        record.showDate,
+        record.bagged,
+        record.placed,
+        record.notes
+      ]
+        .join(' ')
+        .toLowerCase()
+
+      const matchesSearch = !search || haystack.includes(search)
+      const matchesGroup =
+        !baggingHistoryGroupOnly.value
+        || !currentGroup
+        || recordGroup.toLowerCase().includes(currentGroup)
+
+      return matchesSearch && matchesGroup
+    })
+    .sort((left, right) => {
+      const byDate = (right.showDate || '').localeCompare(left.showDate || '')
+      if (byDate !== 0) return byDate
+      return right.id - left.id
+    })
 })
 
 const showBaggingStartHoursFromNow = computed(() => parseHoursDifference(toIsoFromInput(showBaggingStartTime.value) ?? ''))
@@ -748,6 +811,75 @@ async function shareShowStringLink() {
   }
 }
 
+async function shareBaggingLink() {
+  const resolved = router.resolve({
+    name: 'reports',
+    query: {
+      tab: 'showBagging',
+      group: showBaggingShowName.value.trim() || undefined,
+      baggingSearch: baggingHistorySearch.value.trim() || undefined
+    }
+  })
+  const shareUrl = `${window.location.origin}${resolved.href}`
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: 'Bagging Group Planner',
+        text: 'Open the bagging group planner and history in Venture Herd Manager.',
+        url: shareUrl
+      })
+      baggingShareStatus.value = 'Share dialog opened.'
+      return
+    }
+
+    await navigator.clipboard.writeText(shareUrl)
+    baggingShareStatus.value = 'Bagging planner link copied.'
+  } catch (error) {
+    console.error('Failed to share bagging link:', error)
+    baggingShareStatus.value = shareUrl
+  }
+}
+
+async function shareAchievementsLink() {
+  const resolved = router.resolve({
+    name: 'reports',
+    query: {
+      tab: 'achievements',
+      q: achievementSearch.value.trim() || undefined
+    }
+  })
+  const shareUrl = `${window.location.origin}${resolved.href}`
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: 'Bagging History Results',
+        text: 'Open filtered bagging and achievement history in Venture Herd Manager.',
+        url: shareUrl
+      })
+      achievementsShareStatus.value = 'Share dialog opened.'
+      return
+    }
+
+    await navigator.clipboard.writeText(shareUrl)
+    achievementsShareStatus.value = 'History link copied.'
+  } catch (error) {
+    console.error('Failed to share achievements link:', error)
+    achievementsShareStatus.value = shareUrl
+  }
+}
+
+function openBaggingHistoryForGroup(groupName: string) {
+  const trimmed = groupName.trim()
+  if (!trimmed) {
+    return
+  }
+
+  baggingHistorySearch.value = trimmed
+  baggingHistoryGroupOnly.value = true
+}
+
 function addShowStringRow() {
   showStringRows.value.push({ id: nextRowId.value++, animalId: null, lineupOrder: showStringRows.value.length + 1, feedNotes: '', feedRation: '', ringDirections: '' })
 }
@@ -769,13 +901,17 @@ function addEmbryoRecord() {
     code: '',
     sire: '',
     donor: '',
+    mating: '',
+    groupName: '',
     grade: '',
     status: 'In Storage',
     recipientAnimalId: null,
     implantDate: '',
     linkedBreedingNote: '',
     failureNotes: '',
-    notes: ''
+    notes: '',
+    collectionLocation: '',
+    storageLocation: ''
   })
 }
 
@@ -960,10 +1096,30 @@ onMounted(async () => {
     activeTab.value = tabParam as HubTab
   }
   const showParam = route.query.show as string | undefined
-  if (showParam) {
+  const searchParam = route.query.q as string | undefined
+  if (searchParam) {
+    achievementSearch.value = searchParam
+    if (activeTab.value !== 'achievements') {
+      activeTab.value = 'achievements'
+    }
+  } else if (showParam) {
     achievementSearch.value = showParam
     if (activeTab.value !== 'achievements') {
       activeTab.value = 'achievements'
+    }
+  }
+  const groupParam = route.query.group as string | undefined
+  if (groupParam) {
+    showBaggingShowName.value = groupParam
+    if (activeTab.value !== 'showBagging') {
+      activeTab.value = 'showBagging'
+    }
+  }
+  const baggingSearchParam = route.query.baggingSearch as string | undefined
+  if (baggingSearchParam) {
+    baggingHistorySearch.value = baggingSearchParam
+    if (activeTab.value !== 'showBagging') {
+      activeTab.value = 'showBagging'
     }
   }
   await reloadReportsData()
@@ -1161,8 +1317,10 @@ onMounted(async () => {
         </div>
         <div class="emb-grid">
           <label>Code / ID<input v-model="rec.code" type="text" placeholder="ET-2026-001"></label>
+          <label>Group<input v-model="rec.groupName" type="text" placeholder="Donor line, flush, or custom group"></label>
           <label>Sire<input v-model="rec.sire" type="text" placeholder="Sire name"></label>
           <label>Donor Cow<input v-model="rec.donor" type="text" placeholder="Donor name"></label>
+          <label>Mating<input v-model="rec.mating" type="text" placeholder="Donor x Sire"></label>
           <label>Grade<input v-model="rec.grade" type="text" placeholder="Grade 1, Excellent…"></label>
           <label>Status
             <select v-model="rec.status">
@@ -1180,6 +1338,8 @@ onMounted(async () => {
             </select>
           </label>
           <label v-if="rec.status === 'Implanted'">Implant Date<input v-model="rec.implantDate" type="date"></label>
+          <label>Collection Location<input v-model="rec.collectionLocation" type="text" placeholder="Farm, flush date, or facility"></label>
+          <label>Storage Location<input v-model="rec.storageLocation" type="text" placeholder="Tank/straw location"></label>
           <label>Breeding Link Note<input v-model="rec.linkedBreedingNote" type="text" placeholder="Breeding date or event ref"></label>
           <label class="emb-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Tank, straw info, vet notes" /></label>
         </div>
@@ -1200,7 +1360,7 @@ onMounted(async () => {
               <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.id)">✕</button>
             </div>
           </div>
-          <div class="emb-summary"><span>Sire: <strong>{{ rec.sire || '—' }}</strong></span><span>Donor: <strong>{{ rec.donor || '—' }}</strong></span><span>Recipient: <strong>{{ rec.recipientAnimalId ? getAnimalLabel(rec.recipientAnimalId) : '—' }}</strong></span></div>
+          <div class="emb-summary"><span>Group: <strong>{{ rec.groupName || '—' }}</strong></span><span>Sire: <strong>{{ rec.sire || '—' }}</strong></span><span>Donor: <strong>{{ rec.donor || '—' }}</strong></span><span>Recipient: <strong>{{ rec.recipientAnimalId ? getAnimalLabel(rec.recipientAnimalId) : '—' }}</strong></span></div>
           <label class="emb-full mt8">Failure Notes<textarea v-model="rec.failureNotes" rows="2" placeholder="Reason, vet notes, recheck date" /></label>
           <label class="emb-full mt8">Status
             <select v-model="rec.status">
@@ -1400,12 +1560,14 @@ onMounted(async () => {
     <!-- SHOW BAGGING -->
     <section v-else-if="activeTab === 'showBagging'" class="rp-panel">
       <div class="rp-ph">
-        <h2>Show Bagging Planner</h2>
+        <h2>Bagging Group Planner</h2>
         <div class="rp-ph-actions">
+          <button type="button" class="rp-add-btn" @click="shareBaggingLink">Share Link</button>
           <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload Data</button>
           <button type="button" class="rp-add-btn" @click="addBlankBaggingRow">+ Blank Row</button>
         </div>
       </div>
+      <p v-if="baggingShareStatus" class="rp-hint">{{ baggingShareStatus }}</p>
 
       <div v-if="hasNoAnimals" class="rp-error" style="margin-bottom: 12px;">
         No cows are loaded in this environment yet. Bagging add/search needs herd animals. Try Reload Data.
@@ -1413,15 +1575,15 @@ onMounted(async () => {
 
       <div class="bagging-top-grid">
         <label>
-          Show Name
-          <input v-model="showBaggingShowName" list="show-name-options" type="text" placeholder="County Fair, State Show, etc." />
+          Bagging Group
+          <input v-model="showBaggingShowName" list="show-name-options" type="text" placeholder="Group name (example: County Fair 2026)" />
           <datalist id="show-name-options">
             <option v-for="name in showNameOptions" :key="name" :value="name" />
           </datalist>
         </label>
 
         <label>
-          Show Date
+          Group Date
           <input v-model="showBaggingShowDate" type="date" />
         </label>
 
@@ -1458,6 +1620,39 @@ onMounted(async () => {
         </div>
       </div>
 
+      <div class="bagging-history-panel">
+        <div class="browse-label">Bagging History Search</div>
+        <div class="browse-filters">
+          <input
+            v-model="baggingHistorySearch"
+            type="search"
+            class="rp-sel"
+            placeholder="Search by cow, group, notes, or date..."
+          />
+          <select v-model="showBaggingShowName" class="rp-sel">
+            <option value="">All Groups</option>
+            <option v-for="group in baggingGroupOptions" :key="`bag-group-${group}`" :value="group">{{ group }}</option>
+          </select>
+          <label class="bagging-group-filter-toggle">
+            <input v-model="baggingHistoryGroupOnly" type="checkbox" />
+            Filter to selected group only
+          </label>
+        </div>
+        <div class="bagging-history-count">
+          {{ baggingHistoryMatches.length }} saved bagging record{{ baggingHistoryMatches.length === 1 ? '' : 's' }}
+        </div>
+        <div v-if="baggingHistoryMatches.length === 0" class="rp-empty-sm">No saved bagging history matches your filters yet.</div>
+        <div v-else class="bagging-history-grid">
+          <article v-for="history in baggingHistoryMatches.slice(0, 24)" :key="`hist-${history.id}`" class="bagging-history-card">
+            <strong>{{ history.showName || 'Ungrouped' }}</strong>
+            <span>{{ getAnimalLabel(history.animalId) }}</span>
+            <small>{{ history.showDate || 'No date' }} · {{ history.placed || 'No result' }}</small>
+            <p>{{ history.bagged || 'No bagging summary entered.' }}</p>
+            <button type="button" class="bagging-show-link" @click="openBaggingHistoryForGroup(history.showName)">Focus Group</button>
+          </article>
+        </div>
+      </div>
+
       <div v-if="showBaggingRowsSorted.length === 0" class="rp-empty">Add a cow above to start bagging.</div>
 
       <div id="bagging-rows" />
@@ -1465,8 +1660,8 @@ onMounted(async () => {
       <div v-for="row in showBaggingRowsSorted" :key="row.id" class="bagging-card">
         <div class="bagging-card-hd">
           <div>
-            <button type="button" class="bagging-show-link" @click="openAchievementsForShow(row.showName || showBaggingShowName)">
-              {{ row.showName || showBaggingShowName || 'Select a show' }}
+            <button type="button" class="bagging-show-link" @click="openBaggingHistoryForGroup(row.showName || showBaggingShowName)">
+              {{ row.showName || showBaggingShowName || 'Select a group' }}
             </button>
             <div class="bagging-cow-line">{{ getBaggingRowAnimalLabel(row) }}</div>
           </div>
@@ -1486,8 +1681,8 @@ onMounted(async () => {
           </label>
 
           <label>
-            Show Name
-            <input v-model="row.showName" type="text" placeholder="Show name" />
+            Bagging Group
+            <input v-model="row.showName" type="text" placeholder="Group name" />
           </label>
 
           <label>
@@ -1646,9 +1841,13 @@ onMounted(async () => {
     <!-- ACHIEVEMENTS -->
     <section v-else class="rp-panel">
       <div class="rp-ph">
-        <h2>Show Achievements</h2>
-        <button type="button" class="rp-add-btn" @click="addAchievement">+ Achievement</button>
+        <h2>Bagging History & Achievements</h2>
+        <div class="rp-ph-actions">
+          <button type="button" class="rp-add-btn" @click="shareAchievementsLink">Share Link</button>
+          <button type="button" class="rp-add-btn" @click="addAchievement">+ Record</button>
+        </div>
       </div>
+      <p v-if="achievementsShareStatus" class="rp-hint">{{ achievementsShareStatus }}</p>
       <input v-model="achievementSearch" type="search" class="rp-list-search" placeholder="Search by show, cow, or notes…" />
       <div v-if="achievementMatches.length === 0" class="rp-empty">No achievements logged yet.</div>
       <div v-for="rec in achievementMatches" :key="rec.id" class="rp-row-card">
@@ -1658,8 +1857,8 @@ onMounted(async () => {
             <option v-for="a in animalOptions" :key="`ach-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option>
           </select>
         </label>
-        <label>Show Name<input v-model="rec.showName" type="text" placeholder="Spring Classic Show"></label>
-        <label>Show Date<input v-model="rec.showDate" type="date"></label>
+        <label>Bagging Group<input v-model="rec.showName" type="text" placeholder="Spring Classic Group"></label>
+        <label>Group Date<input v-model="rec.showDate" type="date"></label>
         <label>Bagged<input v-model="rec.bagged" type="text" placeholder="How she bagged up"></label>
         <label>Result<input v-model="rec.placed" type="text" placeholder="Successful / Not Successful"></label>
         <label class="rp-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Judge comments, prep notes" /></label>

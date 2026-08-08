@@ -263,6 +263,21 @@ static async Task EnsureEmbryoRecordsReadyAsync(WebApplication app)
               ALTER TABLE [dbo].[EmbryoRecords]
                 ADD [GroupName] NVARCHAR(200) NULL;
 
+                        UPDATE [dbo].[EmbryoRecords]
+                             SET [GroupName] = LEFT(
+                                     COALESCE(
+                                             NULLIF(LTRIM(RTRIM([GroupName])), N''),
+                                             NULLIF(LTRIM(RTRIM([Mating])), N''),
+                                             NULLIF(
+                                                     LTRIM(RTRIM(
+                                                             COALESCE(NULLIF(LTRIM(RTRIM([Donor])), N''), N'Unknown dam')
+                                                             + N' x '
+                                                             + COALESCE(NULLIF(LTRIM(RTRIM([Sire])), N''), N'Unknown sire'))),
+                                                     N'')
+                                     ),
+                                     200)
+                         WHERE NULLIF(LTRIM(RTRIM([GroupName])), N'') IS NULL;
+
             IF COL_LENGTH(N'dbo.EmbryoRecords', N'DemoSessionId') IS NULL
               ALTER TABLE [dbo].[EmbryoRecords]
                 ADD [DemoSessionId] NVARCHAR(64) NULL;

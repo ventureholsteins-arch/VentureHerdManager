@@ -13,12 +13,16 @@ const apiBase = import.meta.env.VITE_API_URL as string | undefined
 
 if (isDemoOnly && apiBase) {
   const storageKey = 'venture-herd-demo-session-id'
-  let sessionId = sessionStorage.getItem(storageKey)
+  const legacySessionId = sessionStorage.getItem(storageKey)
+  let sessionId = localStorage.getItem(storageKey) || legacySessionId
 
   if (!sessionId) {
     sessionId = `demo-${crypto.randomUUID().replaceAll('-', '')}`
-    sessionStorage.setItem(storageKey, sessionId)
   }
+
+  // Keep one stable demo session id across tabs so data does not appear to vanish.
+  localStorage.setItem(storageKey, sessionId)
+  sessionStorage.setItem(storageKey, sessionId)
 
   const nativeFetch = globalThis.fetch.bind(globalThis)
 

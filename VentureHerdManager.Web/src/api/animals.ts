@@ -12,7 +12,21 @@ export async function getAnimals(): Promise<Animal[]> {
   const response = await fetch(`${API_BASE}/Animals`)
 
   if (!response.ok) {
-    throw new Error('Failed to load animals')
+    let apiMessage = ''
+    try {
+      const payload = await response.clone().json() as { message?: string }
+      apiMessage = payload?.message?.trim() ?? ''
+    } catch {
+      try {
+        apiMessage = (await response.text()).trim()
+      } catch {
+        apiMessage = ''
+      }
+    }
+
+    throw new Error(
+      apiMessage || `Failed to load animals (HTTP ${response.status})`
+    )
   }
 
   const animals: Animal[] = await response.json()

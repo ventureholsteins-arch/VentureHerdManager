@@ -280,7 +280,7 @@ function normalizeBaggingRow(row: Partial<ShowBaggingRow>): ShowBaggingRow {
     showName: row.showName ?? '',
     showDate: row.showDate ?? new Date().toISOString().slice(0, 10),
     wasSuccessful: row.wasSuccessful ?? true,
-    entryTime: row.entryTime ?? showBaggingStartTime.value,
+    entryTime: row.entryTime ?? '',
     notes: row.notes ?? '',
     showAchievementId: row.showAchievementId,
     remindersEnabled: row.remindersEnabled ?? true,
@@ -798,7 +798,7 @@ function addShowBaggingRow(animal: Animal) {
     return
   }
 
-  const entryTime = showBaggingStartTime.value || `${showBaggingShowDate.value || new Date().toISOString().slice(0, 10)}T12:00`
+  const entryTime = ''
   const quarters = createDefaultBaggingQuarters()
 
   showBaggingRows.value.push({
@@ -827,7 +827,7 @@ function addBlankBaggingRow() {
     showName: showBaggingShowName.value,
     showDate: showBaggingShowDate.value,
     wasSuccessful: true,
-    entryTime: `${showBaggingShowDate.value || new Date().toISOString().slice(0, 10)}T12:00`,
+    entryTime: '',
     notes: '',
     quarters: createDefaultBaggingQuarters(),
     remindersEnabled: true
@@ -915,6 +915,10 @@ function baggingDetailNotes(row: ShowBaggingRow): string {
 async function saveBaggingRow(row: ShowBaggingRow) {
   if (!row.animalId) {
     alert('Select a cow before saving bagging.')
+    return
+  }
+  if (!row.entryTime || Number.isNaN(new Date(row.entryTime).getTime())) {
+    alert(`Enter the separate show time for ${getBaggingRowAnimalLabel(row)} before saving.`)
     return
   }
 
@@ -2114,8 +2118,8 @@ onMounted(async () => {
               </label>
 
               <label>
-                When does this cow go out?
-                <input v-model="row.entryTime" type="datetime-local" />
+                When does this cow go out? (required)
+                <input v-model="row.entryTime" type="datetime-local" required />
               </label>
 
               <label class="bagging-success-toggle">

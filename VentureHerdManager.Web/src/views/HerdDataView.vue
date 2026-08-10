@@ -82,7 +82,6 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
       <button type="button" :class="{ active: source === 1 }" @click="chooseSource(1)">Import PC-DART Milk</button>
       <button type="button" :class="{ active: source === 2 }" @click="chooseSource(2)">Import Zoetis Genomics</button>
     </div>
-    <template>
       <details ref="importDetails" class="card import-card" open>
         <summary>Import report</summary>
         <p class="import-instruction">{{ source === 2 ? 'Choose your Zoetis Core Traits CSV, then preview the animal matches.' : 'Choose your PC-DART CSV, then preview the animal matches.' }}</p>
@@ -96,7 +95,6 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
       <details class="card"><summary>Milk table</summary><div class="table-wrap"><table><thead><tr><th>Animal</th><th>Milk</th><th>DIM</th><th>Fat %</th><th>Protein %</th></tr></thead><tbody><tr v-for="row in analytics?.milk ?? []" :key="row.animalId"><td>{{ row.animalName }}</td><td>{{ row.milk }}</td><td>{{ row.daysInMilk }}</td><td>{{ row.fatPercent }}</td><td>{{ row.proteinPercent }}</td></tr></tbody></table></div></details>
       <details class="card"><summary>Genomic table</summary><div class="table-wrap"><table><thead><tr><th>Animal</th><th>TPI</th><th>NM$</th><th>Milk PTA</th><th>DPR</th><th>PL</th><th>Type</th><th>UDC</th><th>FLC</th></tr></thead><tbody><tr v-for="row in analytics?.genomic ?? []" :key="row.animalId"><td>{{ row.animalName }}</td><td>{{ row.tpi }}</td><td>{{ row.netMerit }}</td><td>{{ row.milkPta }}</td><td>{{ row.daughterPregnancyRate }}</td><td>{{ row.productiveLife }}</td><td>{{ row.typeScore }}</td><td>{{ row.udderComposite }}</td><td>{{ row.feetLegsComposite }}</td></tr></tbody></table></div></details>
       <details class="card"><summary>Combined sale &amp; breeding review</summary><input v-model="combinedSearch" type="search" placeholder="Search animal"><div class="table-wrap"><table><thead><tr><th>Animal</th><th>Actual milk</th><th>DIM</th><th>TPI</th><th>NM$</th><th>Milk PTA</th><th>DPR</th><th>PL</th><th>Type</th><th>UDC</th><th>FLC</th></tr></thead><tbody><tr v-for="row in filteredCombined" :key="row.animalId"><td><button class="link" @click="router.push(`/animals/${row.animalId}`)">{{ row.animalName }}</button></td><td>{{ row.milk }}</td><td>{{ row.daysInMilk }}</td><td>{{ row.tpi }}</td><td>{{ row.netMerit }}</td><td>{{ row.milkPta }}</td><td>{{ row.daughterPregnancyRate }}</td><td>{{ row.productiveLife }}</td><td>{{ row.typeScore }}</td><td>{{ row.udderComposite }}</td><td>{{ row.feetLegsComposite }}</td></tr></tbody></table></div></details>
-    </template>
   </main>
 </template>
 

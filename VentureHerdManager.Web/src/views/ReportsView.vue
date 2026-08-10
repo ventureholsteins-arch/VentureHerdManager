@@ -24,6 +24,7 @@ import { ensureDemo } from '../api/demo'
 import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 import HerdLoadingScene from '../components/HerdLoadingScene.vue'
+import RetroIcon from '../components/RetroIcon.vue'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'showBagging' | 'lists' | 'checklist' | 'pcdartImport' | 'achievements'
 
@@ -1342,15 +1343,15 @@ onMounted(async () => {
     </header>
 
     <nav class="rp-tabs">
-      <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'">🧬 Embryos</button>
-      <button :class="{ active: activeTab === 'embryoImplants' }" @click="activeTab = 'embryoImplants'">🤰 Implants</button>
-      <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'">🐄 Show String</button>
-      <button :class="{ active: activeTab === 'showBagging' }" @click="activeTab = 'showBagging'">🫙 Show Bagging</button>
-      <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'">📋 Herd Lists</button>
-      <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'">✅ Checklist</button>
-      <button :class="{ active: activeTab === 'pcdartImport' }" @click="activeTab = 'pcdartImport'">📥 PCDART Import</button>
-      <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'">🏆 Achievements</button>
-      <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'">📊 Analytics</button>
+      <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'"><RetroIcon name="embryo" :size="22" />Embryos</button>
+      <button :class="{ active: activeTab === 'embryoImplants' }" @click="activeTab = 'embryoImplants'"><RetroIcon name="pregCheck" :size="22" />Implants</button>
+      <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'"><RetroIcon name="calf" :size="22" />Show String</button>
+      <button :class="{ active: activeTab === 'showBagging' }" @click="activeTab = 'showBagging'"><RetroIcon name="calving" :size="22" />Show Bagging</button>
+      <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'"><RetroIcon name="note" :size="22" />Herd Lists</button>
+      <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'"><RetroIcon name="note" :size="22" />Checklist</button>
+      <button :class="{ active: activeTab === 'pcdartImport' }" @click="activeTab = 'pcdartImport'"><RetroIcon name="reports" :size="22" />PCDART Import</button>
+      <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'"><RetroIcon name="calf" :size="22" />Achievements</button>
+      <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'"><RetroIcon name="reports" :size="22" />Analytics</button>
     </nav>
 
     <p v-if="reportsLoadError" class="rp-error" style="margin: 12px 16px 0;">{{ reportsLoadError }}</p>
@@ -2133,7 +2134,7 @@ onMounted(async () => {
 
 .rp-tabs { display: flex; overflow-x: auto; gap: 0; background: #fff; border-bottom: 2px solid #e0e8e1; padding: 0 16px; }
 .rp-tabs::-webkit-scrollbar { height: 0; }
-.rp-tabs button { flex-shrink: 0; border: none; border-bottom: 3px solid transparent; background: transparent; color: #5d6f63; font-weight: 800; font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 14px 16px 11px; cursor: pointer; white-space: nowrap; transition: color 0.15s, border-color 0.15s; }
+.rp-tabs button { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; border: none; border-bottom: 3px solid transparent; background: transparent; color: #5d6f63; font-weight: 800; font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 14px 16px 11px; cursor: pointer; white-space: nowrap; transition: color 0.15s, border-color 0.15s; }
 .rp-tabs button:hover { color: #0f1f16; }
 .rp-tabs button.active { color: #31572c; border-bottom-color: #31572c; }
 

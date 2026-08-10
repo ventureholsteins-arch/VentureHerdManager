@@ -116,6 +116,11 @@ public class DemoController : ControllerBase
         await SafeDbStep("LutalyseEvents delete", () => _context.LutalyseEvents.ExecuteDeleteAsync(cancellationToken));
         await SafeDbStep("CalvingEvents delete", () => _context.CalvingEvents.ExecuteDeleteAsync(cancellationToken));
         await SafeDbStep(
+            "legacy AnimalProductionSnapshots delete",
+            () => _context.Database.ExecuteSqlRawAsync(
+                "IF OBJECT_ID(N'[dbo].[AnimalProductionSnapshots]', N'U') IS NOT NULL DELETE FROM [dbo].[AnimalProductionSnapshots];",
+                cancellationToken));
+        await SafeDbStep(
             "Animals FK clear",
             () => _context.Animals.ExecuteUpdateAsync(
                 setters => setters

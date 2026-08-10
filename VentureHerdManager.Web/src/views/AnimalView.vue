@@ -6,6 +6,7 @@ import { getAnimal } from '../api/animals'
 import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
+import RetroIcon from '../components/RetroIcon.vue'
 
 import {
   getAnimalNotes,
@@ -884,27 +885,33 @@ const scoreLabel = computed(() => {
 
         <div class="actions">
           <button @click="openHeatForm">
-            ❤️ Record Heat
+            <RetroIcon name="heat" :size="30" />
+            <span>Record Heat</span>
           </button>
 
           <button @click="openBreedingForm">
-            🧬 Breed
+            <RetroIcon name="embryo" :size="30" />
+            <span>Breed</span>
           </button>
 
           <button @click="openPregCheckForm">
-            🤰 Preg Check
+            <RetroIcon name="pregCheck" :size="30" />
+            <span>Preg Check</span>
           </button>
 
           <button @click="openCalvingForm">
-            🐄 Calved
+            <RetroIcon name="calving" :size="30" />
+            <span>Calved</span>
           </button>
 
           <button @click="openDryOffForm">
-            🌾 Dry Off
+            <RetroIcon name="dryOff" :size="30" />
+            <span>Dry Off</span>
           </button>
 
           <button @click="openNoteForm">
-            📝 Notes
+            <RetroIcon name="note" :size="30" />
+            <span>Notes</span>
           </button>
         </div>
 
@@ -1756,6 +1763,10 @@ const scoreLabel = computed(() => {
 }
 
 .actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 18px;
   border: 1px solid #111827;
   border-radius: 8px;

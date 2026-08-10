@@ -1512,6 +1512,7 @@ onMounted(async () => {
 
     <nav class="rp-tabs" aria-label="Reports in selected category">
       <template v-if="activeCategory === 'decisions'">
+        <button type="button" @click="router.push('/reports/herd-data?view=attention')"><RetroIcon name="note" :size="22" />Attention Lists</button>
         <button :class="{ active: activeTab === 'analytics' }" @click="selectReportTab('analytics')"><RetroIcon name="reports" :size="22" />Breeding Analytics</button>
         <button type="button" @click="router.push('/reports/herd-data?view=milk')"><RetroIcon name="reports" :size="22" />Milk Analytics</button>
         <button type="button" @click="router.push('/reports/herd-data?view=genomics')"><RetroIcon name="reports" :size="22" />Genomic Analytics</button>

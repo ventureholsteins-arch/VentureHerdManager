@@ -95,6 +95,8 @@ function animalLinearWidth(value: unknown) { const number = Number(value); retur
 function importedFields(record: any): Record<string, string> {
   try { return typeof record.rawDataJson === 'string' ? JSON.parse(record.rawDataJson) : record.rawDataJson ?? {} } catch { return {} }
 }
+const latestMilkRecord = computed(() => herdDataRecords.value.find(record => record.source === 1) ?? null)
+const latestMilkFields = computed(() => latestMilkRecord.value ? importedFields(latestMilkRecord.value) : {})
 const showAchievements = ref<ShowAchievement[]>([])
 
 const loading = ref(true)
@@ -896,6 +898,18 @@ const scoreLabel = computed(() => {
         </div>
       </section>
       <section v-if="animal.animalStatus === 1" class="sold-banner"><div><strong>SOLD - ARCHIVED</strong><span>{{ animal.soldDate ? new Date(animal.soldDate).toLocaleDateString() : 'Sold animal' }} · All records are retained</span><p v-if="animal.soldNotes">{{ animal.soldNotes }}</p></div><button @click="undoSold">Restore to active herd</button></section>
+
+      <section v-if="latestMilkRecord" class="latest-milk-strip">
+        <div class="milk-strip-title"><span>LATEST MILK TEST</span><strong>{{ latestMilkRecord.reportDate }}</strong></div>
+        <article><small>Current milk</small><strong>{{ latestMilkRecord.milk ?? '—' }}</strong></article>
+        <article v-if="latestMilkFields['Previous Milk']"><small>Previous milk</small><strong>{{ latestMilkFields['Previous Milk'] }}</strong></article>
+        <article v-if="latestMilkFields['Milk Deviation']"><small>Change</small><strong :class="{ down: String(latestMilkFields['Milk Deviation']).startsWith('-') }">{{ latestMilkFields['Milk Deviation'] }}</strong></article>
+        <article><small>DIM</small><strong>{{ latestMilkRecord.daysInMilk ?? '—' }}</strong></article>
+        <article v-if="latestMilkFields['Current SCC']"><small>SCC</small><strong>{{ latestMilkFields['Current SCC'] }}</strong></article>
+        <article v-if="latestMilkRecord.fatPercent != null"><small>Fat</small><strong>{{ latestMilkRecord.fatPercent }}%</strong></article>
+        <article v-if="latestMilkRecord.proteinPercent != null"><small>Protein</small><strong>{{ latestMilkRecord.proteinPercent }}%</strong></article>
+        <button @click="router.push('/reports/herd-data?view=milk')">Milk analytics →</button>
+      </section>
 
       <section class="panel">
         <h2>Pedigree</h2>
@@ -2046,7 +2060,19 @@ const scoreLabel = computed(() => {
   font-size: 0.9rem;
 }
 
+.latest-milk-strip{display:grid;grid-template-columns:auto repeat(6,minmax(80px,1fr)) auto;gap:7px;align-items:stretch;margin:12px 0;padding:10px;border-left:6px solid #2f80ed;background:#eef6ff;overflow-x:auto}
+.latest-milk-strip article,.milk-strip-title{display:grid;align-content:center;min-width:82px;padding:7px;background:#fff}
+.milk-strip-title{background:#123b68;color:#fff}
+.milk-strip-title span{font-size:.66rem;font-weight:950;letter-spacing:.08em}
+.latest-milk-strip small{color:#64748b;font-size:.7rem}
+.latest-milk-strip strong{font-size:1rem}
+.latest-milk-strip .down{color:#b91c1c}
+.latest-milk-strip>button{min-width:120px;border:0;border-radius:6px;background:#1769c2;color:#fff;font-weight:850}
+
 @media (max-width: 700px) {
+  .latest-milk-strip{grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
+  .milk-strip-title,.latest-milk-strip>button{grid-column:1/-1}
+
   .info-grid,
   .pedigree,
   .actions,

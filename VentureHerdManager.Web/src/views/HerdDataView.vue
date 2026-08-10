@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getAnimalsBasic } from '../api/animals'
 import { applyHerdData, getHerdDataAnalytics, previewHerdData, type HerdDataPreview, type HerdDataSource } from '../api/herdData'
 import type { Animal } from '../models/Animal'
 
 const router = useRouter()
+const route = useRoute()
 const animals = ref<Animal[]>([])
 const analytics = ref<any>(null)
 const source = ref<HerdDataSource>(1)
@@ -19,6 +20,7 @@ const busy = ref(false)
 const combinedSearch = ref('')
 
 onMounted(async () => {
+  source.value = route.query.source === '2' ? 2 : 1
   try {
     ;[analytics.value, animals.value] = await Promise.all([getHerdDataAnalytics(), getAnimalsBasic()])
   } catch (error) { status.value = error instanceof Error ? error.message : 'Private analytics could not load.' }
@@ -55,6 +57,10 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
 <template>
   <main class="data-page">
     <header><button @click="router.push('/reports')">← Reports</button><h1>Milk & Genomic Analytics</h1><p>Private herd production, genomic comparisons, and mating decisions.</p></header>
+    <div class="import-choice">
+      <button type="button" :class="{ active: source === 1 }" @click="source = 1">Import PC-DART Milk</button>
+      <button type="button" :class="{ active: source === 2 }" @click="source = 2">Import Zoetis Genomics</button>
+    </div>
     <template>
       <details class="card import-card">
         <summary>Import report</summary>
@@ -71,5 +77,6 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
 </template>
 
 <style scoped>
+.import-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.import-choice button{min-height:52px;border:2px solid #31572c;border-radius:9px;background:#fff;color:#31572c;font-weight:900}.import-choice button.active{background:#31572c;color:#fff}
 .data-page{max-width:1240px;margin:auto;padding:16px;background:#f5f7f2;min-height:100vh}header{padding:20px;border-radius:12px;background:#173422;color:#fff}header button,.card button{min-height:44px;border:0;border-radius:7px;padding:0 14px;font-weight:850}.card{margin:14px 0;padding:16px;border:1px solid #d8e2da;border-radius:12px;background:#fff}.card summary{cursor:pointer;font-size:1.2rem;font-weight:900;min-height:34px}.card[open] summary{margin-bottom:14px}.controls input,.controls select,.card>input,.match-list select{min-height:44px;border:1px solid #bdcbbf;border-radius:7px;padding:8px;width:100%;box-sizing:border-box}.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.actions{display:flex;gap:8px;margin-top:12px}.actions button{background:#31572c;color:#fff}.match-list{display:grid;gap:8px;margin-top:14px;max-height:520px;overflow:auto}.match-list label{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;align-items:center;padding:8px;border:1px solid #e0e7e1;border-radius:8px}.match-list span{display:grid;font-weight:800}.match-list small{font-weight:400;color:#64746a}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:9px;border-bottom:1px solid #e1e7e2;text-align:left}th{background:#eef5ef}.link{background:transparent!important;color:#31572c;padding:0!important}.error{color:#991b1b}@media(max-width:640px){.controls,.match-list label{grid-template-columns:1fr}.actions{display:grid}.actions button{width:100%}.data-page{padding:8px}.card{padding:12px}}
 </style>

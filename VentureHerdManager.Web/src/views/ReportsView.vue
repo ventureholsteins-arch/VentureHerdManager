@@ -1408,7 +1408,8 @@ onMounted(async () => {
         <div class="rp-hero-actions">
           <span class="rp-brand">Venture Herd Manager</span>
           <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/print')">Print Reports</button>
-          <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/herd-data')">Milk & Genomics</button>
+          <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/herd-data?source=1')">Import PC-DART</button>
+          <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/herd-data?source=2')">Import Zoetis Genomics</button>
         </div>
       </div>
       <h1 class="rp-title">Reports &amp; Show Planner</h1>
@@ -1423,7 +1424,7 @@ onMounted(async () => {
       <button :class="{ active: activeTab === 'showBagging' }" @click="activeTab = 'showBagging'"><RetroIcon name="calving" :size="22" />Show Bagging</button>
       <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'"><RetroIcon name="note" :size="22" />Herd Lists</button>
       <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'"><RetroIcon name="note" :size="22" />Checklist</button>
-      <button :class="{ active: activeTab === 'pcdartImport' }" @click="activeTab = 'pcdartImport'"><RetroIcon name="reports" :size="22" />PCDART Import</button>
+      <button :class="{ active: activeTab === 'pcdartImport' }" @click="activeTab = 'pcdartImport'"><RetroIcon name="reports" :size="22" />Legacy PCDART Audit</button>
       <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'"><RetroIcon name="calf" :size="22" />Achievements</button>
       <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'"><RetroIcon name="reports" :size="22" />Analytics</button>
     </nav>
@@ -2125,9 +2126,9 @@ onMounted(async () => {
     <!-- PCDART IMPORT -->
     <section v-else-if="activeTab === 'pcdartImport'" class="rp-panel">
       <div class="rp-ph">
-        <h2>Monthly PCDART Import</h2>
+        <h2>Legacy PCDART Notes &amp; Audit</h2>
       </div>
-      <p class="rp-hint">Paste or upload your monthly PCDART report. Apply creates per-cow import notes so each month is preserved on the animal timeline.</p>
+      <p class="rp-hint">This older tool creates timeline notes and suggested-change audits. For stored milk values and analytics, use Import PC-DART at the top.</p>
 
       <div class="rp-row-card">
         <label>Report Label
@@ -2149,7 +2150,7 @@ onMounted(async () => {
         <p v-if="pcdartFileName" class="rp-hint rp-full">Loaded file: {{ pcdartFileName }}</p>
         <div class="emb-actions rp-full">
           <button type="button" class="rp-add-btn" :disabled="pcdartImporting" @click="runPcdartImport(false)">{{ pcdartImporting ? 'Working…' : 'Preview Import' }}</button>
-          <button type="button" class="rp-add-btn" :disabled="pcdartImporting" @click="runPcdartImport(true)">{{ pcdartImporting ? 'Working…' : 'Apply Monthly Import' }}</button>
+          <button type="button" class="rp-add-btn" :disabled="pcdartImporting" @click="runPcdartImport(true)">{{ pcdartImporting ? 'Working…' : 'Accept Audit Results & Apply' }}</button>
         </div>
       </div>
 

@@ -29,6 +29,9 @@ public sealed class HerdDataPreviewRow
     public string SourceKey { get; set; } = string.Empty;
     public string SourceName { get; set; } = string.Empty;
     public string? OfficialId { get; set; }
+    public DateOnly? BirthDate { get; set; }
+    public string? Breed { get; set; }
+    public string? ImportedSex { get; set; }
     public int? AnimalId { get; set; }
     public string? AnimalName { get; set; }
     public bool NeedsConfirmation { get; set; }

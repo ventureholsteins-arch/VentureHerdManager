@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getAnimalsBasic } from '../api/animals'
+import { createAnimal, getAnimalsBasic } from '../api/animals'
 import { applyHerdData, getHerdDataAnalytics, previewHerdData, type HerdDataPreview, type HerdDataSource } from '../api/herdData'
 import type { Animal } from '../models/Animal'
 
@@ -21,6 +21,7 @@ const combinedSearch = ref('')
 const importDetails = ref<HTMLDetailsElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const duplicateDecision = ref<'pending' | 'accepted' | 'declined'>('pending')
+const creatingAnimalKey = ref('')
 
 function chooseSource(nextSource: HerdDataSource) {
   source.value = nextSource
@@ -86,6 +87,44 @@ async function acceptDuplicate() {
   duplicateDecision.value = 'accepted'
   await applyImport(true)
 }
+async function createAnimalFromImport(row: HerdDataPreview['rows'][number], kind: 'cow' | 'heifer' | 'bull') {
+  if (row.candidates.length > 0) {
+    const candidateNames = row.candidates.slice(0, 4).map(candidate => candidate.animalName).join(', ')
+    const accepted = window.confirm(`Possible existing match${row.candidates.length === 1 ? '' : 'es'}: ${candidateNames}.\n\nCreate a separate ${kind} card anyway?`)
+    if (!accepted) {
+      status.value = 'New card declined. Choose the correct existing animal instead.'
+      return
+    }
+  }
+  creatingAnimalKey.value = row.sourceKey
+  status.value = ''
+  try {
+    const officialId = (row.officialId || '').replace(/^HO/i, '') || null
+    const isPcdart = source.value === 1
+    const created = await createAnimal({
+      barnName: isPcdart ? row.sourceName || null : null,
+      registeredName: isPcdart ? null : row.sourceName || null,
+      registrationNumber: officialId,
+      birthDate: row.birthDate || null,
+      sex: kind === 'bull' ? 2 : 1,
+      animalStage: kind === 'bull' ? 5 : kind === 'heifer' ? 2 : 3,
+      animalStatus: 0,
+      breed: row.breed || null,
+      notes: `Created from ${isPcdart ? 'PC-DART' : 'Zoetis'} import. Source: ${row.sourceName || row.sourceKey}.`,
+      isFavorite: false
+    })
+    animals.value.push(created)
+    mappings.value[row.sourceKey] = created.animalId
+    row.animalId = created.animalId
+    row.animalName = created.barnName || created.registeredName || `Animal #${created.animalId}`
+    row.needsConfirmation = false
+    status.value = `${row.animalName} card created as ${kind}. It is matched and ready for the confirmed import.`
+  } catch (error) {
+    status.value = error instanceof Error ? error.message : 'Animal card could not be created.'
+  } finally {
+    creatingAnimalKey.value = ''
+  }
+}
 const needsMatch = computed(() => preview.value?.rows.filter(row => !mappings.value[row.sourceKey]) ?? [])
 const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter((row: any) => !combinedSearch.value || row.animalName?.toLowerCase().includes(combinedSearch.value.toLowerCase())))
 </script>
@@ -120,7 +159,7 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
           </div>
           <small>Accept replaces the stored report; it does not create a second copy.</small>
         </section>
-        <div v-if="preview" class="match-list"><p><strong>{{ preview.rowsRead }}</strong> rows · {{ needsMatch.length }} need confirmation</p><label v-for="row in preview.rows" :key="row.sourceKey"><span>{{ row.sourceName }} <small>{{ row.officialId }}</small></span><select v-model.number="mappings[row.sourceKey]"><option :value="0">Choose animal…</option><option v-for="candidate in row.candidates" :key="candidate.animalId" :value="candidate.animalId">{{ candidate.animalName }} · {{ candidate.registrationNumber }}</option><option v-for="animal in animals" :key="`all-${animal.animalId}`" :value="animal.animalId">{{ animal.barnName || animal.registeredName || `#${animal.animalId}` }}</option></select></label></div>
+        <div v-if="preview" class="match-list"><p><strong>{{ preview.rowsRead }}</strong> rows · {{ needsMatch.length }} need confirmation</p><div v-for="row in preview.rows" :key="row.sourceKey" class="match-row" :class="{ unmatched: !mappings[row.sourceKey] }"><span>{{ row.sourceName }} <small>{{ row.officialId }}<template v-if="row.birthDate"> · Born {{ row.birthDate }}</template><template v-if="row.breed"> · {{ row.breed }}</template></small></span><select v-model.number="mappings[row.sourceKey]"><option :value="0">Choose existing animal…</option><option v-for="candidate in row.candidates" :key="candidate.animalId" :value="candidate.animalId">{{ candidate.animalName }} · {{ candidate.registrationNumber }}</option><option v-for="animal in animals" :key="`all-${animal.animalId}`" :value="animal.animalId">{{ animal.barnName || animal.registeredName || `#${animal.animalId}` }}</option></select><div v-if="!mappings[row.sourceKey]" class="create-animal-actions"><strong>Not in herd? Create card:</strong><button type="button" :disabled="creatingAnimalKey === row.sourceKey" @click="createAnimalFromImport(row, 'cow')">Cow</button><button type="button" :disabled="creatingAnimalKey === row.sourceKey" @click="createAnimalFromImport(row, 'heifer')">Heifer</button><button type="button" :disabled="creatingAnimalKey === row.sourceKey" @click="createAnimalFromImport(row, 'bull')">Bull</button></div></div></div>
       </details>
       <details class="card"><summary>Milk table</summary><div class="table-wrap"><table><thead><tr><th>Animal</th><th>Milk</th><th>DIM</th><th>Fat %</th><th>Protein %</th></tr></thead><tbody><tr v-for="row in analytics?.milk ?? []" :key="row.animalId"><td>{{ row.animalName }}</td><td>{{ row.milk }}</td><td>{{ row.daysInMilk }}</td><td>{{ row.fatPercent }}</td><td>{{ row.proteinPercent }}</td></tr></tbody></table></div></details>
       <details class="card"><summary>Genomic table</summary><div class="table-wrap"><table><thead><tr><th>Animal</th><th>TPI</th><th>NM$</th><th>Milk PTA</th><th>DPR</th><th>PL</th><th>Type</th><th>UDC</th><th>FLC</th></tr></thead><tbody><tr v-for="row in analytics?.genomic ?? []" :key="row.animalId"><td>{{ row.animalName }}</td><td>{{ row.tpi }}</td><td>{{ row.netMerit }}</td><td>{{ row.milkPta }}</td><td>{{ row.daughterPregnancyRate }}</td><td>{{ row.productiveLife }}</td><td>{{ row.typeScore }}</td><td>{{ row.udderComposite }}</td><td>{{ row.feetLegsComposite }}</td></tr></tbody></table></div></details>
@@ -132,5 +171,5 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
 .import-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.import-choice button{min-height:52px;border:2px solid #31572c;border-radius:9px;background:#fff;color:#31572c;font-weight:900}.import-choice button.active{background:#31572c;color:#fff}
 .import-instruction{font-weight:750;color:#31572c}.choose-file{width:100%;min-height:56px;background:#31572c;color:#fff;font-size:1rem;display:grid;place-items:center;border-radius:8px;font-weight:900;cursor:pointer;box-sizing:border-box}.file-input{width:100%;min-height:48px;margin:8px 0;padding:7px;border:1px solid #bdcbbf;border-radius:8px;box-sizing:border-box}.selected-file{display:flex;align-items:center;min-height:44px;padding:0 10px;border:1px solid #bdcbbf;border-radius:7px;box-sizing:border-box;font-size:.85rem}
 .duplicate-warning{margin-top:14px;border:2px solid #b45309;border-radius:10px;background:#fff7ed;padding:14px;color:#431407}.duplicate-warning>strong{font-size:1.05rem}.duplicate-warning dl{display:grid;grid-template-columns:1fr 1fr;gap:8px}.duplicate-warning dl div{border:1px solid #fed7aa;border-radius:7px;background:#fff;padding:8px}.duplicate-warning dt{font-size:.72rem;font-weight:900;text-transform:uppercase;color:#9a3412}.duplicate-warning dd{margin:3px 0 0;font-weight:750}.duplicate-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.duplicate-actions .decline{background:#fff;color:#7c2d12;border:1px solid #9a3412}.duplicate-actions .accept{background:#9a3412;color:#fff}.duplicate-warning small{display:block;margin-top:8px;font-weight:750}
-.data-page{max-width:1240px;margin:auto;padding:16px;background:#f5f7f2;min-height:100vh}header{padding:20px;border-radius:12px;background:#173422;color:#fff}header button,.card button{min-height:44px;border:0;border-radius:7px;padding:0 14px;font-weight:850}.card{margin:14px 0;padding:16px;border:1px solid #d8e2da;border-radius:12px;background:#fff}.card summary{cursor:pointer;font-size:1.2rem;font-weight:900;min-height:34px}.card[open] summary{margin-bottom:14px}.controls input,.controls select,.card>input,.match-list select{min-height:44px;border:1px solid #bdcbbf;border-radius:7px;padding:8px;width:100%;box-sizing:border-box}.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.actions{display:flex;gap:8px;margin-top:12px}.actions button{background:#31572c;color:#fff}.match-list{display:grid;gap:8px;margin-top:14px;max-height:520px;overflow:auto}.match-list label{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;align-items:center;padding:8px;border:1px solid #e0e7e1;border-radius:8px}.match-list span{display:grid;font-weight:800}.match-list small{font-weight:400;color:#64746a}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:9px;border-bottom:1px solid #e1e7e2;text-align:left}th{background:#eef5ef}.link{background:transparent!important;color:#31572c;padding:0!important}.error{color:#991b1b}@media(max-width:640px){.controls,.match-list label,.duplicate-warning dl,.duplicate-actions{grid-template-columns:1fr}.actions{display:grid}.actions button{width:100%}.data-page{padding:8px}.card{padding:12px}}
+.data-page{max-width:1240px;margin:auto;padding:16px;background:#f5f7f2;min-height:100vh}header{padding:20px;border-radius:12px;background:#173422;color:#fff}header button,.card button{min-height:44px;border:0;border-radius:7px;padding:0 14px;font-weight:850}.card{margin:14px 0;padding:16px;border:1px solid #d8e2da;border-radius:12px;background:#fff}.card summary{cursor:pointer;font-size:1.2rem;font-weight:900;min-height:34px}.card[open] summary{margin-bottom:14px}.controls input,.controls select,.card>input,.match-list select{min-height:44px;border:1px solid #bdcbbf;border-radius:7px;padding:8px;width:100%;box-sizing:border-box}.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.actions{display:flex;gap:8px;margin-top:12px}.actions button{background:#31572c;color:#fff}.match-list{display:grid;gap:8px;margin-top:14px;max-height:620px;overflow:auto}.match-row{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;align-items:center;padding:9px;border:1px solid #e0e7e1;border-radius:8px}.match-row.unmatched{border:2px solid #b45309;background:#fffaf2}.match-list span{display:grid;font-weight:800}.match-list small{font-weight:400;color:#64746a}.create-animal-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr repeat(3,minmax(82px,.45fr));gap:7px;align-items:center}.create-animal-actions button{background:#31572c;color:#fff}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:9px;border-bottom:1px solid #e1e7e2;text-align:left}th{background:#eef5ef}.link{background:transparent!important;color:#31572c;padding:0!important}.error{color:#991b1b}@media(max-width:640px){.controls,.match-row,.duplicate-warning dl,.duplicate-actions,.create-animal-actions{grid-template-columns:1fr}.actions{display:grid}.actions button{width:100%}.data-page{padding:8px}.card{padding:12px}}
 </style>

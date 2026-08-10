@@ -5,7 +5,7 @@ const ACCESS_DURATION_MS = 24 * 60 * 60 * 1000
 
 export type HerdDataSource = 1 | 2
 export interface HerdDataImportRequest { source: HerdDataSource; fileName: string; csvText: string; reportDate: string; animalMappings: Record<string, number>; confirmDuplicateReplace?: boolean }
-export interface HerdDataPreviewRow { sourceKey: string; sourceName: string; officialId?: string | null; animalId?: number | null; animalName?: string | null; needsConfirmation: boolean; candidates: Array<{ animalId: number; animalName: string; registrationNumber?: string | null }> }
+export interface HerdDataPreviewRow { sourceKey: string; sourceName: string; officialId?: string | null; birthDate?: string | null; breed?: string | null; importedSex?: string | null; animalId?: number | null; animalName?: string | null; needsConfirmation: boolean; candidates: Array<{ animalId: number; animalName: string; registrationNumber?: string | null }> }
 export interface HerdDataPreview { source: HerdDataSource; rowsRead: number; duplicateImport: boolean; exactDuplicateFile: boolean; existingFileName?: string | null; existingRows?: number | null; existingImportedAt?: string | null; rows: HerdDataPreviewRow[] }
 
 export const getAdminKey = () => {

@@ -42,9 +42,13 @@ public sealed class HerdDataImportTests
         var request = new HerdDataImportRequest
         {
             Source = HerdDataSource.Zoetis, FileName = "core.csv", ReportDate = new DateOnly(2026, 8, 10),
-            CsvText = "Animal ID,Official ID,Animal Name,TPI,NM$,MILK,DPR,PL,TYPE FS,UDC,FLC\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,2125,-344,-30,-2.8,-3.2,0.99,-0.31,0.38"
+            CsvText = "Animal ID,Official ID,Animal Name,Sex,Birth Date,Breed,TPI,NM$,MILK,DPR,PL,TYPE FS,UDC,FLC\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,F,2024-03-01,HO,2125,-344,-30,-2.8,-3.2,0.99,-0.31,0.38"
         };
 
+        var previewRow = Assert.Single((await service.PreviewAsync(request)).Rows);
+        Assert.Equal(new DateOnly(2024, 3, 1), previewRow.BirthDate);
+        Assert.Equal("HO", previewRow.Breed);
+        Assert.Equal("F", previewRow.ImportedSex);
         var batch = await service.ApplyAsync(request);
         var record = Assert.Single(batch.Records);
         Assert.Equal(2125, record.Tpi); Assert.Equal(-344, record.NetMerit); Assert.Equal(-0.31m, record.UdderComposite);

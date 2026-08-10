@@ -39,6 +39,7 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             preview.Rows.Add(new HerdDataPreviewRow
             {
                 SourceKey = row.SourceKey, SourceName = row.SourceName, OfficialId = row.OfficialId,
+                BirthDate = row.BirthDate, Breed = row.Breed, ImportedSex = row.ImportedSex,
                 AnimalId = animal?.AnimalId, AnimalName = animal?.DisplayName,
                 NeedsConfirmation = animal == null,
                 Candidates = candidates.Take(12).Select(a => new HerdDataCandidate { AnimalId = a.AnimalId, AnimalName = a.DisplayName, RegistrationNumber = a.RegistrationNumber }).ToList()
@@ -172,6 +173,7 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
     private sealed class ParsedRow
     {
         public string SourceKey { get; init; } = ""; public string SourceName { get; init; } = ""; public string SourceAnimalId { get; init; } = ""; public string? OfficialId { get; init; }
+        public DateOnly? BirthDate { get; init; } public string? Breed { get; init; } public string? ImportedSex { get; init; }
         public Dictionary<string, string> Values { get; init; } = [];
         public static ParsedRow From(List<string> headers, List<string> values, HerdDataSource source)
         {
@@ -179,7 +181,13 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             var id = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("DHIID", "") : data.GetValueOrDefault("Animal ID", "");
             var name = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("BarnName", "") : data.GetValueOrDefault("Animal Name", "");
             var official = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("DHIID") : data.GetValueOrDefault("Official ID");
-            return new ParsedRow { SourceKey = NormalizeId(!string.IsNullOrWhiteSpace(official) ? official : !string.IsNullOrWhiteSpace(id) ? id : name), SourceName = name, SourceAnimalId = id, OfficialId = official, Values = data };
+            return new ParsedRow
+            {
+                SourceKey = NormalizeId(!string.IsNullOrWhiteSpace(official) ? official : !string.IsNullOrWhiteSpace(id) ? id : name),
+                SourceName = name, SourceAnimalId = id, OfficialId = official,
+                BirthDate = Date(data.GetValueOrDefault("Birth Date") ?? data.GetValueOrDefault("BirthDate")),
+                Breed = data.GetValueOrDefault("Breed"), ImportedSex = data.GetValueOrDefault("Sex"), Values = data
+            };
         }
         public AnimalDataRecord ToRecord(int animalId, DateOnly reportDate, HerdDataSource source) => new()
         {

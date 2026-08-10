@@ -627,7 +627,7 @@ onMounted(() => {
         <button @click="openLUTModal()" class="quick-btn lut-btn"><RetroIcon name="lut" :size="28" /><span>LUT Injection</span></button>
         <button @click="router.push('/embryos')" class="quick-btn embryo-btn"><RetroIcon name="embryo" :size="28" /><span>Embryo Hatchery</span></button>
         <button @click="router.push('/shows')" class="quick-btn show-btn"><RetroIcon name="calf" :size="28" /><span>Show Command Center</span></button>
-        <button @click="openReports" class="quick-btn report-btn"><RetroIcon name="reports" :size="28" /><span>Reports</span></button>
+        <button @click="openReports" class="quick-btn report-btn"><RetroIcon name="reports" :size="28" /><span>Reports &amp; Analytics</span></button>
       </section>
 
       <DashboardSummary :key="dashboardRefreshKey" :animals="animals" />

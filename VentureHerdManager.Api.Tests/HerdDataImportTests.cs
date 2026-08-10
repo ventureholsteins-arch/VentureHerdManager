@@ -52,6 +52,28 @@ public sealed class HerdDataImportTests
     }
 
     [Fact]
+    public async Task BlankAnimalNamesDoNotBlockAnExactImportMatch()
+    {
+        await using var context = CreateContext();
+        var exact = new Animal { BarnName = "Paddy", RegistrationNumber = "145283179" };
+        context.Animals.AddRange(exact, new Animal { BarnName = "Embryo recipient" }, new Animal { RegisteredName = "" });
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var request = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Pcdart,
+            FileName = "cows.csv",
+            ReportDate = new DateOnly(2026, 8, 10),
+            CsvText = "BarnName,DHIID,Milk\nPADDY,145283179,80"
+        };
+
+        var row = Assert.Single((await service.PreviewAsync(request)).Rows);
+        Assert.Equal(exact.AnimalId, row.AnimalId);
+        Assert.False(row.NeedsConfirmation);
+        Assert.Single(row.Candidates);
+    }
+
+    [Fact]
     public async Task ConfirmedZoetisMatchFillsMissingIdentityWithoutOverwritingExistingData()
     {
         await using var context = CreateContext();

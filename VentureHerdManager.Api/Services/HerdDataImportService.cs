@@ -102,13 +102,29 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var official = NormalizeId(row.OfficialId);
         var sourceName = Normalize(row.SourceName);
         var sourceId = NormalizeId(row.SourceAnimalId);
-        return animals.Select(animal => new
+        var scored = animals.Select(animal => new
         {
             Animal = animal,
-            Score = RegistrationMatch(official, animal.RegistrationNumber) || RegistrationMatch(sourceId, animal.RegistrationNumber) ? 100
-                : Normalize(animal.BarnName) == sourceName || Normalize(animal.RegisteredName) == sourceName ? 80
-                : Normalize(animal.BarnName).StartsWith(sourceName) || sourceName.StartsWith(Normalize(animal.BarnName)) ? 60 : 0
-        }).Where(x => x.Score > 0).OrderByDescending(x => x.Score).Select(x => x.Animal).DistinctBy(a => a.AnimalId).ToList();
+            Score = CandidateScore(animal, official, sourceId, sourceName)
+        }).Where(x => x.Score > 0).ToList();
+
+        if (scored.Count == 0) return [];
+        var bestScore = scored.Max(x => x.Score);
+        return scored.Where(x => x.Score == bestScore).Select(x => x.Animal).DistinctBy(a => a.AnimalId).ToList();
+    }
+
+    private static int CandidateScore(Animal animal, string official, string sourceId, string sourceName)
+    {
+        if (RegistrationMatch(official, animal.RegistrationNumber) || RegistrationMatch(sourceId, animal.RegistrationNumber)) return 100;
+        if (string.IsNullOrEmpty(sourceName)) return 0;
+
+        var barnName = Normalize(animal.BarnName);
+        var registeredName = Normalize(animal.RegisteredName);
+        if ((!string.IsNullOrEmpty(barnName) && barnName == sourceName)
+            || (!string.IsNullOrEmpty(registeredName) && registeredName == sourceName)) return 80;
+        if ((!string.IsNullOrEmpty(barnName) && (barnName.StartsWith(sourceName) || sourceName.StartsWith(barnName)))
+            || (!string.IsNullOrEmpty(registeredName) && (registeredName.StartsWith(sourceName) || sourceName.StartsWith(registeredName)))) return 60;
+        return 0;
     }
 
     private static bool RegistrationMatch(string source, string? target)

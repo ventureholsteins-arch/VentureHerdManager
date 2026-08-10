@@ -161,3 +161,15 @@ export async function setAnimalFavorite(
 
   return await response.json()
 }
+
+export async function markAnimalSold(animalId: number, soldDate: string, soldNotes?: string): Promise<Animal> {
+  const response = await fetch(`${API_BASE}/Animals/${animalId}/archive/sold`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ soldDate, soldNotes, updatedBy: 'Animal card' }) })
+  if (!response.ok) throw new Error(await response.text() || 'Failed to mark animal sold')
+  return response.json()
+}
+
+export async function restoreAnimal(animalId: number): Promise<Animal> {
+  const response = await fetch(`${API_BASE}/Animals/${animalId}/restore`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updatedBy: 'Animal card' }) })
+  if (!response.ok) throw new Error(await response.text() || 'Failed to restore animal')
+  return response.json()
+}

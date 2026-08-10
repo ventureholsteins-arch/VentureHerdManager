@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
-import { getAnimal } from '../api/animals'
+import { getAnimal, markAnimalSold, restoreAnimal } from '../api/animals'
 import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
@@ -136,6 +136,11 @@ const dryReason = ref('')
 const dryNotes = ref('')
 
 const showNoteForm = ref(false)
+const showSoldForm = ref(false)
+const soldDate = ref(new Date().toISOString().slice(0, 10))
+const soldNotes = ref('')
+const soldSaving = ref(false)
+const soldError = ref('')
 const noteText = ref('')
 
 const animalId = computed(() => Number(route.params.animalId))
@@ -163,7 +168,8 @@ const hasUnsavedFormChanges = computed(() => {
     showPregCheckForm.value ||
     showCalvingForm.value ||
     showDryOffForm.value ||
-    showNoteForm.value
+    showNoteForm.value ||
+    showSoldForm.value
 
   if (!anyFormOpen) {
     return false
@@ -214,6 +220,7 @@ function closeAllForms() {
   showCalvingForm.value = false
   showDryOffForm.value = false
   showNoteForm.value = false
+  showSoldForm.value = false
   hasEmbryoTransfer.value = false
 }
 
@@ -252,6 +259,18 @@ function openDryOffForm() {
 function openNoteForm() {
   closeAllForms()
   showNoteForm.value = true
+}
+function openSoldForm() { closeAllForms(); showSoldForm.value = true; soldError.value = '' }
+async function saveSold() {
+  if (!animal.value) return
+  soldSaving.value = true; soldError.value = ''
+  try { animal.value = await markAnimalSold(animalId.value, `${soldDate.value}T12:00:00`, soldNotes.value); showSoldForm.value = false }
+  catch (error) { soldError.value = error instanceof Error ? error.message : 'The sold status could not be saved.' }
+  finally { soldSaving.value = false }
+}
+async function undoSold() {
+  if (!animal.value || !window.confirm(`Restore ${animal.value.barnName || animal.value.registeredName || 'this animal'} to the active herd?`)) return
+  try { animal.value = await restoreAnimal(animalId.value) } catch (error) { alert(error instanceof Error ? error.message : 'Restore failed.') }
 }
 
 function openPendingAction() {
@@ -876,6 +895,7 @@ const scoreLabel = computed(() => {
           <strong>{{ scoreLabel }}</strong>
         </div>
       </section>
+      <section v-if="animal.animalStatus === 1" class="sold-banner"><div><strong>SOLD - ARCHIVED</strong><span>{{ animal.soldDate ? new Date(animal.soldDate).toLocaleDateString() : 'Sold animal' }} · All records are retained</span><p v-if="animal.soldNotes">{{ animal.soldNotes }}</p></div><button @click="undoSold">Restore to active herd</button></section>
 
       <section class="panel">
         <h2>Pedigree</h2>
@@ -932,7 +952,10 @@ const scoreLabel = computed(() => {
             <RetroIcon name="note" :size="30" />
             <span>Notes</span>
           </button>
+          <button v-if="animal.animalStatus !== 1 && animal.sex === 1" class="sold-action" @click="openSoldForm"><span class="sold-icon">$</span><span>Mark Sold</span></button>
         </div>
+
+        <div v-if="showSoldForm" class="form-card sold-form"><h3>Mark Animal Sold</h3><p>This removes her from the active herd but keeps her card, timeline, milk, genomics, photos, pedigree, embryos, and every other record.</p><p v-if="soldError" class="form-error">{{ soldError }}</p><label>Sold date</label><input v-model="soldDate" type="date"><label>Buyer / sale notes (optional)</label><textarea v-model="soldNotes" rows="3" placeholder="Buyer, sale price, destination, reason, or other notes"></textarea><div class="form-actions"><button class="save sold-confirm" :disabled="soldSaving || !soldDate" @click="saveSold">{{ soldSaving ? 'Saving…' : 'Confirm Sold - Keep All Data' }}</button><button class="cancel" @click="showSoldForm = false">Cancel</button></div></div>
 
         <div
           v-if="showHeatForm"
@@ -1836,6 +1859,7 @@ const scoreLabel = computed(() => {
   letter-spacing: 0.02em;
   cursor: pointer;
 }
+.actions .sold-action{border-color:#b45309;background:#fff7ed;color:#7c2d12}.sold-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#b45309;color:#fff;font-size:1.1rem;font-weight:950}.sold-form{border:2px solid #b45309;background:#fffaf2}.sold-confirm{background:#b45309!important}.sold-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:12px 0;padding:13px;border:2px solid #b45309;border-radius:9px;background:#fff7ed;color:#7c2d12}.sold-banner>div{display:grid;gap:3px}.sold-banner p{margin:3px 0 0}.sold-banner button{min-height:42px;border:0;border-radius:7px;background:#7c2d12;color:#fff;padding:7px 12px;font-weight:850}
 
 .form-card {
   margin-top: 18px;

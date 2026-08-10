@@ -14,6 +14,8 @@ export interface Animal {
   damName: string | null
   notes: string | null
   animalStatus?: number
+  soldDate?: string | null
+  soldNotes?: string | null
   latestScore?: number | null
   latestBaa?: number | null
   scoreLabel?: string

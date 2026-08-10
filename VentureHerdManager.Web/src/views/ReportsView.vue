@@ -1582,7 +1582,7 @@ onMounted(async () => {
       <div v-else-if="embryosActive.length === 0 && embryosFailed.length > 0" class="rp-empty">No embryos currently In Storage or Assigned. Check the Failed/Not Confirmed section below.</div>
 
       <template v-for="group in embryosActiveGroups" :key="`grp-${group.name}`">
-        <details class="emb-group-details" open>
+        <details class="emb-group-details">
           <summary class="emb-group-title">{{ group.name }} ({{ group.records.length }})</summary>
           <div class="emb-group-body">
             <div v-for="rec in group.records" :key="rec.id" class="emb-card" :class="`emb-${rec.status.toLowerCase().replace(' ', '-')}`">
@@ -1626,6 +1626,8 @@ onMounted(async () => {
       </template>
 
       <template v-if="embryosFailed.length > 0">
+        <details class="emb-group-details">
+          <summary class="emb-group-title">Failed / Not Confirmed ({{ embryosFailed.length }})</summary>
         <div class="rp-divider rp-divider-failed">Failed / Not Confirmed ({{ embryosFailed.length }})</div>
         <p class="rp-hint">Embryos that didn't stick — kept for your records.</p>
         <div v-for="rec in embryosFailed" :key="`f-${rec.id}`" class="emb-card emb-failed">
@@ -1644,6 +1646,7 @@ onMounted(async () => {
           <label class="emb-full mt8">Failure Notes<textarea v-model="rec.failureNotes" rows="2" placeholder="Reason, vet notes, recheck date" /></label>
           <label class="emb-full mt8">Current Status<input :value="rec.status" type="text" readonly></label>
         </div>
+        </details>
       </template>
     </section>
 
@@ -1660,6 +1663,8 @@ onMounted(async () => {
       </template>
 
       <template v-else-if="embryoImplantsData && !embryoImplantsLoading">
+        <details class="emb-group-details">
+          <summary class="emb-group-title">Implant totals, chart &amp; records ({{ embryosWithImplants.length }})</summary>
         <div class="as-row">
           <div class="as-stat">
             <span class="as-label">Total Implanted</span>
@@ -1718,6 +1723,7 @@ onMounted(async () => {
             </div>
           </article>
         </div>
+        </details>
       </template>
     </section>
 
@@ -2210,7 +2216,7 @@ onMounted(async () => {
       <p v-if="achievementsShareStatus" class="rp-hint">{{ achievementsShareStatus }}</p>
       <input v-model="achievementSearch" type="search" class="rp-list-search" placeholder="Search by show, cow, or notes…" />
       <div v-if="achievementMatches.length === 0" class="rp-empty">No achievements logged yet.</div>
-      <details v-for="group in achievementGroups" :key="`ach-${group.name}`" class="achievement-group-details" open>
+      <details v-for="group in achievementGroups" :key="`ach-${group.name}`" class="achievement-group-details">
         <summary class="achievement-group-summary">
           <strong>{{ group.name }}</strong>
           <span>{{ group.records.length }} record{{ group.records.length === 1 ? '' : 's' }}</span>

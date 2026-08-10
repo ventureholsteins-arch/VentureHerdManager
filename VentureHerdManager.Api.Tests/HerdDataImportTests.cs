@@ -118,6 +118,12 @@ public sealed class HerdDataImportTests
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ApplyAsync(repeated));
         Assert.Contains("already stored", error.Message);
         Assert.Single(context.AnimalDataRecords);
+
+        repeated.ConfirmDuplicateReplace = true;
+        await service.ApplyAsync(repeated);
+        var stored = Assert.Single(context.AnimalDataRecords);
+        Assert.Equal(80m, stored.Milk);
+        Assert.Single(context.HerdDataImports);
     }
 
     private static ApplicationDbContext CreateContext()

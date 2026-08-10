@@ -17,12 +17,17 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var hash = Hash(request.CsvText);
         var animals = await context.Animals.AsNoTracking().ToListAsync(ct);
         var saved = await context.AnimalIdentityMappings.AsNoTracking().Where(m => m.Source == request.Source).ToDictionaryAsync(m => m.SourceKey, ct);
+        var existingImport = await context.HerdDataImports.AsNoTracking().FirstOrDefaultAsync(i =>
+            i.FileHash == hash || (i.Source == request.Source && i.ReportDate == request.ReportDate), ct);
         var preview = new HerdDataPreview
         {
             Source = request.Source,
             RowsRead = parsed.Count,
-            DuplicateImport = await context.HerdDataImports.AnyAsync(i =>
-                i.FileHash == hash || (i.Source == request.Source && i.ReportDate == request.ReportDate), ct)
+            DuplicateImport = existingImport != null,
+            ExactDuplicateFile = existingImport?.FileHash == hash,
+            ExistingFileName = existingImport?.FileName,
+            ExistingRows = existingImport?.RowsImported,
+            ExistingImportedAt = existingImport?.ImportedAt
         };
         foreach (var row in parsed)
         {
@@ -47,8 +52,11 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var hash = Hash(request.CsvText);
         var existing = await context.HerdDataImports.Include(i => i.Records).SingleOrDefaultAsync(i => i.FileHash == hash, ct);
         if (existing != null) return existing;
-        if (await context.HerdDataImports.AnyAsync(i => i.Source == request.Source && i.ReportDate == request.ReportDate, ct))
-            throw new InvalidOperationException($"A {request.Source} report for {request.ReportDate:yyyy-MM-dd} is already stored. Nothing was added. Change the report date only if this is truly a different report.");
+        var sameDateImport = await context.HerdDataImports.Include(i => i.Records)
+            .SingleOrDefaultAsync(i => i.Source == request.Source && i.ReportDate == request.ReportDate, ct);
+        if (sameDateImport != null && !request.ConfirmDuplicateReplace)
+            throw new InvalidOperationException($"A {request.Source} report for {request.ReportDate:yyyy-MM-dd} is already stored. Review the duplicate warning and explicitly accept replacement or decline it.");
+        if (sameDateImport != null) context.HerdDataImports.Remove(sameDateImport);
         var parsed = Parse(request);
         var preview = await PreviewAsync(request, ct);
         if (preview.Rows.Any(r => r.NeedsConfirmation)) throw new InvalidOperationException("Every source row must be matched to a herd animal before import.");

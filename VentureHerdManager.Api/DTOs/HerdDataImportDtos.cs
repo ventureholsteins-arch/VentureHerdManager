@@ -9,6 +9,7 @@ public sealed class HerdDataImportRequest
     public string CsvText { get; set; } = string.Empty;
     public DateOnly ReportDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
     public Dictionary<string, int> AnimalMappings { get; set; } = [];
+    public bool ConfirmDuplicateReplace { get; set; }
 }
 
 public sealed class HerdDataPreview
@@ -16,6 +17,10 @@ public sealed class HerdDataPreview
     public HerdDataSource Source { get; set; }
     public int RowsRead { get; set; }
     public bool DuplicateImport { get; set; }
+    public bool ExactDuplicateFile { get; set; }
+    public string? ExistingFileName { get; set; }
+    public int? ExistingRows { get; set; }
+    public DateTime? ExistingImportedAt { get; set; }
     public List<HerdDataPreviewRow> Rows { get; set; } = [];
 }
 

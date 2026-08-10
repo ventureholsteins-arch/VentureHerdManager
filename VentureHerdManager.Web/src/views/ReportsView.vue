@@ -25,6 +25,7 @@ import type { Animal } from '../models/Animal'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 import RetroIcon from '../components/RetroIcon.vue'
+import { getHerdDataAnalytics } from '../api/herdData'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'showBagging' | 'lists' | 'checklist' | 'pcdartImport' | 'achievements'
 type ReportCategory = 'decisions' | 'embryos' | 'shows' | 'data'
@@ -112,6 +113,8 @@ const activeTab = ref<HubTab>('embryos')
 const activeCategory = ref<ReportCategory>('embryos')
 const loading = ref(true)
 const animals = ref<Animal[]>([])
+const attentionSummary = ref<any>(null)
+const attentionTotal = computed(() => attentionSummary.value ? Object.values(attentionSummary.value).reduce((sum: number, rows: any) => sum + (rows?.length ?? 0), 0) : 0)
 const pageMode = computed(() => route.path === '/embryos' ? 'embryos' : route.path === '/shows' ? 'shows' : 'reports')
 const pageTitle = computed(() => pageMode.value === 'embryos' ? 'Embryo Hatchery' : pageMode.value === 'shows' ? 'Show Command Center' : 'Reports & Analytics')
 const pageSubtitle = computed(() => pageMode.value === 'embryos'
@@ -1447,6 +1450,7 @@ async function removeAchievement(id: number) {
 
 onMounted(async () => {
   loadData()
+  getHerdDataAnalytics().then(value => { attentionSummary.value = value.attention }).catch(() => {})
   if (pageMode.value === 'embryos') selectReportCategory('embryos')
   else if (pageMode.value === 'shows') selectReportCategory('shows')
   else selectReportCategory('decisions')
@@ -1535,9 +1539,10 @@ onMounted(async () => {
         <button type="button" @click="router.push('/reports/herd-data?view=imports&source=1&type=currentMilkingPdf')"><RetroIcon name="note" :size="22" />Current Milking PDF</button>
         <button type="button" @click="router.push('/reports/herd-data?view=imports&source=1&type=cowPagePdf')"><RetroIcon name="note" :size="22" />Individual Cow PDF</button>
         <button type="button" @click="router.push('/reports/herd-data?source=2')"><RetroIcon name="reports" :size="22" />Import Zoetis</button>
-        <button :class="{ active: activeTab === 'pcdartImport' }" @click="selectReportTab('pcdartImport')"><RetroIcon name="note" :size="22" />Legacy Audit</button>
       </template>
     </nav>
+
+    <button v-if="pageMode === 'reports' && attentionSummary" class="attention-ribbon" type="button" @click="router.push('/reports/herd-data?view=attention')"><span>⚠ ATTENTION BOARD</span><strong>{{ attentionTotal }} animals need review</strong><small>{{ attentionSummary.highDimOpen?.length ?? 0 }} high-DIM open · {{ attentionSummary.longOpenHeifers?.length ?? 0 }} long-open heifers · {{ attentionSummary.droppingMilk?.length ?? 0 }} milk drops · {{ attentionSummary.dryOffWatch?.length ?? 0 }} dry-off watch</small><b>Open lists →</b></button>
 
     <p v-if="reportsLoadError" class="rp-error" style="margin: 12px 16px 0;">{{ reportsLoadError }}</p>
 
@@ -2405,6 +2410,8 @@ onMounted(async () => {
 .show-command{background:#f3f4f0}.show-command .rp-hero{position:relative;overflow:hidden;background-color:#07111d;background-image:radial-gradient(circle at 14% 24%,rgba(255,255,255,.95) 0 1px,transparent 2px),radial-gradient(circle at 76% 18%,rgba(151,225,255,.9) 0 1px,transparent 2px),radial-gradient(circle at 46% 72%,rgba(255,255,255,.7) 0 1px,transparent 2px),radial-gradient(circle at 90% 68%,rgba(255,217,102,.75) 0 1px,transparent 2px),linear-gradient(135deg,#020617 0%,#0b1f2d 58%,#102f28 100%);background-size:130px 110px,180px 140px,210px 170px,240px 190px,auto;border-bottom:4px solid #f5c84c;box-shadow:inset 0 -1px 0 #66d9ef}.show-command .rp-hero:after{content:'🐄  MOO SQUADRON • ALL SYSTEMS READY';display:block;width:max-content;margin-top:13px;padding:5px 10px;border:1px solid rgba(102,217,239,.55);border-radius:999px;background:rgba(2,6,23,.66);color:#9be8f4;font-size:.67rem;font-weight:900;letter-spacing:.13em}.show-command .rp-title{color:#ffe48a;text-shadow:0 0 14px rgba(245,200,76,.3);letter-spacing:.05em}.show-command .rp-sub{color:#c8eff5}.show-command .rp-brand{color:#9be8f4}.show-command .rp-print-link{border-color:#f5c84c;color:#ffe48a}.show-command .rp-tabs{background:#081521;border-bottom-color:#f5c84c;gap:7px;padding:8px 16px}.show-command .rp-tabs button{border:1px solid #294658;border-radius:7px;color:#b9d8df;background:#0d2130;padding:11px 15px}.show-command .rp-tabs button:hover{color:#fff;border-color:#66d9ef}.show-command .rp-tabs button.active{color:#081521;background:#f5c84c;border-color:#ffe48a;box-shadow:0 0 14px rgba(245,200,76,.24)}
 .embryo-hatchery{background:#fffaf0}.embryo-hatchery .rp-hero{position:relative;overflow:hidden;background-color:#6b3e1f;background-image:repeating-linear-gradient(12deg,transparent 0 17px,rgba(255,218,145,.08) 18px 20px),linear-gradient(135deg,#4b2b18 0%,#815027 55%,#a96f32 100%);border-bottom:5px solid #e8b84f;box-shadow:inset 0 -1px 0 #fff0bd}.embryo-hatchery .rp-hero:after{content:'🐔  NEST CHECK • EGGS ACCOUNTED FOR';display:block;width:max-content;margin-top:13px;padding:5px 11px;border:1px solid rgba(255,240,189,.55);border-radius:999px;background:rgba(67,36,16,.55);color:#fff0bd;font-size:.67rem;font-weight:900;letter-spacing:.12em}.embryo-hatchery .rp-title{color:#fff4cf;text-shadow:0 2px 0 rgba(62,31,13,.45)}.embryo-hatchery .rp-sub{color:#ffe4a3}.embryo-hatchery .rp-brand{color:#ffd873}.embryo-hatchery .rp-print-link{border-color:#ffd873;color:#fff0bd}.embryo-hatchery .rp-tabs{gap:8px;padding:9px 16px;background:#fff4d7;border-bottom:2px solid #dfb052}.embryo-hatchery .rp-tabs button{border:1px solid #d5a957;border-radius:999px;background:#fffaf0;color:#71431f;padding:11px 18px}.embryo-hatchery .rp-tabs button:hover{border-color:#9a5e28;color:#4b2b18}.embryo-hatchery .rp-tabs button.active{border-color:#8a521f;background:#f2c768;color:#4b2b18;box-shadow:0 3px 0 #b67830}.embryo-hatchery .rp-panel{border-color:#ead6a5;background:#fffdf7}.embryo-hatchery .emb-card{border-color:#ead6a5;background:#fffdf7}
 .analytics-sports{background:#eef0f2}.analytics-sports .rp-hero{position:relative;overflow:hidden;background-color:#111318;background-image:linear-gradient(115deg,transparent 0 62%,rgba(218,32,45,.18) 62% 68%,transparent 68%),repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 32px),linear-gradient(135deg,#090a0d 0%,#1b1e24 62%,#2a2d34 100%);border-bottom:6px solid #d8202d;box-shadow:inset 0 -1px 0 #fff}.analytics-sports .rp-hero:after{content:'● LIVE  •  VENTURE HERD STAT DESK  •  UPDATED FROM YOUR RECORDS';display:block;width:max-content;margin-top:13px;padding:5px 11px;border-left:4px solid #d8202d;background:#f7f7f8;color:#17191e;font-size:.67rem;font-weight:950;letter-spacing:.11em}.analytics-sports .rp-title{font-style:italic;letter-spacing:-.03em;text-shadow:3px 3px 0 #a91420}.analytics-sports .rp-sub{color:#e8eaed;font-weight:750}.analytics-sports .rp-brand{color:#ff6b73}.analytics-sports .rp-print-link{border-color:#f04450;color:#fff}.analytics-sports .rp-categories{background:#17191e;border-bottom:1px solid #343841}.analytics-sports .rp-categories button{border-color:#3a3e47;background:#24272e;color:#e9eaec;text-transform:uppercase;letter-spacing:.05em}.analytics-sports .rp-categories button.active{border-color:#ef3d49;background:#d8202d;color:#fff;box-shadow:0 3px 0 #84101a}.analytics-sports .rp-tabs{background:#fff;border-bottom:3px solid #202329;gap:5px;padding:8px 16px}.analytics-sports .rp-tabs button{border:1px solid #d5d8dc;border-radius:5px;background:#f4f5f6;color:#34373d;padding:11px 14px}.analytics-sports .rp-tabs button:hover{border-color:#d8202d;color:#a91420}.analytics-sports .rp-tabs button.active{border-color:#d8202d;border-bottom-color:#d8202d;background:#d8202d;color:#fff;box-shadow:0 3px 0 #84101a}.analytics-sports .rp-panel{border-top:4px solid #d8202d;box-shadow:0 3px 10px rgba(22,24,29,.08)}.analytics-sports .rp-ph h2{font-style:italic}.analytics-sports .rp-add-btn{background:#d8202d}.analytics-sports .rp-add-btn:hover{background:#a91420}
+.attention-ribbon{display:grid;grid-template-columns:auto auto 1fr auto;gap:12px;align-items:center;width:calc(100% - 32px);margin:12px 16px 0;padding:11px 14px;border:0;border-left:7px solid #d8202d;background:#24272e;color:#fff;text-align:left;cursor:pointer}.attention-ribbon span{color:#ff6973;font-size:.72rem;font-weight:950;letter-spacing:.1em}.attention-ribbon strong{font-size:1rem}.attention-ribbon small{color:#c9cdd2}.attention-ribbon b{color:#fff}
+@media(max-width:700px){.attention-ribbon{grid-template-columns:1fr;width:calc(100% - 16px);margin:8px}.attention-ribbon b{justify-self:start}}
 .rp-back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.07); color: #e2e8f0; font-weight: 800; font-size: 0.85rem; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
 .rp-back:hover { background: rgba(255,255,255,0.14); }
 .rp-print-link { border-color: rgba(125,211,160,0.45); }

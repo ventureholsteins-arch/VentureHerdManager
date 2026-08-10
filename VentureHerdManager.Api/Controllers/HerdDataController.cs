@@ -46,7 +46,11 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         var milkDate = records.Where(r => r.Source == HerdDataSource.Pcdart).Max(r => (DateOnly?)r.ReportDate);
         var genomicDate = records.Where(r => r.Source == HerdDataSource.Zoetis).Max(r => (DateOnly?)r.ReportDate);
         var milk = records.Where(r => r.Source == HerdDataSource.Pcdart && r.ReportDate == milkDate).OrderByDescending(r => r.Milk).Select(r => new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.ReportDate, r.DaysInMilk, r.Milk, r.FatPercent, r.ProteinPercent }).ToList();
-        var genomic = records.Where(r => r.Source == HerdDataSource.Zoetis && r.ReportDate == genomicDate).OrderByDescending(r => r.Tpi).Select(r => new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.ReportDate, r.Tpi, r.NetMerit, r.MilkPta, r.DaughterPregnancyRate, r.ProductiveLife, r.TypeScore, r.UdderComposite, r.FeetLegsComposite }).ToList();
+        var genomicAll = records.Where(r => r.Source == HerdDataSource.Zoetis && r.ReportDate == genomicDate).OrderByDescending(r => r.Tpi).Select(r => new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.AnimalStage, r.ReportDate, r.Tpi, r.NetMerit, r.MilkPta, r.DaughterPregnancyRate, r.ProductiveLife, r.TypeScore, r.UdderComposite, r.FeetLegsComposite }).ToList();
+        var genomic = genomicAll.Where(r => r.AnimalStage != AnimalStage.Bull).ToList();
+        var bulls = genomicAll.Where(r => r.AnimalStage == AnimalStage.Bull).ToList();
+        var genomicHistory = records.Where(r => r.Source == HerdDataSource.Zoetis && r.Animal.AnimalStage != AnimalStage.Bull)
+            .GroupBy(r => r.ReportDate).OrderBy(group => group.Key).Select(group => new { reportDate = group.Key, animals = group.Count(), averageTpi = group.Where(r => r.Tpi.HasValue).Select(r => (double?)r.Tpi).Average(), averageNetMerit = group.Where(r => r.NetMerit.HasValue).Select(r => (double?)r.NetMerit).Average(), averageType = group.Where(r => r.TypeScore.HasValue).Select(r => (double?)r.TypeScore).Average(), averageUdder = group.Where(r => r.UdderComposite.HasValue).Select(r => (double?)r.UdderComposite).Average(), averageFeetLegs = group.Where(r => r.FeetLegsComposite.HasValue).Select(r => (double?)r.FeetLegsComposite).Average(), averageFertility = group.Where(r => r.DaughterPregnancyRate.HasValue).Select(r => (double?)r.DaughterPregnancyRate).Average() }).ToList();
         var combined = milk.Join(genomic, m => m.AnimalId, g => g.AnimalId, (m, g) => new { m.AnimalId, m.AnimalName, m.Milk, m.DaysInMilk, g.Tpi, g.NetMerit, g.MilkPta, g.DaughterPregnancyRate, g.ProductiveLife, g.TypeScore, g.UdderComposite, g.FeetLegsComposite }).OrderBy(x => x.Milk).ToList();
         var activeAnimals = await context.Animals.AsNoTracking().Where(a => a.AnimalStatus == AnimalStatus.Active).ToListAsync(ct);
         var breedingEvents = await context.BreedingEvents.AsNoTracking().OrderByDescending(b => b.BreedingDate).ToListAsync(ct);
@@ -68,7 +72,7 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         var dryOffWatch = activeAnimals.Where(animal => animal.AnimalStage != AnimalStage.Dry && latestBreeding.TryGetValue(animal.AnimalId, out var breeding) && breeding.PregnancyStatus == PregnancyStatus.Pregnant && breeding.RecommendedDryOffDate.HasValue && breeding.RecommendedDryOffDate.Value.Date <= today.AddDays(60))
             .Select(animal => { var breeding = latestBreeding[animal.AnimalId]; return new { animal.AnimalId, AnimalName = animal.DisplayName, breeding.RecommendedDryOffDate, breeding.ExpectedDueDate, DaysUntilDry = (breeding.RecommendedDryOffDate!.Value.Date - today).Days }; })
             .OrderBy(row => row.RecommendedDryOffDate).ToList();
-        return Ok(new { latestMilkDate = milkDate, latestGenomicDate = genomicDate, milk, genomic, combined, attention = new { highDimOpen, longOpenHeifers, droppingMilk, dryOffWatch } });
+        return Ok(new { latestMilkDate = milkDate, latestGenomicDate = genomicDate, milk, genomic, bulls, genomicHistory, combined, attention = new { highDimOpen, longOpenHeifers, droppingMilk, dryOffWatch } });
     }
 
     [HttpGet("mating/{animalId:int}")]
@@ -79,7 +83,7 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         if (cow == null) return NotFound("No genomic evaluation is stored for this animal.");
         static decimal Need(decimal? value) => Math.Max(0m, 1m - (value ?? 0m));
         var sires = await context.SireReferences.AsNoTracking().ToListAsync(ct);
-        var suggestions = sires.Select(sire => new
+        var rankedSires = sires.Select(sire => new
         {
             sire.SireReferenceId, sire.Name, sire.NaabCode, sire.NetMerit, sire.PtaMilk, sire.DaughterPregnancyRate, sire.ProductiveLife, sire.PtaType, sire.UdderComposite, sire.FeetLegsComposite,
             Score = Need(cow.UdderComposite) * (sire.UdderComposite ?? 0m) + Need(cow.FeetLegsComposite) * (sire.FeetLegsComposite ?? 0m) + Need(cow.TypeScore) * (sire.PtaType ?? 0m) + Need(cow.DaughterPregnancyRate) * (sire.DaughterPregnancyRate ?? 0m) + Need(cow.ProductiveLife) * (sire.ProductiveLife ?? 0m),
@@ -88,8 +92,16 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
                 (cow.FeetLegsComposite ?? 0) < 1 && (sire.FeetLegsComposite ?? 0) > 0 ? "Feet & legs improvement" : null,
                 (cow.DaughterPregnancyRate ?? 0) < 0 && (sire.DaughterPregnancyRate ?? 0) > 0 ? "Fertility improvement" : null,
                 (cow.ProductiveLife ?? 0) < 0 && (sire.ProductiveLife ?? 0) > 0 ? "Productive-life improvement" : null
+            }.Where(reason => reason != null),
+            Concerns = new[] {
+                (cow.UdderComposite ?? 0) < 1 && (sire.UdderComposite ?? 0) <= 0 ? "Does not improve this cow's weak udder composite" : null,
+                (cow.FeetLegsComposite ?? 0) < 1 && (sire.FeetLegsComposite ?? 0) <= 0 ? "Does not improve this cow's weak feet & legs" : null,
+                (cow.DaughterPregnancyRate ?? 0) < 0 && (sire.DaughterPregnancyRate ?? 0) <= 0 ? "Could compound a fertility weakness" : null,
+                (cow.ProductiveLife ?? 0) < 0 && (sire.ProductiveLife ?? 0) <= 0 ? "Could compound productive-life weakness" : null
             }.Where(reason => reason != null)
-        }).OrderByDescending(item => item.Score).ThenByDescending(item => item.NetMerit).Take(20).ToList();
-        return Ok(new { cow = new { cow.AnimalId, cow.ReportDate, cow.Tpi, cow.NetMerit, cow.MilkPta, cow.DaughterPregnancyRate, cow.ProductiveLife, cow.TypeScore, cow.UdderComposite, cow.FeetLegsComposite }, suggestions });
+        }).ToList();
+        var suggestions = rankedSires.OrderByDescending(item => item.Score).ThenByDescending(item => item.NetMerit).Take(20).ToList();
+        var avoid = rankedSires.Where(item => item.Concerns.Any()).OrderBy(item => item.Score).ThenBy(item => item.NetMerit).Take(10).ToList();
+        return Ok(new { cow = new { cow.AnimalId, cow.ReportDate, cow.Tpi, cow.NetMerit, cow.MilkPta, cow.DaughterPregnancyRate, cow.ProductiveLife, cow.TypeScore, cow.UdderComposite, cow.FeetLegsComposite }, suggestions, avoid });
     }
 }

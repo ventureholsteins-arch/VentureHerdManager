@@ -112,6 +112,12 @@ const activeTab = ref<HubTab>('embryos')
 const activeCategory = ref<ReportCategory>('embryos')
 const loading = ref(true)
 const animals = ref<Animal[]>([])
+const pageMode = computed(() => route.path === '/embryos' ? 'embryos' : route.path === '/shows' ? 'shows' : 'reports')
+const pageTitle = computed(() => pageMode.value === 'embryos' ? 'Embryo Center' : pageMode.value === 'shows' ? 'Show Center' : 'Reports & Analytics')
+const pageSubtitle = computed(() => pageMode.value === 'embryos'
+  ? 'Inventory · implants · outcomes'
+  : pageMode.value === 'shows' ? 'Show string · bagging · results' : 'Breeding · milk · genomics · herd decisions')
+watch(pageMode, mode => selectReportCategory(mode === 'embryos' ? 'embryos' : mode === 'shows' ? 'shows' : 'decisions'))
 
 function categoryForTab(tab: HubTab): ReportCategory {
   if (tab === 'embryos' || tab === 'embryoImplants') return 'embryos'
@@ -998,7 +1004,7 @@ async function saveBaggingRow(row: ShowBaggingRow) {
 
 async function shareShowStringLink() {
   const resolved = router.resolve({
-    name: 'reports',
+    name: 'shows',
     query: { tab: 'showString' }
   })
   const shareUrl = `${window.location.origin}${resolved.href}`
@@ -1024,7 +1030,7 @@ async function shareShowStringLink() {
 
 async function shareBaggingLink() {
   const resolved = router.resolve({
-    name: 'reports',
+    name: 'shows',
     query: {
       tab: 'showBagging',
       group: showBaggingShowName.value.trim() || undefined,
@@ -1061,7 +1067,7 @@ function textBaggingTeam() {
     baggingShareStatus.value = 'Enter at least one phone number for this show.'
     return
   }
-  const resolved = router.resolve({ name: 'reports', query: { tab: 'showBagging', group: showBaggingShowName.value.trim() || undefined } })
+  const resolved = router.resolve({ name: 'shows', query: { tab: 'showBagging', group: showBaggingShowName.value.trim() || undefined } })
   const shareUrl = `${window.location.origin}${resolved.href}`
   const nextCow = showBaggingRowsSorted.value[0]
   const message = [
@@ -1075,7 +1081,7 @@ function textBaggingTeam() {
 
 async function shareAchievementsLink() {
   const resolved = router.resolve({
-    name: 'reports',
+    name: 'shows',
     query: {
       tab: 'achievements',
       q: achievementSearch.value.trim() || undefined
@@ -1441,6 +1447,9 @@ async function removeAchievement(id: number) {
 
 onMounted(async () => {
   loadData()
+  if (pageMode.value === 'embryos') selectReportCategory('embryos')
+  else if (pageMode.value === 'shows') selectReportCategory('shows')
+  else selectReportCategory('decisions')
   const tabParam = route.query.tab as string | undefined
   if (tabParam && ['analytics', 'embryos', 'embryoImplants', 'showString', 'showBagging', 'lists', 'checklist', 'pcdartImport', 'achievements'].includes(tabParam)) {
     activeTab.value = tabParam as HubTab
@@ -1491,21 +1500,22 @@ onMounted(async () => {
           <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/print')">Print Reports</button>
         </div>
       </div>
-      <h1 class="rp-title">Reports &amp; Show Planner</h1>
-      <p class="rp-sub">Herd decisions · Embryos · Shows · Data imports</p>
+      <h1 class="rp-title">{{ pageTitle }}</h1>
+      <p class="rp-sub">{{ pageSubtitle }}</p>
       <p class="rp-powered">Powered by <strong>Venture Ag Marketing</strong> · Custom Application Solutions</p>
     </header>
 
-    <nav class="rp-categories" aria-label="Report categories">
+    <nav v-if="pageMode === 'reports'" class="rp-categories" aria-label="Report categories">
       <button :class="{ active: activeCategory === 'decisions' }" @click="selectReportCategory('decisions')">Herd Decisions</button>
-      <button :class="{ active: activeCategory === 'embryos' }" @click="selectReportCategory('embryos')">Embryos</button>
-      <button :class="{ active: activeCategory === 'shows' }" @click="selectReportCategory('shows')">Shows</button>
       <button :class="{ active: activeCategory === 'data' }" @click="selectReportCategory('data')">Imports &amp; Data</button>
     </nav>
 
     <nav class="rp-tabs" aria-label="Reports in selected category">
       <template v-if="activeCategory === 'decisions'">
-        <button :class="{ active: activeTab === 'analytics' }" @click="selectReportTab('analytics')"><RetroIcon name="reports" :size="22" />Analytics</button>
+        <button :class="{ active: activeTab === 'analytics' }" @click="selectReportTab('analytics')"><RetroIcon name="reports" :size="22" />Breeding Analytics</button>
+        <button type="button" @click="router.push('/reports/herd-data?view=milk')"><RetroIcon name="reports" :size="22" />Milk Analytics</button>
+        <button type="button" @click="router.push('/reports/herd-data?view=genomics')"><RetroIcon name="reports" :size="22" />Genomic Analytics</button>
+        <button type="button" @click="router.push('/reports/herd-data?view=linear')"><RetroIcon name="reports" :size="22" />Farm Linear</button>
         <button :class="{ active: activeTab === 'lists' }" @click="selectReportTab('lists')"><RetroIcon name="note" :size="22" />Herd Lists</button>
         <button :class="{ active: activeTab === 'checklist' }" @click="selectReportTab('checklist')"><RetroIcon name="note" :size="22" />Checklist</button>
       </template>

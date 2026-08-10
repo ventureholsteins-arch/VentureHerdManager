@@ -47,6 +47,16 @@ const router = createRouter({
       component: ReportsView
     },
     {
+      path: '/embryos',
+      name: 'embryos',
+      component: ReportsView
+    },
+    {
+      path: '/shows',
+      name: 'shows',
+      component: ReportsView
+    },
+    {
       path: '/reports/print',
       name: 'print-reports',
       component: PrintReportsView

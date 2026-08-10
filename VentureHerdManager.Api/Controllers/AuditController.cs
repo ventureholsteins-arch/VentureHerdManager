@@ -30,6 +30,11 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             var leftNames = new[] { Normal(left.BarnName), Normal(left.RegisteredName) }.Where(value => value.Length > 1).ToHashSet();
             var rightNames = new[] { Normal(right.BarnName), Normal(right.RegisteredName) }.Where(value => value.Length > 1).ToHashSet();
             if (leftNames.Overlaps(rightNames)) reasons.Add("Same animal name");
+            var leftBarn = Normal(left.BarnName); var rightBarn = Normal(right.BarnName);
+            var leftRegistered = Normal(left.RegisteredName); var rightRegistered = Normal(right.RegisteredName);
+            if ((leftBarn.Length >= 4 && rightRegistered.Contains(leftBarn, StringComparison.Ordinal))
+                || (rightBarn.Length >= 4 && leftRegistered.Contains(rightBarn, StringComparison.Ordinal)))
+                reasons.Add("Barn name appears in the other card's registered name");
             if (left.BirthDate.HasValue && left.BirthDate == right.BirthDate && (leftNames.Overlaps(rightNames) || Normal(left.DamName) == Normal(right.DamName))) reasons.Add("Same birth date and identity clues");
             var leftImportedIds = dataIds.Where(value => value.AnimalId == left.AnimalId).Select(value => Normal(value.OfficialId)).Where(value => value.Length >= 6).ToHashSet();
             var rightImportedIds = dataIds.Where(value => value.AnimalId == right.AnimalId).Select(value => Normal(value.OfficialId)).Where(value => value.Length >= 6).ToHashSet();

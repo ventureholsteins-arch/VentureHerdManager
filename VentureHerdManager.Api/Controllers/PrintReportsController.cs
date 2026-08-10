@@ -104,6 +104,88 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
                 PregnancyStatus.Open or PregnancyStatus.Aborted))
             .Select(b => b.AnimalId)
             .ToHashSet();
+
+        var herdData = await context.AnimalDataRecords.AsNoTracking().ToListAsync();
+        var latestMilk = herdData
+            .Where(r => r.Source == HerdDataSource.Pcdart)
+            .GroupBy(r => r.AnimalId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReportDate).First());
+        var latestGenomics = herdData
+            .Where(r => r.Source == HerdDataSource.Zoetis)
+            .GroupBy(r => r.AnimalId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReportDate).First());
+        var milkValues = latestMilk.Values.Where(r => r.Milk.HasValue).Select(r => r.Milk!.Value).OrderBy(v => v).ToList();
+        var netMeritValues = latestGenomics.Values.Where(r => r.NetMerit.HasValue).Select(r => r.NetMerit!.Value).OrderBy(v => v).ToList();
+        static decimal LowRank<T>(T value, List<T> sorted) where T : IComparable<T>
+        {
+            if (sorted.Count < 2) return 0m;
+            var index = sorted.FindIndex(candidate => candidate.CompareTo(value) >= 0);
+            if (index < 0) index = sorted.Count - 1;
+            return 1m - (decimal)index / (sorted.Count - 1);
+        }
+        var suggestedSell = animals
+            .Where(a => a.AnimalStage == AnimalStage.Milking)
+            .Select(animal =>
+            {
+                latestMilk.TryGetValue(animal.AnimalId, out var milk);
+                latestGenomics.TryGetValue(animal.AnimalId, out var genomic);
+                var breeding = currentBreedings.FirstOrDefault(b => b.AnimalId == animal.AnimalId);
+                var openCount = breedings.Count(b => b.AnimalId == animal.AnimalId && b.PregnancyStatus == PregnancyStatus.Open);
+                var ageYears = animal.BirthDate.HasValue
+                    ? (today - animal.BirthDate.Value.ToDateTime(TimeOnly.MinValue)).TotalDays / 365.25
+                    : 0;
+                var score = 0;
+                var concerns = new List<string>();
+                var strengths = new List<string>();
+
+                if (milk?.Milk is decimal milkPounds)
+                {
+                    var points = (int)Math.Round(LowRank(milkPounds, milkValues) * 35m);
+                    score += points;
+                    if (points >= 22) concerns.Add($"Low herd milk rank ({milkPounds:0.#})");
+                    else if (points <= 8) strengths.Add($"Strong herd milk rank ({milkPounds:0.#})");
+                }
+                else concerns.Add("No current PC-DART milk value");
+
+                if (genomic?.NetMerit is int netMerit)
+                {
+                    var points = (int)Math.Round(LowRank(netMerit, netMeritValues) * 20m);
+                    score += points;
+                    if (points >= 13) concerns.Add($"Lower genomic NM$ ({netMerit})");
+                    else if (points <= 5) strengths.Add($"Strong genomic NM$ ({netMerit})");
+                }
+                else concerns.Add("No Zoetis genomic match");
+
+                var pregnant = breeding?.PregnancyStatus == PregnancyStatus.Pregnant;
+                if (pregnant) strengths.Add("Currently pregnant");
+                else
+                {
+                    score += 20;
+                    concerns.Add(breeding == null ? "No current breeding" : $"Current repro status: {breeding.PregnancyStatus}");
+                }
+                if (openCount >= 2) { score += Math.Min(15, openCount * 5); concerns.Add($"{openCount} recorded open checks"); }
+                if (ageYears >= 6) { score += Math.Min(10, (int)Math.Floor(ageYears - 5) * 2); concerns.Add($"Age {ageYears:0.0} years"); }
+
+                score = Math.Min(100, score);
+                return new
+                {
+                    animal.AnimalId, animal.BarnName, animal.RegisteredName, animal.RegistrationNumber,
+                    animal.BirthDate, animal.SireName, animal.DamName,
+                    Score = score,
+                    ReviewLevel = score >= 55 ? "Review first" : score >= 35 ? "Watch closely" : "Lower concern",
+                    Milk = milk?.Milk,
+                    DaysInMilk = milk?.DaysInMilk,
+                    NetMerit = genomic?.NetMerit,
+                    Tpi = genomic?.Tpi,
+                    ReproStatus = breeding?.PregnancyStatus.ToString() ?? "Not bred",
+                    Concerns = concerns,
+                    Strengths = strengths,
+                    DataComplete = milk != null && genomic != null
+                };
+            })
+            .OrderByDescending(row => row.Score)
+            .ThenBy(row => row.BarnName)
+            .ToList();
         var missingAnimalIdentification = animals.Where(a =>
             string.IsNullOrWhiteSpace(a.BarnName)
             || string.IsNullOrWhiteSpace(a.RegistrationNumber));
@@ -163,6 +245,7 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
             MissingAnimalIdentification = missingAnimalIdentification,
             OldEnoughNotBred = oldEnoughNotBred,
             MilkingNotBred = milkingNotBred,
+            SuggestedSell = suggestedSell,
             PregnancyChecksDue = pregnancyChecksDue,
             DueWithinEightMonths = currentBreedings.Where(b =>
                 b.PregnancyStatus == PregnancyStatus.Pregnant

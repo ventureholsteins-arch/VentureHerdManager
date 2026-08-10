@@ -19,6 +19,11 @@ const status = ref('')
 const busy = ref(false)
 const combinedSearch = ref('')
 const importDetails = ref<HTMLDetailsElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function openFilePicker() {
+  fileInput.value?.click()
+}
 
 function chooseSource(nextSource: HerdDataSource) {
   source.value = nextSource
@@ -76,7 +81,10 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
     <template>
       <details ref="importDetails" class="card import-card">
         <summary>Import report</summary>
-        <div class="controls"><select v-model.number="source"><option :value="1">PC-DART milk report</option><option :value="2">Zoetis genomic report</option></select><input v-model="reportDate" type="date"><input type="file" accept=".csv,text/csv" @change="loadFile"></div>
+        <p class="import-instruction">{{ source === 2 ? 'Choose your Zoetis Core Traits CSV, then preview the animal matches.' : 'Choose your PC-DART CSV, then preview the animal matches.' }}</p>
+        <button type="button" class="choose-file" @click="openFilePicker">Choose {{ source === 2 ? 'Zoetis Genomics' : 'PC-DART' }} CSV File</button>
+        <input ref="fileInput" class="hidden-file" type="file" accept=".csv,text/csv" @change="loadFile">
+        <div class="controls"><select v-model.number="source"><option :value="1">PC-DART milk report</option><option :value="2">Zoetis genomic report</option></select><input v-model="reportDate" type="date"><strong class="selected-file">{{ fileName || 'No file selected yet' }}</strong></div>
         <div class="actions"><button :disabled="busy || !csvText" @click="previewImport">Preview & match</button><button :disabled="busy || !preview || needsMatch.length > 0" @click="applyImport">Save confirmed import</button></div>
         <p v-if="status" :class="{ error: status.includes('failed') || status.includes('required') }">{{ status }}</p>
         <div v-if="preview" class="match-list"><p><strong>{{ preview.rowsRead }}</strong> rows · {{ needsMatch.length }} need confirmation</p><label v-for="row in preview.rows" :key="row.sourceKey"><span>{{ row.sourceName }} <small>{{ row.officialId }}</small></span><select v-model.number="mappings[row.sourceKey]"><option :value="0">Choose animal…</option><option v-for="candidate in row.candidates" :key="candidate.animalId" :value="candidate.animalId">{{ candidate.animalName }} · {{ candidate.registrationNumber }}</option><option v-for="animal in animals" :key="`all-${animal.animalId}`" :value="animal.animalId">{{ animal.barnName || animal.registeredName || `#${animal.animalId}` }}</option></select></label></div>
@@ -90,5 +98,6 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
 
 <style scoped>
 .import-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.import-choice button{min-height:52px;border:2px solid #31572c;border-radius:9px;background:#fff;color:#31572c;font-weight:900}.import-choice button.active{background:#31572c;color:#fff}
+.import-instruction{font-weight:750;color:#31572c}.choose-file{width:100%;min-height:56px!important;background:#31572c!important;color:#fff;font-size:1rem}.hidden-file{display:none}.selected-file{display:flex;align-items:center;min-height:44px;padding:0 10px;border:1px solid #bdcbbf;border-radius:7px;box-sizing:border-box;font-size:.85rem}
 .data-page{max-width:1240px;margin:auto;padding:16px;background:#f5f7f2;min-height:100vh}header{padding:20px;border-radius:12px;background:#173422;color:#fff}header button,.card button{min-height:44px;border:0;border-radius:7px;padding:0 14px;font-weight:850}.card{margin:14px 0;padding:16px;border:1px solid #d8e2da;border-radius:12px;background:#fff}.card summary{cursor:pointer;font-size:1.2rem;font-weight:900;min-height:34px}.card[open] summary{margin-bottom:14px}.controls input,.controls select,.card>input,.match-list select{min-height:44px;border:1px solid #bdcbbf;border-radius:7px;padding:8px;width:100%;box-sizing:border-box}.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.actions{display:flex;gap:8px;margin-top:12px}.actions button{background:#31572c;color:#fff}.match-list{display:grid;gap:8px;margin-top:14px;max-height:520px;overflow:auto}.match-list label{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;align-items:center;padding:8px;border:1px solid #e0e7e1;border-radius:8px}.match-list span{display:grid;font-weight:800}.match-list small{font-weight:400;color:#64746a}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:9px;border-bottom:1px solid #e1e7e2;text-align:left}th{background:#eef5ef}.link{background:transparent!important;color:#31572c;padding:0!important}.error{color:#991b1b}@media(max-width:640px){.controls,.match-list label{grid-template-columns:1fr}.actions{display:grid}.actions button{width:100%}.data-page{padding:8px}.card{padding:12px}}
 </style>

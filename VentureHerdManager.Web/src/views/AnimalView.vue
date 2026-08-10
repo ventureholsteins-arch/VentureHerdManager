@@ -87,6 +87,8 @@ const showAchievements = ref<ShowAchievement[]>([])
 const loading = ref(true)
 
 const showHeatForm = ref(false)
+const heatSaving = ref(false)
+const heatError = ref('')
 const heatNotes = ref('')
 const heatPhotoFile = ref<File | null>(null)
 const hasEmbryoTransfer = ref(false)
@@ -204,6 +206,7 @@ function closeAllForms() {
 
 function openHeatForm() {
   closeAllForms()
+  heatError.value = ''
   showHeatForm.value = true
 }
 
@@ -326,7 +329,9 @@ onBeforeRouteLeave(() => {
 })
 
 async function saveHeat() {
-  if (!animal.value) return
+  if (!animal.value || heatSaving.value) return
+  heatSaving.value = true
+  heatError.value = ''
 
   try {
     let pictureUrl: string | null = null
@@ -360,9 +365,10 @@ async function saveHeat() {
     await reloadAnimalData()
   } catch (error) {
     console.error('Failed to save heat:', error)
-    alert('Failed to save heat event.')
+    heatError.value = error instanceof Error ? error.message : 'Heat event could not be saved. Try again.'
   } finally {
     isUploadingHeatPhoto.value = false
+    heatSaving.value = false
   }
 }
 
@@ -940,6 +946,7 @@ const scoreLabel = computed(() => {
           class="form-card"
         >
           <h3>Record Heat</h3>
+          <p v-if="heatError" class="form-error">{{ heatError }}</p>
 
           <label>Heat Notes</label>
 
@@ -982,9 +989,10 @@ const scoreLabel = computed(() => {
           <div class="form-actions">
             <button
               class="save"
+              :disabled="heatSaving"
               @click="saveHeat"
             >
-              Save Heat
+              {{ heatSaving ? 'Saving…' : 'Save Heat' }}
             </button>
 
             <button

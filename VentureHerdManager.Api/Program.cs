@@ -492,6 +492,12 @@ static async Task InitializeDatabaseAsync(
         Console.WriteLine($"Database migration warning: {ex.Message}");
     }
 
+    // Older production databases can contain legacy schema changes that stop
+    // EF before it reaches the herd-data migration. Keep this feature's three
+    // tables independently idempotent, then record this migration only after
+    // the complete schema is present.
+    await EnsureHerdDataAnalyticsSchemaAsync(context);
+
     // ── ShowAchievements table ────────────────────────────────────────────────
     try
     {
@@ -1066,4 +1072,91 @@ static async Task InitializeDatabaseAsync(
     {
         Console.WriteLine($"Database save warning: {ex.Message}");
     }
+}
+
+static async Task EnsureHerdDataAnalyticsSchemaAsync(ApplicationDbContext context)
+{
+    await context.Database.ExecuteSqlRawAsync(
+        """
+        IF OBJECT_ID(N'dbo.HerdDataImports', N'U') IS NULL
+        BEGIN
+          CREATE TABLE [dbo].[HerdDataImports](
+            [HerdDataImportId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_HerdDataImports] PRIMARY KEY,
+            [Source] INT NOT NULL,
+            [FileName] NVARCHAR(260) NOT NULL,
+            [FileHash] NVARCHAR(64) NOT NULL,
+            [ReportDate] DATE NOT NULL,
+            [RowsImported] INT NOT NULL,
+            [ImportedAt] DATETIME2 NOT NULL
+          );
+        END;
+
+        IF OBJECT_ID(N'dbo.AnimalIdentityMappings', N'U') IS NULL
+        BEGIN
+          CREATE TABLE [dbo].[AnimalIdentityMappings](
+            [AnimalIdentityMappingId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_AnimalIdentityMappings] PRIMARY KEY,
+            [Source] INT NOT NULL,
+            [SourceKey] NVARCHAR(120) NOT NULL,
+            [SourceLabel] NVARCHAR(200) NOT NULL,
+            [AnimalId] INT NOT NULL,
+            [ConfirmedAt] DATETIME2 NOT NULL,
+            CONSTRAINT [FK_AnimalIdentityMappings_Animals_AnimalId]
+              FOREIGN KEY ([AnimalId]) REFERENCES [dbo].[Animals]([AnimalId]) ON DELETE CASCADE
+          );
+        END;
+
+        IF OBJECT_ID(N'dbo.AnimalDataRecords', N'U') IS NULL
+        BEGIN
+          CREATE TABLE [dbo].[AnimalDataRecords](
+            [AnimalDataRecordId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_AnimalDataRecords] PRIMARY KEY,
+            [HerdDataImportId] INT NOT NULL,
+            [AnimalId] INT NOT NULL,
+            [Source] INT NOT NULL,
+            [ReportDate] DATE NOT NULL,
+            [SourceAnimalId] NVARCHAR(100) NOT NULL,
+            [SourceAnimalName] NVARCHAR(200) NOT NULL,
+            [OfficialId] NVARCHAR(100) NULL,
+            [DaysInMilk] INT NULL,
+            [Milk] DECIMAL(12,3) NULL,
+            [FatPercent] DECIMAL(12,3) NULL,
+            [ProteinPercent] DECIMAL(12,3) NULL,
+            [LastCalvingDate] DATE NULL,
+            [Tpi] INT NULL,
+            [NetMerit] INT NULL,
+            [MilkPta] INT NULL,
+            [FatPta] INT NULL,
+            [ProteinPta] INT NULL,
+            [SomaticCellScore] DECIMAL(12,3) NULL,
+            [DaughterPregnancyRate] DECIMAL(12,3) NULL,
+            [ProductiveLife] DECIMAL(12,3) NULL,
+            [TypeScore] DECIMAL(12,3) NULL,
+            [UdderComposite] DECIMAL(12,3) NULL,
+            [FeetLegsComposite] DECIMAL(12,3) NULL,
+            [RawDataJson] NVARCHAR(MAX) NOT NULL,
+            [CreatedAt] DATETIME2 NOT NULL,
+            CONSTRAINT [FK_AnimalDataRecords_Animals_AnimalId]
+              FOREIGN KEY ([AnimalId]) REFERENCES [dbo].[Animals]([AnimalId]) ON DELETE CASCADE,
+            CONSTRAINT [FK_AnimalDataRecords_HerdDataImports_HerdDataImportId]
+              FOREIGN KEY ([HerdDataImportId]) REFERENCES [dbo].[HerdDataImports]([HerdDataImportId]) ON DELETE CASCADE
+          );
+        END;
+
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name]=N'IX_HerdDataImports_FileHash' AND [object_id]=OBJECT_ID(N'dbo.HerdDataImports'))
+          CREATE UNIQUE INDEX [IX_HerdDataImports_FileHash] ON [dbo].[HerdDataImports]([FileHash]);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name]=N'IX_HerdDataImports_Source_ReportDate' AND [object_id]=OBJECT_ID(N'dbo.HerdDataImports'))
+          CREATE INDEX [IX_HerdDataImports_Source_ReportDate] ON [dbo].[HerdDataImports]([Source],[ReportDate]);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name]=N'IX_AnimalIdentityMappings_AnimalId' AND [object_id]=OBJECT_ID(N'dbo.AnimalIdentityMappings'))
+          CREATE INDEX [IX_AnimalIdentityMappings_AnimalId] ON [dbo].[AnimalIdentityMappings]([AnimalId]);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name]=N'IX_AnimalIdentityMappings_Source_SourceKey' AND [object_id]=OBJECT_ID(N'dbo.AnimalIdentityMappings'))
+          CREATE UNIQUE INDEX [IX_AnimalIdentityMappings_Source_SourceKey] ON [dbo].[AnimalIdentityMappings]([Source],[SourceKey]);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name]=N'IX_AnimalDataRecords_HerdDataImportId' AND [object_id]=OBJECT_ID(N'dbo.AnimalDataRecords'))
+          CREATE INDEX [IX_AnimalDataRecords_HerdDataImportId] ON [dbo].[AnimalDataRecords]([HerdDataImportId]);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name]=N'IX_AnimalDataRecords_AnimalId_Source_ReportDate' AND [object_id]=OBJECT_ID(N'dbo.AnimalDataRecords'))
+          CREATE INDEX [IX_AnimalDataRecords_AnimalId_Source_ReportDate] ON [dbo].[AnimalDataRecords]([AnimalId],[Source],[ReportDate]);
+
+        IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId]=N'20260810200130_AddHerdDataAnalytics')
+          INSERT INTO [dbo].[__EFMigrationsHistory]([MigrationId],[ProductVersion])
+            VALUES (N'20260810200130_AddHerdDataAnalytics', N'10.0.9');
+        """);
 }

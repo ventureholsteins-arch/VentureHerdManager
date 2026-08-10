@@ -13,6 +13,9 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
 {
     private IActionResult? Guard() => admin.IsAuthorized(Request) ? null : Unauthorized("Admin access is required for herd production and genomic data.");
 
+    [HttpPost("unlock")]
+    public IActionResult Unlock() => Guard() ?? Ok(new { unlocked = true });
+
     [HttpPost("preview")]
     public async Task<IActionResult> Preview(HerdDataImportRequest request, CancellationToken ct) => Guard() ?? Ok(await importer.PreviewAsync(request, ct));
 

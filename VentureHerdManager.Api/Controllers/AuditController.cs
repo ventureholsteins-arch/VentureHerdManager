@@ -55,7 +55,16 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         AddNearEvents(eventFindings, "dryOff", await context.DryOffEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.DryOffDate, value => value.DryOffEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => $"{value.Reason}|{value.Notes}", value => new { value.DryOffEventId, value.DryOffDate, value.Reason, value.Notes, value.CreatedAt }, 48);
         AddNearEvents(eventFindings, "lutalyse", await context.LutalyseEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.AdministrationDate, value => value.LutalyseEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => $"{value.HeatObserved}|{value.Notes}", value => new { value.LutalyseEventId, value.AdministrationDate, value.ExpectedHeatWatchStart, value.ExpectedHeatWatchEnd, value.HeatObserved, value.HeatObservedDate, value.Notes, value.CreatedAt }, 24);
         AddNearEvents(eventFindings, "classification", await context.ClassificationRecords.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.ClassificationDate ?? value.CreatedAt, value => value.ClassificationRecordId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => $"{value.Score}|{value.Baa}|{value.ClassificationLabel}|{value.Notes}", value => new { value.ClassificationRecordId, value.ClassificationDate, value.Score, value.Baa, value.AgeInMonthsAtScoring, value.ClassificationLabel, value.Notes, value.CreatedAt }, 168);
-        return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings });
+        var missingSireFindings = animals
+            .Where(animal => animal.AnimalStatus == AnimalStatus.Active
+                && animal.Sex == AnimalSex.Female
+                && animal.AnimalStage != AnimalStage.Bull
+                && animal.SireId == null
+                && string.IsNullOrWhiteSpace(animal.SireName))
+            .OrderBy(animal => animal.DisplayName)
+            .Select(animal => AnimalCard(animal))
+            .ToList();
+        return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings, missingSireFindings });
     }
 
     [HttpPost("merge")]

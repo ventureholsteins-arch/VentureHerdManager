@@ -229,16 +229,16 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
 const linearRows = computed(() => [...(analytics.value?.genomic ?? [])].sort((a: any, b: any) => (b.typeScore ?? -99) - (a.typeScore ?? -99)))
 const milkRows = computed(() => analytics.value?.milk ?? [])
 const milkHistory = computed(() => analytics.value?.milkHistory ?? [])
-const latestMilkTrend = computed(() => { const rows = milkHistory.value; if (rows.length < 2) return null; const current = rows.at(-1); const prior = rows.at(-2); return { milk: (current.averageMilk ?? 0) - (prior.averageMilk ?? 0), fat: (current.averageFatPercent ?? 0) - (prior.averageFatPercent ?? 0), protein: (current.averageProteinPercent ?? 0) - (prior.averageProteinPercent ?? 0) } })
+const latestMilkTrend = computed(() => { const rows = milkHistory.value; if (rows.length < 2) return null; const current = rows.at(-1); const prior = rows.at(-2); return { milk: (current.averageMilk ?? 0) - (prior.averageMilk ?? 0), fat: current.averageFatPercent != null && prior.averageFatPercent != null ? current.averageFatPercent - prior.averageFatPercent : null, protein: current.averageProteinPercent != null && prior.averageProteinPercent != null ? current.averageProteinPercent - prior.averageProteinPercent : null } })
 const milkLeaderBoards = computed(() => [
-  { key: 'milk', label: 'Milk Volume', unit: ' lb' }, { key: 'fatPercent', label: 'Fat %', unit: '%' },
-  { key: 'proteinPercent', label: 'Protein %', unit: '%' }, { key: 'fatPounds', label: 'Fat Pounds', unit: ' lb' },
-  { key: 'proteinPounds', label: 'Protein Pounds', unit: ' lb' }
+  { key: 'milk', label: 'Milk Volume', unit: ' lb', percentKey: '' },
+  { key: 'fatPounds', label: 'Fat Production', unit: ' lb', percentKey: 'fatPercent' },
+  { key: 'proteinPounds', label: 'Protein Production', unit: ' lb', percentKey: 'proteinPercent' }
 ].map(board => ({ ...board, leaders: [...milkRows.value].filter((row: any) => row[board.key] != null).sort((a: any, b: any) => b[board.key] - a[board.key]).slice(0, 5) })))
 const sireLeaderBoards = computed(() => [
-  { key: 'averageMilk', label: 'Milk Sires', unit: ' lb' }, { key: 'averageFatPercent', label: 'Fat % Sires', unit: '%' },
-  { key: 'averageProteinPercent', label: 'Protein % Sires', unit: '%' }, { key: 'averageFatPounds', label: 'Fat Pound Sires', unit: ' lb' },
-  { key: 'averageProteinPounds', label: 'Protein Pound Sires', unit: ' lb' }
+  { key: 'averageMilk', label: 'Milk Sires', unit: ' lb' },
+  { key: 'averageFatPounds', label: 'Fat Production Sires', unit: ' lb' },
+  { key: 'averageProteinPounds', label: 'Protein Production Sires', unit: ' lb' }
 ].map(board => ({ ...board, leaders: [...(analytics.value?.sireMilk ?? [])].filter((row: any) => row[board.key] != null).sort((a: any, b: any) => b[board.key] - a[board.key]).slice(0, 5) })))
 const genomicRanked = computed(() => [...(analytics.value?.genomic ?? [])].sort((a: any, b: any) => (b.tpi ?? -9999) - (a.tpi ?? -9999)))
 const topGenomic = computed(() => genomicRanked.value.slice(0, 5))

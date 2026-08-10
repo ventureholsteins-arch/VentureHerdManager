@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text.Json;
 using VentureHerdManager.Api.Data;
 using VentureHerdManager.Api.DTOs;
 using VentureHerdManager.Api.Models;
@@ -43,10 +45,22 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
     {
         var denied = Guard(); if (denied != null) return denied;
         var records = await context.AnimalDataRecords.AsNoTracking().Include(r => r.Animal).ToListAsync(ct);
+        static decimal? RawTrait(AnimalDataRecord record, params string[] aliases)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(record.RawDataJson);
+                foreach (var property in document.RootElement.EnumerateObject())
+                    if (aliases.Any(alias => string.Equals(property.Name.Trim(), alias, StringComparison.OrdinalIgnoreCase))
+                        && decimal.TryParse(property.Value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var value)) return value;
+            }
+            catch (JsonException) { }
+            return null;
+        }
         var milkDate = records.Where(r => r.Source == HerdDataSource.Pcdart).Max(r => (DateOnly?)r.ReportDate);
         var genomicDate = records.Where(r => r.Source == HerdDataSource.Zoetis).Max(r => (DateOnly?)r.ReportDate);
         var milk = records.Where(r => r.Source == HerdDataSource.Pcdart && r.ReportDate == milkDate).OrderByDescending(r => r.Milk).Select(r => new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.ReportDate, r.DaysInMilk, r.Milk, r.FatPercent, r.ProteinPercent }).ToList();
-        var genomicAll = records.Where(r => r.Source == HerdDataSource.Zoetis && r.ReportDate == genomicDate).OrderByDescending(r => r.Tpi).Select(r => new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.AnimalStage, r.ReportDate, r.Tpi, r.NetMerit, r.MilkPta, r.DaughterPregnancyRate, r.ProductiveLife, r.TypeScore, r.UdderComposite, r.FeetLegsComposite }).ToList();
+        var genomicAll = records.Where(r => r.Source == HerdDataSource.Zoetis && r.ReportDate == genomicDate).OrderByDescending(r => r.Tpi).Select(r => new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.AnimalStage, r.ReportDate, r.Tpi, r.NetMerit, r.MilkPta, r.DaughterPregnancyRate, r.ProductiveLife, r.TypeScore, r.UdderComposite, r.FeetLegsComposite, RearUdderHeight = RawTrait(r, "RUH", "REAR UDDER HEIGHT", "REAR UDDER HT"), RearUdderWidth = RawTrait(r, "RUW", "REAR UDDER WIDTH"), Strength = RawTrait(r, "STR", "STRENGTH") }).ToList();
         var genomic = genomicAll.Where(r => r.AnimalStage != AnimalStage.Bull).ToList();
         var bulls = genomicAll.Where(r => r.AnimalStage == AnimalStage.Bull).ToList();
         var genomicHistory = records.Where(r => r.Source == HerdDataSource.Zoetis && r.Animal.AnimalStage != AnimalStage.Bull)

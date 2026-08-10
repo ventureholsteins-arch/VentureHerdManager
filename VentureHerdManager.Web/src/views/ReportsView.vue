@@ -817,14 +817,16 @@ function addShowBaggingRow(animal: Animal) {
   const existing = showBaggingRows.value.find(row => row.animalId === animal.animalId)
   if (existing) {
     baggingActionStatus.value = `${animal.barnName || animal.registeredName || `#${animal.animalId}`} is already in bagging rows.`
+    nextTick(() => jumpToBaggingRow(existing.id))
     return
   }
 
   const entryTime = ''
   const quarters = createDefaultBaggingQuarters()
+  const rowId = nextBaggingRowId.value++
 
   showBaggingRows.value.push({
-    id: nextBaggingRowId.value++,
+    id: rowId,
     animalId: animal.animalId,
     lineupOrder: showBaggingRows.value.length + 1,
     showName: showBaggingShowName.value,
@@ -838,6 +840,7 @@ function addShowBaggingRow(animal: Animal) {
 
   baggingActionStatus.value = `Added ${animal.barnName || animal.registeredName || `#${animal.animalId}`} to bagging rows.`
   showBaggingSearch.value = ''
+  nextTick(() => jumpToBaggingRow(rowId))
 
 }
 
@@ -880,10 +883,17 @@ function baggingRowAnchorId(rowId: number): string {
   return `bagging-row-${rowId}`
 }
 
-function jumpToBaggingRow(rowId: number): void {
+async function jumpToBaggingRow(rowId: number): Promise<void> {
   const element = document.getElementById(baggingRowAnchorId(rowId))
   if (!element) return
+  document.querySelectorAll<HTMLDetailsElement>('.cow-bagging-details[open]').forEach(details => {
+    if (details !== element) details.open = false
+  })
+  if (element instanceof HTMLDetailsElement) element.open = true
+  await nextTick()
   element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  element.classList.add('quick-edit-opened')
+  window.setTimeout(() => element.classList.remove('quick-edit-opened'), 900)
 }
 
 function editQuarterHours(row: ShowBaggingRow, quarterKey: ShowBaggingQuarter['key']) {
@@ -2140,6 +2150,18 @@ onMounted(async () => {
               </div>
             </div>
 
+            <div class="bagging-quick-edit">
+              <label>
+                <strong>{{ getBaggingRowAnimalLabel(row) }} show time</strong>
+                <input v-model="row.entryTime" type="datetime-local" required />
+              </label>
+              <div>
+                <small>Goes out</small>
+                <strong>{{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</strong>
+                <span>{{ formatScheduleDateTime(row.entryTime) }}</span>
+              </div>
+            </div>
+
             <div class="bagging-meta-grid">
               <label>
                 Cow
@@ -2159,11 +2181,6 @@ onMounted(async () => {
                 <input v-model="row.showDate" type="date" />
               </label>
 
-              <label>
-                When does this cow go out? (required)
-                <input v-model="row.entryTime" type="datetime-local" required />
-              </label>
-
               <label class="bagging-success-toggle">
                 <input v-model="row.wasSuccessful" type="checkbox" />
                 Successful bagging / result
@@ -2174,10 +2191,6 @@ onMounted(async () => {
                 Remind crew 15 minutes before each milk-out
               </label>
 
-              <div class="bagging-entry-summary">
-                <strong>Entry in {{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</strong>
-                <span>{{ formatTime(row.entryTime) }}</span>
-              </div>
             </div>
 
             <div class="bagging-udder-grid exact-times">
@@ -2198,6 +2211,7 @@ onMounted(async () => {
               Notes / what happened
               <textarea v-model="row.notes" rows="3" placeholder="Milk letdown, timing adjustments, success notes, problems..." />
             </label>
+            <button type="button" class="bagging-save-bottom" @click="saveBaggingRow(row)">Save {{ getBaggingRowAnimalLabel(row) }}</button>
           </div>
         </div>
       </details>
@@ -2765,6 +2779,15 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-glance-quarter strong { font-size: 0.86rem; color: #0f1f16; }
 .bagging-glance-quarter small { font-size: 0.75rem; color: #31572c; font-weight: 700; }
 .bagging-card { border: 1px solid #d9e3dc; border-radius: 10px; padding: 12px; background: #fff; margin: 10px 0; }
+.cow-bagging-details.quick-edit-opened { box-shadow:0 0 0 4px rgba(49,87,44,.22); }
+.bagging-quick-edit { display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.65fr);gap:10px;margin-bottom:12px;padding:10px;border:2px solid #31572c;border-radius:10px;background:#f0f7f1; }
+.bagging-quick-edit label,.bagging-quick-edit>div { display:grid;gap:5px; }
+.bagging-quick-edit input { min-height:50px;width:100%;box-sizing:border-box;border:1px solid #8ea391;border-radius:8px;padding:8px;font-size:1rem;background:#fff;color:#0f1f16; }
+.bagging-quick-edit>div { border-radius:8px;background:#17331f;color:#fff;padding:9px 11px; }
+.bagging-quick-edit>div small { color:#cfe3d2;text-transform:uppercase;font-weight:850;font-size:.7rem; }
+.bagging-quick-edit>div strong { font-size:1.05rem; }
+.bagging-quick-edit>div span { font-size:.78rem; }
+.bagging-save-bottom { width:100%;min-height:52px;margin-top:12px;border:0;border-radius:9px;background:#31572c;color:#fff;font-size:1rem;font-weight:950;cursor:pointer; }
 .bagging-card-hd { display: flex; align-items: start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .bagging-show-link { border: none; background: transparent; color: #31572c; font-size: 1rem; font-weight: 900; padding: 0; cursor: pointer; text-align: left; }
 .bagging-cow-line { font-size: 0.85rem; color: #5d6f63; margin-top: 4px; }
@@ -2862,6 +2885,7 @@ textarea { min-height: 72px; resize: vertical; }
   .bagging-cow-overview { grid-template-columns: repeat(2,minmax(0,1fr));padding:9px;gap:6px; }
   .bagging-cow-overview>button { min-width:0; }
   .bagging-meta-grid { grid-template-columns: 1fr; }
+  .bagging-quick-edit { grid-template-columns:1fr; }
   .bagging-udder-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .bagging-card-hd { flex-direction: column; }
   .bagging-card-actions { width: 100%; justify-content: space-between; }

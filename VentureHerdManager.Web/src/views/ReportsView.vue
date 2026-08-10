@@ -27,6 +27,7 @@ import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 import RetroIcon from '../components/RetroIcon.vue'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'showBagging' | 'lists' | 'checklist' | 'pcdartImport' | 'achievements'
+type ReportCategory = 'decisions' | 'embryos' | 'shows' | 'data'
 
 interface AnimalGroupList {
   key: string
@@ -108,8 +109,29 @@ const router = useRouter()
 const route = useRoute()
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
 const activeTab = ref<HubTab>('embryos')
+const activeCategory = ref<ReportCategory>('embryos')
 const loading = ref(true)
 const animals = ref<Animal[]>([])
+
+function categoryForTab(tab: HubTab): ReportCategory {
+  if (tab === 'embryos' || tab === 'embryoImplants') return 'embryos'
+  if (tab === 'showString' || tab === 'showBagging' || tab === 'achievements') return 'shows'
+  if (tab === 'pcdartImport') return 'data'
+  return 'decisions'
+}
+
+function selectReportCategory(category: ReportCategory) {
+  activeCategory.value = category
+  activeTab.value = category === 'decisions' ? 'analytics'
+    : category === 'embryos' ? 'embryos'
+      : category === 'shows' ? 'showString'
+        : 'pcdartImport'
+}
+
+function selectReportTab(tab: HubTab) {
+  activeTab.value = tab
+  activeCategory.value = categoryForTab(tab)
+}
 
 const analyticsData = ref<HerdActivityResponse | null>(null)
 const analyticsLoading = ref(false)
@@ -1412,6 +1434,7 @@ onMounted(async () => {
   const tabParam = route.query.tab as string | undefined
   if (tabParam && ['analytics', 'embryos', 'embryoImplants', 'showString', 'showBagging', 'lists', 'checklist', 'pcdartImport', 'achievements'].includes(tabParam)) {
     activeTab.value = tabParam as HubTab
+    activeCategory.value = categoryForTab(activeTab.value)
   }
   const showParam = route.query.show as string | undefined
   const searchParam = route.query.q as string | undefined
@@ -1419,11 +1442,13 @@ onMounted(async () => {
     achievementSearch.value = searchParam
     if (activeTab.value !== 'achievements') {
       activeTab.value = 'achievements'
+      activeCategory.value = 'shows'
     }
   } else if (showParam) {
     achievementSearch.value = showParam
     if (activeTab.value !== 'achievements') {
       activeTab.value = 'achievements'
+      activeCategory.value = 'shows'
     }
   }
   const groupParam = route.query.group as string | undefined
@@ -1431,6 +1456,7 @@ onMounted(async () => {
     showBaggingShowName.value = groupParam
     if (activeTab.value !== 'showBagging') {
       activeTab.value = 'showBagging'
+      activeCategory.value = 'shows'
     }
   }
   const baggingSearchParam = route.query.baggingSearch as string | undefined
@@ -1438,6 +1464,7 @@ onMounted(async () => {
     baggingHistorySearch.value = baggingSearchParam
     if (activeTab.value !== 'showBagging') {
       activeTab.value = 'showBagging'
+      activeCategory.value = 'shows'
     }
   }
   await reloadReportsData()
@@ -1452,25 +1479,40 @@ onMounted(async () => {
         <div class="rp-hero-actions">
           <span class="rp-brand">Venture Herd Manager</span>
           <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/print')">Print Reports</button>
-          <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/herd-data?source=1')">Import PC-DART</button>
-          <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/herd-data?source=2')">Import Zoetis Genomics</button>
         </div>
       </div>
       <h1 class="rp-title">Reports &amp; Show Planner</h1>
-      <p class="rp-sub">Embryo Inventory · Show String · Herd Lists · Checklist · Achievements</p>
+      <p class="rp-sub">Herd decisions · Embryos · Shows · Data imports</p>
       <p class="rp-powered">Powered by <strong>Venture Ag Marketing</strong> · Custom Application Solutions</p>
     </header>
 
-    <nav class="rp-tabs">
-      <button :class="{ active: activeTab === 'embryos' }" @click="activeTab = 'embryos'"><RetroIcon name="embryo" :size="22" />Embryos</button>
-      <button :class="{ active: activeTab === 'embryoImplants' }" @click="activeTab = 'embryoImplants'"><RetroIcon name="pregCheck" :size="22" />Implants</button>
-      <button :class="{ active: activeTab === 'showString' }" @click="activeTab = 'showString'"><RetroIcon name="calf" :size="22" />Show String</button>
-      <button :class="{ active: activeTab === 'showBagging' }" @click="activeTab = 'showBagging'"><RetroIcon name="calving" :size="22" />Show Bagging</button>
-      <button :class="{ active: activeTab === 'lists' }" @click="activeTab = 'lists'"><RetroIcon name="note" :size="22" />Herd Lists</button>
-      <button :class="{ active: activeTab === 'checklist' }" @click="activeTab = 'checklist'"><RetroIcon name="note" :size="22" />Checklist</button>
-      <button :class="{ active: activeTab === 'pcdartImport' }" @click="activeTab = 'pcdartImport'"><RetroIcon name="reports" :size="22" />Legacy PCDART Audit</button>
-      <button :class="{ active: activeTab === 'achievements' }" @click="activeTab = 'achievements'"><RetroIcon name="calf" :size="22" />Achievements</button>
-      <button :class="{ active: activeTab === 'analytics' }" @click="activeTab = 'analytics'"><RetroIcon name="reports" :size="22" />Analytics</button>
+    <nav class="rp-categories" aria-label="Report categories">
+      <button :class="{ active: activeCategory === 'decisions' }" @click="selectReportCategory('decisions')">Herd Decisions</button>
+      <button :class="{ active: activeCategory === 'embryos' }" @click="selectReportCategory('embryos')">Embryos</button>
+      <button :class="{ active: activeCategory === 'shows' }" @click="selectReportCategory('shows')">Shows</button>
+      <button :class="{ active: activeCategory === 'data' }" @click="selectReportCategory('data')">Imports &amp; Data</button>
+    </nav>
+
+    <nav class="rp-tabs" aria-label="Reports in selected category">
+      <template v-if="activeCategory === 'decisions'">
+        <button :class="{ active: activeTab === 'analytics' }" @click="selectReportTab('analytics')"><RetroIcon name="reports" :size="22" />Analytics</button>
+        <button :class="{ active: activeTab === 'lists' }" @click="selectReportTab('lists')"><RetroIcon name="note" :size="22" />Herd Lists</button>
+        <button :class="{ active: activeTab === 'checklist' }" @click="selectReportTab('checklist')"><RetroIcon name="note" :size="22" />Checklist</button>
+      </template>
+      <template v-else-if="activeCategory === 'embryos'">
+        <button :class="{ active: activeTab === 'embryos' }" @click="selectReportTab('embryos')"><RetroIcon name="embryo" :size="22" />Inventory</button>
+        <button :class="{ active: activeTab === 'embryoImplants' }" @click="selectReportTab('embryoImplants')"><RetroIcon name="pregCheck" :size="22" />Implants</button>
+      </template>
+      <template v-else-if="activeCategory === 'shows'">
+        <button :class="{ active: activeTab === 'showString' }" @click="selectReportTab('showString')"><RetroIcon name="calf" :size="22" />Show String</button>
+        <button :class="{ active: activeTab === 'showBagging' }" @click="selectReportTab('showBagging')"><RetroIcon name="calving" :size="22" />Bagging</button>
+        <button :class="{ active: activeTab === 'achievements' }" @click="selectReportTab('achievements')"><RetroIcon name="calf" :size="22" />Results</button>
+      </template>
+      <template v-else>
+        <button type="button" @click="router.push('/reports/herd-data?source=1')"><RetroIcon name="reports" :size="22" />Import PC-DART</button>
+        <button type="button" @click="router.push('/reports/herd-data?source=2')"><RetroIcon name="reports" :size="22" />Import Zoetis</button>
+        <button :class="{ active: activeTab === 'pcdartImport' }" @click="selectReportTab('pcdartImport')"><RetroIcon name="note" :size="22" />Legacy Audit</button>
+      </template>
     </nav>
 
     <p v-if="reportsLoadError" class="rp-error" style="margin: 12px 16px 0;">{{ reportsLoadError }}</p>
@@ -2337,6 +2379,9 @@ onMounted(async () => {
 .rp-print-link { border-color: rgba(125,211,160,0.45); }
 .rp-ph-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 
+.rp-categories { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px 16px 8px;background:#fff; }
+.rp-categories button { min-height:48px;border:1px solid #c8d4cb;border-radius:9px;background:#f5f8f5;color:#31572c;font-weight:900;font-size:.86rem;cursor:pointer; }
+.rp-categories button.active { border-color:#31572c;background:#31572c;color:#fff;box-shadow:0 3px 10px rgba(49,87,44,.18); }
 .rp-tabs { display: flex; overflow-x: auto; gap: 0; background: #fff; border-bottom: 2px solid #e0e8e1; padding: 0 16px; }
 .rp-tabs::-webkit-scrollbar { height: 0; }
 .rp-tabs button { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; border: none; border-bottom: 3px solid transparent; background: transparent; color: #5d6f63; font-weight: 800; font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 14px 16px 11px; cursor: pointer; white-space: nowrap; transition: color 0.15s, border-color 0.15s; }
@@ -2807,6 +2852,11 @@ textarea { min-height: 72px; resize: vertical; }
   .rp-row-card { grid-template-columns: 1fr; }
   .rp-full { grid-column: 1; }
   .rp-tabs button { padding: 12px 12px 9px; font-size: 0.75rem; }
+  .rp-categories { grid-template-columns:repeat(2,minmax(0,1fr));padding:9px 8px 5px;gap:6px; }
+  .rp-categories button { min-height:46px;font-size:.8rem; }
+  .rp-tabs { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;overflow:visible; }
+  .rp-tabs button { justify-content:center;border:1px solid #d5dfd7;border-radius:8px;padding:10px 6px;white-space:normal;text-align:center; }
+  .rp-tabs button.active { border-color:#31572c;background:#eef6ef; }
   .bagging-top-grid { grid-template-columns: 1fr; }
   .bagging-show-anchor { grid-template-columns: 1fr; }
   .bagging-cow-overview { grid-template-columns: repeat(2,minmax(0,1fr));padding:9px;gap:6px; }

@@ -32,9 +32,36 @@ const errorMessage = ref('')
 const warningMessage = ref('')
 const refreshing = ref(false)
 const dashboardRefreshKey = ref(0)
+const herdListsStorageKey = 'venture-herd-lists-v2'
+const saleAnimalIds = ref<number[]>([])
 const lastUpdatedAt = ref<string | null>(null)
 
 const DASHBOARD_CACHE_KEY = 'venture-herd-dashboard-cache-v1'
+
+function loadSaleAnimalIds() {
+  try {
+    const lists = JSON.parse(localStorage.getItem(herdListsStorageKey) || '[]') as Array<{ key: string; animalIds: number[] }>
+    saleAnimalIds.value = lists.find(list => list.key === 'sale-animals')?.animalIds ?? []
+  } catch {
+    saleAnimalIds.value = []
+  }
+}
+
+function toggleSaleAnimal(animalId: number) {
+  const selected = new Set(saleAnimalIds.value)
+  selected.has(animalId) ? selected.delete(animalId) : selected.add(animalId)
+  saleAnimalIds.value = [...selected]
+
+  try {
+    const lists = JSON.parse(localStorage.getItem(herdListsStorageKey) || '[]') as Array<{ key: string; title: string; animalIds: number[]; notes?: string; searchQuery?: string }>
+    const saleList = lists.find(list => list.key === 'sale-animals')
+    if (saleList) saleList.animalIds = saleAnimalIds.value
+    else lists.push({ key: 'sale-animals', title: 'Sale Animals', animalIds: saleAnimalIds.value, notes: '', searchQuery: '' })
+    localStorage.setItem(herdListsStorageKey, JSON.stringify(lists))
+  } catch (error) {
+    console.warn('Could not update the sale report list:', error)
+  }
+}
 const dashboardStorage =
   import.meta.env.VITE_DEMO_ONLY === 'true'
     ? sessionStorage
@@ -435,6 +462,7 @@ const goToBreedingTab = (animalId: number) => {
 }
 
 onMounted(() => {
+  loadSaleAnimalIds()
   loadDashboardCache()
   loadAnimals()
 })
@@ -678,6 +706,10 @@ onMounted(() => {
                 <span v-if="animal.isFavorite" class="fav-star" title="Favorite">★</span>
               </div>
               <span class="banner-reg">{{ animal.registrationNumber || '' }}</span>
+              <label class="sale-report-toggle" @click.stop>
+                <input type="checkbox" :checked="saleAnimalIds.includes(animal.animalId)" @change="toggleSaleAnimal(animal.animalId)">
+                <span>Sell report</span>
+              </label>
             </div>
 
             <!-- Main clickable area -->
@@ -1630,6 +1662,26 @@ onMounted(() => {
   padding: 6px 12px;
   background: #f4f7f4;
   border-bottom: 1px solid #e0e8e1;
+}
+
+.sale-report-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: #31572c;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.sale-report-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #31572c;
 }
 
 .banner-left {

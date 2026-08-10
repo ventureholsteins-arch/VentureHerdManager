@@ -41,11 +41,20 @@ public sealed class PcdartImportService
             .ToListAsync(cancellationToken);
 
         var lookup = BuildAnimalLookup(animals);
+        var animalsById = animals.ToDictionary(animal => animal.AnimalId);
+        var confirmedMappings = request.AnimalMappings
+            .Where(mapping => mapping.Value > 0)
+            .GroupBy(mapping => Normalize(mapping.Key))
+            .ToDictionary(group => group.Key, group => group.Last().Value);
         var stageAuditByAnimalId = new HashSet<int>();
 
         foreach (var row in rows)
         {
-            var match = FindAnimal(lookup, row.BarnName);
+            var normalizedReportName = Normalize(row.BarnName);
+            var match = confirmedMappings.TryGetValue(normalizedReportName, out var mappedAnimalId)
+                && animalsById.TryGetValue(mappedAnimalId, out var mappedAnimal)
+                    ? new AnimalMatch(mappedAnimal, false)
+                    : FindAnimal(lookup, row.BarnName);
             if (match.IsAmbiguous)
             {
                 result.Conflicts.Add($"Animal '{row.BarnName}' matched more than one cow and was skipped.");
@@ -56,7 +65,7 @@ public sealed class PcdartImportService
             if (match.Animal == null)
             {
                 result.MissingAnimals.Add(row.BarnName);
-                if (!apply)
+                if (!apply || !request.CreateMissingAnimals)
                 {
                     continue;
                 }

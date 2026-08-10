@@ -160,6 +160,10 @@ const pcdartFileName = ref('')
 const pcdartImporting = ref(false)
 const pcdartResult = ref<PcdartImportResult | null>(null)
 const pcdartError = ref('')
+const pcdartMappingKey = 'venture-herd-pcdart-animal-mappings-v1'
+const pcdartMappings = ref<Record<string, number>>(
+  JSON.parse(localStorage.getItem(pcdartMappingKey) || '{}')
+)
 const pcdartApplySuggested = ref(true)
 const embryoLoadError = ref('')
 const embryoActionId = ref<number | null>(null)
@@ -699,6 +703,11 @@ const embryosFailed = computed(() =>
     .filter(e => e.status === 'Failed')
     .sort(compareEmbryos)
 )
+const embryosWithImplants = computed(() =>
+  embryoRecords.value
+    .filter(record => Boolean(record.implantDate))
+    .sort((left, right) => (right.implantDate || '').localeCompare(left.implantDate || ''))
+)
 const hasNoAnimals = computed(() => animals.value.length === 0)
 
 function getAnimalLabel(animalId: number | null): string {
@@ -723,8 +732,14 @@ function barPct(value: number, allValues: number[]): number {
 
 function filteredListAnimals(list: AnimalGroupList): Animal[] {
   const q = (list.searchQuery || '').trim().toLowerCase()
-  if (!q) return animalOptions.value
-  return animalOptions.value.filter(a => (a.barnName || a.registeredName || '').toLowerCase().includes(q))
+  if (q.length < 2) return []
+  return animalOptions.value
+    .filter(a => [a.barnName, a.registeredName, a.registrationNumber, a.sireName, a.damName]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(q))
+    .slice(0, 15)
 }
 
 function isAnimalInShowString(animalId: number): boolean {
@@ -1184,17 +1199,37 @@ async function runPcdartImport(apply: boolean) {
     const payload = {
       rawText: pcdartRawText.value,
       reportLabel: pcdartReportLabel.value,
-      applySuggestedChanges: pcdartApplySuggested.value
+      applySuggestedChanges: pcdartApplySuggested.value,
+      animalMappings: pcdartMappings.value,
+      createMissingAnimals: false
     }
 
     pcdartResult.value = apply
       ? await applyPcdartImport(payload)
       : await previewPcdartImport(payload)
+    if (apply) {
+      localStorage.setItem(pcdartMappingKey, JSON.stringify(pcdartMappings.value))
+    }
   } catch (error) {
     pcdartError.value = error instanceof Error ? error.message : 'Import failed.'
   } finally {
     pcdartImporting.value = false
   }
+}
+
+function pcdartAnimalSuggestions(reportName: string): Animal[] {
+  const normalize = (value: string | null | undefined) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const source = normalize(reportName)
+  return animalOptions.value
+    .map(animal => {
+      const values = [animal.barnName, animal.registeredName, animal.registrationNumber].map(normalize).filter(Boolean)
+      const exact = values.some(value => value === source)
+      const partial = values.some(value => value.includes(source) || source.includes(value))
+      return { animal, score: exact ? 2 : partial ? 1 : 0 }
+    })
+    .sort((left, right) => right.score - left.score || getAnimalLabel(left.animal.animalId).localeCompare(getAnimalLabel(right.animal.animalId)))
+    .slice(0, 12)
+    .map(item => item.animal)
 }
 
 function addAchievement() {
@@ -1645,6 +1680,25 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <div class="implant-list">
+          <div class="browse-label">Implant Records ({{ embryosWithImplants.length }})</div>
+          <div v-if="embryosWithImplants.length === 0" class="rp-empty">No implant records were returned. Implant an embryo from Inventory, then refresh.</div>
+          <article v-for="record in embryosWithImplants" :key="`implant-${record.id}`" class="implant-record-card">
+            <div>
+              <strong>{{ record.code || record.mating || `${record.donor || 'Unknown donor'} × ${record.sire || 'Unknown sire'}` }}</strong>
+              <span>{{ record.implantDate }} · {{ record.status }}</span>
+            </div>
+            <div>
+              <small>Recipient</small>
+              <strong>{{ record.recipientAnimalId ? getAnimalLabel(record.recipientAnimalId) : 'Not linked' }}</strong>
+            </div>
+            <div>
+              <small>Group / grade</small>
+              <strong>{{ record.groupName || 'Ungrouped' }} · {{ record.grade || 'No grade' }}</strong>
+            </div>
+          </article>
+        </div>
       </template>
     </section>
 
@@ -1999,6 +2053,7 @@ onMounted(async () => {
           <span class="rp-group-ct">{{ list.animalIds.length }}</span>
         </div>
         <input v-model="list.searchQuery" type="search" class="rp-list-search" :placeholder="`Search ${list.title}…`" />
+        <p v-if="(list.searchQuery || '').trim().length < 2" class="rp-hint">Type at least 2 letters. The entire herd will not be shown as buttons.</p>
         <div class="rp-chips">
           <button v-for="a in filteredListAnimals(list)" :key="`${list.key}-${a.animalId}`" type="button" class="rp-chip" :class="{ 'rp-chip-sel': list.animalIds.includes(a.animalId) }" @click="toggleAnimalInList(list.key, a.animalId)">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</button>
         </div>
@@ -2069,8 +2124,18 @@ onMounted(async () => {
         <p><strong>Duplicates skipped:</strong> {{ pcdartResult.duplicateNotesSkipped }}</p>
         <p><strong>Suggested changes applied:</strong> {{ pcdartResult.suggestedChangesApplied }}</p>
         <div class="rp-full" v-if="pcdartResult.missingAnimals.length > 0">
-          <strong>Missing animals:</strong>
-          <p>{{ pcdartResult.missingAnimals.join(', ') }}</p>
+          <strong>Confirm unmatched PCDART names</strong>
+          <p class="rp-hint">Choose the correct herd animal for each shortened or slightly different PCDART name. Your confirmed choices are remembered on this device.</p>
+          <div class="pcdart-match-list">
+            <label v-for="name in pcdartResult.missingAnimals" :key="name" class="pcdart-match-row">
+              <span>PCDART: {{ name }}</span>
+              <select v-model.number="pcdartMappings[name]">
+                <option :value="0">Select the correct animal…</option>
+                <option v-for="animal in pcdartAnimalSuggestions(name)" :key="animal.animalId" :value="animal.animalId">{{ getAnimalLabel(animal.animalId) }}</option>
+              </select>
+            </label>
+          </div>
+          <p class="rp-hint">After matching the names, tap Apply Monthly Import again. Unmatched rows will not create duplicate animals.</p>
         </div>
         <div class="rp-full" v-if="pcdartResult.alerts.length > 0">
           <strong>Audit Alerts:</strong>
@@ -2151,6 +2216,7 @@ onMounted(async () => {
 .rp-back { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.07); color: #e2e8f0; font-weight: 800; font-size: 0.85rem; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
 .rp-back:hover { background: rgba(255,255,255,0.14); }
 .rp-print-link { border-color: rgba(125,211,160,0.45); }
+.rp-ph-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 
 .rp-tabs { display: flex; overflow-x: auto; gap: 0; background: #fff; border-bottom: 2px solid #e0e8e1; padding: 0 16px; }
 .rp-tabs::-webkit-scrollbar { height: 0; }
@@ -2211,6 +2277,13 @@ onMounted(async () => {
 .rp-x:hover { background: #fee2e2; }
 .rp-divider { margin: 20px 0 10px; padding: 8px 14px; background: #f0f7f1; border-left: 4px solid #31572c; border-radius: 4px; font-weight: 900; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: #1f3a25; }
 .rp-divider-failed { background: #fff8f8; border-left-color: #dc2626; color: #991b1b; }
+.implant-list { margin-top: 20px; display: grid; gap: 9px; }
+.implant-record-card { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 12px; padding: 13px; border: 1px solid #cfdcd2; border-left: 4px solid #2563eb; border-radius: 9px; background: #f8fbff; }
+.implant-record-card > div { display: grid; gap: 3px; min-width: 0; }
+.implant-record-card span, .implant-record-card small { color: #5d6f63; font-size: .78rem; }
+.implant-record-card strong { overflow-wrap: anywhere; }
+.pcdart-match-list { display: grid; gap: 10px; margin-top: 10px; }
+.pcdart-match-row { padding: 10px; border: 1px solid #d7e2d8; border-radius: 8px; background: #fff; }
 
 /* form controls */
 label { display: grid; gap: 6px; color: #5d6f63; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -2565,6 +2638,15 @@ textarea { min-height: 72px; resize: vertical; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 @media (max-width: 640px) {
+  .rp-hero { padding: 14px 12px; }
+  .rp-hero-top, .rp-ph { align-items: stretch; flex-direction: column; }
+  .rp-hero-actions, .rp-ph-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
+  .rp-back, .rp-add-btn, .rp-print-link { width: 100%; min-height: 46px; justify-content: center; box-sizing: border-box; }
+  .rp-panel { margin: 10px 8px; padding: 14px 12px; }
+  .emb-hd { align-items: stretch; flex-direction: column; }
+  .emb-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .emb-actions .rp-add-btn { width: 100%; }
+  .implant-record-card { grid-template-columns: 1fr; }
   .browse-filters { grid-template-columns: 1fr; }
   .emb-grid { grid-template-columns: 1fr; }
   .emb-full { grid-column: 1; }

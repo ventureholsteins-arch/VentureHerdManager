@@ -10,6 +10,10 @@ public sealed class PcdartImportRequest
     public string? ReportLabel { get; set; }
 
     public bool ApplySuggestedChanges { get; set; }
+
+    public Dictionary<string, int> AnimalMappings { get; set; } = [];
+
+    public bool CreateMissingAnimals { get; set; }
 }
 
 public sealed class PcdartImportResult

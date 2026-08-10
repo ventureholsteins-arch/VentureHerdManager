@@ -4,6 +4,8 @@ export interface PcdartImportRequest {
   rawText: string
   reportLabel?: string | null
   applySuggestedChanges?: boolean
+  animalMappings?: Record<string, number>
+  createMissingAnimals?: boolean
 }
 
 export interface PcdartAuditAlert {

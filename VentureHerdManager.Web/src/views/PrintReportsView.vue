@@ -17,6 +17,8 @@ const options = [
   ['missingAnimalIdentification', 'Missing barn names or registration numbers'],
   ['oldEnoughNotBred', '7 months+ and not bred'],
   ['milkingNotBred', 'Milking cows not bred'],
+  ['sellAnimals', 'My sale report'],
+  ['suggestedSell', 'Suggested sale review'],
   ['pregnancyChecksDue', 'All pregnancy checks due'],
   ['animals', 'All active animals'],
   ['calves', 'Calves'],
@@ -35,6 +37,15 @@ const options = [
 
 const rows = computed(() => {
   if (!data.value) return []
+  if (report.value === 'sellAnimals') {
+    let ids: number[] = []
+    try {
+      const lists = JSON.parse(localStorage.getItem('venture-herd-lists-v2') || '[]') as Array<{ key: string; animalIds: number[] }>
+      ids = lists.find(list => list.key === 'sale-animals')?.animalIds ?? []
+    } catch { ids = [] }
+    return data.value.animals.filter((animal: any) => ids.includes(animal.animalId))
+  }
+  if (report.value === 'suggestedSell') return data.value.milkingNotBred ?? []
   if (report.value === 'calves') return data.value.animals.filter((a: any) => a.animalStage === 1)
   if (report.value === 'heifers') return data.value.animals.filter((a: any) => a.animalStage === 2)
   if (report.value === 'cows') return data.value.animals.filter((a: any) => [3, 4].includes(a.animalStage))
@@ -47,6 +58,8 @@ const isAnimalReport = computed(() => [
   'missingAnimalIdentification',
   'oldEnoughNotBred',
   'milkingNotBred',
+  'sellAnimals',
+  'suggestedSell',
   'animals',
   'calves',
   'heifers',

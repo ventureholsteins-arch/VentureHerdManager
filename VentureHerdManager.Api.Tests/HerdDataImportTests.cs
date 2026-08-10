@@ -51,6 +51,28 @@ public sealed class HerdDataImportTests
         Assert.Contains("Official ID", record.RawDataJson);
     }
 
+    [Fact]
+    public async Task ConfirmedZoetisMatchFillsMissingIdentityWithoutOverwritingExistingData()
+    {
+        await using var context = CreateContext();
+        var blank = new Animal { BarnName = "Payton" };
+        var preserved = new Animal { BarnName = "Keep", RegisteredName = "KEEP THIS NAME", RegistrationNumber = "123456789" };
+        context.Animals.AddRange(blank, preserved); await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var csv = "Animal ID,Official ID,Animal Name,TPI\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,2125";
+        var request = new HerdDataImportRequest { Source = HerdDataSource.Zoetis, FileName = "core.csv", ReportDate = new DateOnly(2026, 8, 10), CsvText = csv };
+        request.AnimalMappings["HO840003293928967"] = blank.AnimalId;
+        await service.ApplyAsync(request);
+        Assert.Equal("840003293928967", blank.RegistrationNumber);
+        Assert.Equal("VENTURE ALLEYOOP PAYTON", blank.RegisteredName);
+
+        var second = new HerdDataImportRequest { Source = HerdDataSource.Zoetis, FileName = "core2.csv", ReportDate = request.ReportDate, CsvText = csv + "\n" };
+        second.AnimalMappings["HO840003293928967"] = preserved.AnimalId;
+        await service.ApplyAsync(second);
+        Assert.Equal("123456789", preserved.RegistrationNumber);
+        Assert.Equal("KEEP THIS NAME", preserved.RegisteredName);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DemoMode:Enabled"] = "false" }).Build();

@@ -52,6 +52,8 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             var match = preview.Rows[index];
             var record = row.ToRecord(match.AnimalId!.Value, request.ReportDate, request.Source);
             batch.Records.Add(record);
+            var animal = await context.Animals.FindAsync([match.AnimalId.Value], ct);
+            if (animal != null) EnrichConfirmedAnimal(animal, row, request.Source);
             var mapping = await context.AnimalIdentityMappings.SingleOrDefaultAsync(m => m.Source == request.Source && m.SourceKey == row.SourceKey, ct);
             if (mapping == null) context.AnimalIdentityMappings.Add(new AnimalIdentityMapping { Source = request.Source, SourceKey = row.SourceKey, SourceLabel = row.SourceName, AnimalId = match.AnimalId.Value });
             else { mapping.AnimalId = match.AnimalId.Value; mapping.SourceLabel = row.SourceName; mapping.ConfirmedAt = DateTime.UtcNow; }
@@ -59,6 +61,32 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         batch.RowsImported = batch.Records.Count;
         await context.SaveChangesAsync(ct);
         return batch;
+    }
+
+    private static void EnrichConfirmedAnimal(Animal animal, ParsedRow row, HerdDataSource source)
+    {
+        var official = NormalizeId(row.OfficialId);
+        var sourceId = NormalizeId(row.SourceAnimalId);
+        var bestIdentifier = official.Length >= 9 ? official : sourceId.Length >= 9 ? sourceId : "";
+        if (bestIdentifier.StartsWith("HO", StringComparison.Ordinal) && bestIdentifier[2..].All(char.IsDigit))
+            bestIdentifier = bestIdentifier[2..];
+
+        var changed = false;
+        if (string.IsNullOrWhiteSpace(animal.RegistrationNumber) && bestIdentifier.Length >= 9)
+        {
+            animal.RegistrationNumber = bestIdentifier[..Math.Min(bestIdentifier.Length, 100)];
+            changed = true;
+        }
+        if (source == HerdDataSource.Zoetis && string.IsNullOrWhiteSpace(animal.RegisteredName) && !string.IsNullOrWhiteSpace(row.SourceName))
+        {
+            animal.RegisteredName = row.SourceName.Trim()[..Math.Min(row.SourceName.Trim().Length, 200)];
+            changed = true;
+        }
+        if (changed)
+        {
+            animal.UpdatedAt = DateTime.UtcNow;
+            animal.UpdatedBy = $"Confirmed {source} import";
+        }
     }
 
     private static List<ParsedRow> Parse(HerdDataImportRequest request)

@@ -1531,6 +1531,8 @@ onMounted(async () => {
       </template>
       <template v-else>
         <button type="button" @click="router.push('/reports/herd-data?source=1')"><RetroIcon name="reports" :size="22" />Import PC-DART</button>
+        <button type="button" @click="router.push('/reports/herd-data?view=imports&source=1&type=currentMilkingPdf')"><RetroIcon name="note" :size="22" />Current Milking PDF</button>
+        <button type="button" @click="router.push('/reports/herd-data?view=imports&source=1&type=cowPagePdf')"><RetroIcon name="note" :size="22" />Individual Cow PDF</button>
         <button type="button" @click="router.push('/reports/herd-data?source=2')"><RetroIcon name="reports" :size="22" />Import Zoetis</button>
         <button :class="{ active: activeTab === 'pcdartImport' }" @click="selectReportTab('pcdartImport')"><RetroIcon name="note" :size="22" />Legacy Audit</button>
       </template>

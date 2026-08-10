@@ -92,6 +92,9 @@ const animalLinear = computed(() => {
   ]
 })
 function animalLinearWidth(value: unknown) { const number = Number(value); return Number.isFinite(number) ? `${Math.max(4, Math.min(100, 50 + number * 12))}%` : '0%' }
+function importedFields(record: any): Record<string, string> {
+  try { return typeof record.rawDataJson === 'string' ? JSON.parse(record.rawDataJson) : record.rawDataJson ?? {} } catch { return {} }
+}
 const showAchievements = ref<ShowAchievement[]>([])
 
 const loading = ref(true)
@@ -1309,6 +1312,7 @@ const scoreLabel = computed(() => {
             <small>{{ record.reportDate }}</small>
             <div v-if="record.source === 1"><span>Milk {{ record.milk ?? '—' }}</span><span>DIM {{ record.daysInMilk ?? '—' }}</span><span>Fat {{ record.fatPercent ?? '—' }}%</span><span>Protein {{ record.proteinPercent ?? '—' }}%</span></div>
             <div v-else><span>TPI {{ record.tpi ?? '—' }}</span><span>NM$ {{ record.netMerit ?? '—' }}</span><span>Milk PTA {{ record.milkPta ?? '—' }}</span><span>DPR {{ record.daughterPregnancyRate ?? '—' }}</span><span>Type {{ record.typeScore ?? '—' }}</span><span>UDC {{ record.udderComposite ?? '—' }}</span><span>FLC {{ record.feetLegsComposite ?? '—' }}</span></div>
+            <details v-if="importedFields(record)['Report Type']" class="imported-full-record"><summary>{{ importedFields(record)['Report Type'] }}</summary><div class="imported-field-grid"><template v-for="(value, key) in importedFields(record)" :key="key"><span v-if="key !== 'Full Cow Record' && value"><small>{{ key }}</small><strong>{{ value }}</strong></span></template></div><pre v-if="importedFields(record)['Full Cow Record']">{{ importedFields(record)['Full Cow Record'] }}</pre></details>
           </article>
         </div>
         <div v-if="animalLinear.length" class="animal-linear">
@@ -1941,6 +1945,7 @@ const scoreLabel = computed(() => {
 }
 .private-data-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.private-data-heading h2{margin:0}.data-history-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.data-history-card{display:grid;gap:7px;padding:13px;border:1px solid #d9e3dc;border-left:4px solid #31572c;border-radius:8px;background:#f8fbf8}.data-history-card>div{display:flex;flex-wrap:wrap;gap:7px}.data-history-card span{padding:4px 7px;border-radius:5px;background:#fff;font-size:.82rem;font-weight:700}.data-history-card small{color:#64748b}
 .animal-linear{margin-top:14px;padding:13px;border:1px solid #d9e3dc;border-radius:10px;background:#fbfdfb}.animal-linear h3{margin:0}.animal-linear-row{display:grid;grid-template-columns:100px 1fr 48px;gap:8px;align-items:center;margin-top:9px;font-size:.82rem}.animal-linear-row>div{height:12px;background:#e4ebe5;border-radius:10px;overflow:hidden}.animal-linear-row i{display:block;height:100%;border-radius:10px;background:#4f772d}.animal-linear-row strong{text-align:right}
+.imported-full-record{margin-top:5px;border-top:1px solid #d9e3dc;padding-top:7px}.imported-full-record summary{cursor:pointer;font-weight:850;color:#31572c}.imported-field-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px!important;margin-top:8px}.imported-field-grid span{display:grid!important}.imported-field-grid small{font-size:.68rem;text-transform:uppercase;color:#64748b}.imported-full-record pre{max-height:360px;margin:8px 0 0;padding:10px;overflow:auto;white-space:pre-wrap;background:#f4f7f4;border-radius:7px;font:12px/1.45 monospace}
 .mating-review{margin-top:18px;padding-top:14px;border-top:1px solid #d9e3dc}.cow-proof-row{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}.cow-proof-row span{padding:5px 8px;border-radius:6px;background:#eef5ef;font-size:.8rem;font-weight:800}.sire-suggestion{margin:8px 0;border:1px solid #d8e2da;border-radius:8px;background:#fff}.sire-suggestion summary{display:flex;justify-content:space-between;gap:10px;padding:11px;cursor:pointer}.sire-suggestion summary span{color:#64748b;font-size:.8rem}.sire-suggestion>div,.sire-suggestion>p{margin:9px 11px}
 
 .timeline-actions {

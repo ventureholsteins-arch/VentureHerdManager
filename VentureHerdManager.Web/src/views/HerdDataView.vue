@@ -10,6 +10,8 @@ const route = useRoute()
 const animals = ref<Animal[]>([])
 const analytics = ref<any>(null)
 const source = ref<HerdDataSource>(1)
+type ImportMode = 'pcdartCsv' | 'currentMilkingPdf' | 'cowPagePdf' | 'zoetisCsv'
+const importMode = ref<ImportMode>('pcdartCsv')
 const fileName = ref('')
 const csvText = ref('')
 const reportDate = ref(new Date().toISOString().slice(0, 10))
@@ -38,8 +40,66 @@ function chooseSource(nextSource: HerdDataSource) {
   })
 }
 
+function chooseImportMode(mode: ImportMode) {
+  importMode.value = mode
+  chooseSource(mode === 'zoetisCsv' ? 2 : 1)
+}
+
+function csvCell(value: unknown) { const text = String(value ?? ''); return `"${text.replace(/"/g, '""')}"` }
+function normalizePdfDate(value: string) {
+  const match = value.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+  return match ? `${match[3]}-${match[1]}-${match[2]}` : value
+}
+async function extractPdfLines(file: File) {
+  const [pdfjs, workerModule] = await Promise.all([import('pdfjs-dist'), import('pdfjs-dist/build/pdf.worker.min.mjs?url')])
+  pdfjs.GlobalWorkerOptions.workerSrc = workerModule.default
+  const document = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise
+  const lines: string[] = []
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+    const page = await document.getPage(pageNumber)
+    const content = await page.getTextContent()
+    const rows = new Map<number, Array<{ x: number; text: string }>>()
+    for (const raw of content.items as any[]) {
+      if (!('str' in raw) || !raw.str.trim()) continue
+      const y = Math.round(raw.transform[5] * 2) / 2
+      const row = rows.get(y) ?? []
+      row.push({ x: raw.transform[4], text: raw.str.trim() }); rows.set(y, row)
+    }
+    for (const [, row] of [...rows.entries()].sort((a, b) => b[0] - a[0])) lines.push(row.sort((a, b) => a.x - b.x).map(item => item.text).join(' ').replace(/\s+/g, ' ').trim())
+  }
+  return lines
+}
+function currentMilkingCsv(lines: string[]) {
+  const headers = ['BarnName', 'DHIID', 'Milk', 'DIM', 'LastCalv', 'Previous Milk', 'Milk Deviation', 'Current SCC', 'Lactation', 'Report Type', 'Source Row']
+  const rows: string[][] = []
+  for (const line of lines) {
+    const match = line.match(/^0\s+([A-Z0-9-]+)\s+(.+)$/i); if (!match) continue
+    const tokens = match[2].split(/\s+/); const dateIndex = tokens.findIndex(token => /^\d{2}\/\d{2}\/\d{2,4}$/.test(token)); if (dateIndex < 1) continue
+    const before = tokens.slice(0, dateIndex); const dim = tokens[dateIndex + 1] ?? ''; const lactation = before.at(-1) ?? ''; const measures = before.slice(0, -1)
+    const previousMilk = measures.length >= 3 ? measures[0] : ''; const milk = measures.length >= 3 ? measures[1] : measures[0] ?? ''; const deviation = measures.length >= 3 ? measures[2] : ''; const scc = measures.length >= 4 ? measures.at(-1) ?? '' : ''
+    rows.push([match[1], match[1], milk, dim, normalizePdfDate(tokens[dateIndex]), previousMilk, deviation, scc, lactation, 'PC-DART Current Milking PDF', line])
+  }
+  if (!rows.length) throw new Error('No Current Milking cow rows were found. Choose the PC-DART 005 Production - Milking Cows PDF.')
+  return [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n')
+}
+function cowPageCsv(lines: string[]) {
+  const text = lines.join('\n'); const flat = lines.join(' ')
+  const name = flat.match(/Barn Name\s+([A-Z0-9-]+)/i)?.[1] ?? flat.match(/B\s*N\s*a\s*a\s*r\s*m\s*n\s*e\s+([A-Z0-9-]+)/i)?.[1]
+  const dhiId = flat.match(/DHI ID\s+(\d{6,})/i)?.[1] ?? ''
+  const birth = flat.match(/Date of\s+(\d{2}\/\d{2}\/\d{4})\s+DHI ID/i)?.[1] ?? flat.match(/Birth\s+(\d{2}\/\d{2}\/\d{4})/i)?.[1] ?? lines.find(line => /^\d{2}\/\d{2}\/\d{4}$/.test(line)) ?? ''
+  const testDate = flat.match(/Date of Test\s+(\d{2}\/\d{2}\/\d{4})/i)?.[1] ?? ''
+  const status = lines.find(line => /^\d{2}\/\d{2}\/\d{4}\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+\d{4,}/.test(line))?.split(/\s+/) ?? []
+  if (!name) throw new Error('The cow name was not found. Choose a PC-DART DHI-203 Cow Page PDF.')
+  const headers = ['BarnName', 'DHIID', 'BirthDate', 'Milk', 'Fat%', 'Pro%', 'LastCalv', 'Report Type', 'Test Date', 'Full Cow Record']
+  const row = [name, dhiId || name, normalizePdfDate(birth), status[1] ?? '', status[2] ?? '', status[3] ?? '', status[0] ? normalizePdfDate(status[0]) : '', 'PC-DART DHI-203 Individual Cow PDF', normalizePdfDate(testDate), text]
+  return [headers, row].map(values => values.map(csvCell).join(',')).join('\n')
+}
+
 onMounted(async () => {
   source.value = route.query.source === '2' ? 2 : 1
+  const requestedType = String(route.query.type ?? '')
+  if (['pcdartCsv', 'currentMilkingPdf', 'cowPagePdf', 'zoetisCsv'].includes(requestedType)) importMode.value = requestedType as ImportMode
+  else importMode.value = source.value === 2 ? 'zoetisCsv' : 'pcdartCsv'
   if (route.query.source === '1' || route.query.source === '2') {
     await nextTick()
     if (importDetails.value) importDetails.value.open = true
@@ -52,14 +112,34 @@ onMounted(async () => {
 async function loadFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
+  busy.value = true
+  status.value = `Reading ${file.name}…`
   fileName.value = file.name
-  csvText.value = await file.text()
-  source.value = file.name.toLowerCase().includes('coretraits') ? 2 : 1
+  try {
+  if (file.name.toLowerCase().endsWith('.pdf')) {
+    const lines = await extractPdfLines(file)
+    csvText.value = importMode.value === 'cowPagePdf' ? cowPageCsv(lines) : currentMilkingCsv(lines)
+    const parsedName = csvText.value.split('\n')[1]?.match(/^"([^"]+)/)?.[1] ?? 'UNKNOWN'
+    fileName.value = importMode.value === 'cowPagePdf' ? `COW-PAGE-${parsedName}::${file.name}` : `CURRENT-MILKING::${file.name}`
+    const flatPdf = lines.join(' ')
+    const sourceDate = importMode.value === 'cowPagePdf' ? flatPdf.match(/Date of Test\s+(\d{2}\/\d{2}\/\d{4})/i)?.[1] : flatPdf.match(/Printed\s*(\d{1,2}\/\d{1,2}\/\d{4})/i)?.[1]
+    if (sourceDate) reportDate.value = normalizePdfDate(sourceDate.padStart(10, '0'))
+    source.value = 1
+  } else {
+    csvText.value = await file.text()
+    source.value = file.name.toLowerCase().includes('coretraits') || importMode.value === 'zoetisCsv' ? 2 : 1
+  }
   preview.value = null
   duplicateDecision.value = 'pending'
   mappings.value = {}
-  status.value = `Reading ${file.name}…`
-  await previewImport()
+    await previewImport()
+  } catch (error) {
+    csvText.value = ''
+    preview.value = null
+    status.value = error instanceof Error ? error.message : 'The selected report could not be read.'
+  } finally {
+    busy.value = false
+  }
 }
 
 function payload(confirmDuplicateReplace = false) { return { source: source.value, fileName: fileName.value, csvText: csvText.value, reportDate: reportDate.value, animalMappings: mappings.value, confirmDuplicateReplace } }
@@ -163,14 +243,16 @@ function herdAverage(key: string) { const values = linearRows.value.map((row: an
         <article class="card attention-card"><h2>Pregnant — Dry-Off Watch <b>{{ analytics?.attention?.dryOffWatch?.length ?? 0 }}</b></h2><p>Recommended dry date is due or within the next 60 days.</p><button v-for="row in analytics?.attention?.dryOffWatch ?? []" :key="row.animalId" class="attention-row" @click="router.push(`/animals/${row.animalId}`)"><strong>{{ row.animalName }}</strong><span>{{ row.daysUntilDry < 0 ? `${Math.abs(row.daysUntilDry)} days overdue` : `${row.daysUntilDry} days` }} · dry {{ new Date(row.recommendedDryOffDate).toLocaleDateString() }}</span></button><small v-if="!(analytics?.attention?.dryOffWatch?.length)">No confirmed pregnant cows are inside the 60-day window.</small></article>
       </section>
     <div v-show="activeView === 'imports'" class="import-choice">
-      <button type="button" :class="{ active: source === 1 }" @click="chooseSource(1)">Import PC-DART Milk</button>
-      <button type="button" :class="{ active: source === 2 }" @click="chooseSource(2)">Import Zoetis Genomics</button>
+      <button type="button" :class="{ active: importMode === 'pcdartCsv' }" @click="chooseImportMode('pcdartCsv')">PC-DART Milk CSV</button>
+      <button type="button" :class="{ active: importMode === 'currentMilkingPdf' }" @click="chooseImportMode('currentMilkingPdf')">Current Milking PDF</button>
+      <button type="button" :class="{ active: importMode === 'cowPagePdf' }" @click="chooseImportMode('cowPagePdf')">Individual Cow PDF</button>
+      <button type="button" :class="{ active: importMode === 'zoetisCsv' }" @click="chooseImportMode('zoetisCsv')">Zoetis Genomics CSV</button>
     </div>
       <details v-show="activeView === 'imports'" ref="importDetails" class="card import-card" open>
         <summary>Import report</summary>
-        <p class="import-instruction">{{ source === 2 ? 'Choose your Zoetis Core Traits CSV, then preview the animal matches.' : 'Choose your PC-DART CSV, then preview the animal matches.' }}</p>
-        <label class="choose-file" for="herd-data-file">Choose {{ source === 2 ? 'Zoetis Genomics' : 'PC-DART' }} CSV File</label>
-        <input id="herd-data-file" ref="fileInput" class="file-input" type="file" accept=".csv,text/csv" @change="loadFile">
+        <p class="import-instruction">{{ importMode === 'currentMilkingPdf' ? 'Choose the PC-DART 005 Production - Milking Cows PDF. Every cow will be audited before saving.' : importMode === 'cowPagePdf' ? 'Choose a PC-DART DHI-203 individual Cow Page PDF. Its complete extracted record will be stored with the matched animal.' : source === 2 ? 'Choose your Zoetis Core Traits CSV, then preview the animal matches.' : 'Choose your PC-DART CSV, then preview the animal matches.' }}</p>
+        <label class="choose-file" for="herd-data-file">Choose {{ importMode === 'currentMilkingPdf' ? 'Current Milking PDF' : importMode === 'cowPagePdf' ? 'Individual Cow PDF' : source === 2 ? 'Zoetis Genomics CSV' : 'PC-DART Milk CSV' }}</label>
+        <input id="herd-data-file" ref="fileInput" class="file-input" type="file" :accept="importMode === 'currentMilkingPdf' || importMode === 'cowPagePdf' ? '.pdf,application/pdf' : '.csv,text/csv'" @change="loadFile">
         <div class="controls"><select v-model.number="source"><option :value="1">PC-DART milk report</option><option :value="2">Zoetis genomic report</option></select><input v-model="reportDate" type="date"><strong class="selected-file">{{ fileName || 'No file selected yet' }}</strong></div>
         <div class="actions"><button :disabled="busy || !csvText" @click="previewImport">Preview & match</button><button :disabled="busy || !preview || preview.duplicateImport || needsMatch.length > 0" @click="applyImport(false)">Save confirmed import</button></div>
         <p v-if="status" :class="{ error: status.includes('failed') || status.includes('required') }">{{ status }}</p>
@@ -199,7 +281,7 @@ function herdAverage(key: string) { const values = linearRows.value.map((row: an
 </template>
 
 <style scoped>
-.import-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.import-choice button{min-height:52px;border:2px solid #31572c;border-radius:9px;background:#fff;color:#31572c;font-weight:900}.import-choice button.active{background:#31572c;color:#fff}
+.import-choice{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}.import-choice button{min-height:52px;border:2px solid #31572c;border-radius:9px;background:#fff;color:#31572c;font-weight:900}.import-choice button.active{background:#31572c;color:#fff}
 .analytics-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.analytics-tabs button{min-height:48px;border:1px solid #31572c;border-radius:8px;background:#fff;color:#31572c;font-weight:900}.analytics-tabs button.active{background:#31572c;color:#fff}.herd-averages{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.herd-averages span{display:grid;padding:8px 10px;background:#eef5ef;border-radius:8px}.herd-averages small{color:#64746a}.linear-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:10px}.linear-card{padding:12px;border:1px solid #d8e2da;border-radius:10px}.linear-name{background:transparent!important;color:#173422;padding:0!important;font-size:1rem}.linear-trait{display:grid;grid-template-columns:92px 1fr 42px;gap:7px;align-items:center;margin-top:8px;font-size:.78rem}.linear-trait>div{height:10px;background:#e6ece7;border-radius:10px;overflow:hidden}.linear-trait i{display:block;height:100%;background:#4f772d;border-radius:10px}.linear-trait strong{text-align:right}
 .attention-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.attention-card{margin:0}.attention-card h2{display:flex;justify-content:space-between;gap:8px;margin:0}.attention-card h2 b{display:grid;place-items:center;min-width:34px;height:34px;border-radius:50%;background:#d8202d;color:#fff}.attention-card>p{color:#64746a}.attention-row{display:flex!important;justify-content:space-between;align-items:center;width:100%;margin-top:7px;border:1px solid #d8e2da!important;background:#fff!important;color:#173422!important;text-align:left}.attention-row span{font-size:.78rem;color:#64746a}.attention-card>small{display:block;padding:14px;color:#64746a;text-align:center}
 .import-instruction{font-weight:750;color:#31572c}.choose-file{width:100%;min-height:56px;background:#31572c;color:#fff;font-size:1rem;display:grid;place-items:center;border-radius:8px;font-weight:900;cursor:pointer;box-sizing:border-box}.file-input{width:100%;min-height:48px;margin:8px 0;padding:7px;border:1px solid #bdcbbf;border-radius:8px;box-sizing:border-box}.selected-file{display:flex;align-items:center;min-height:44px;padding:0 10px;border:1px solid #bdcbbf;border-radius:7px;box-sizing:border-box;font-size:.85rem}

@@ -17,8 +17,8 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var hash = Hash(request.CsvText);
         var animals = await context.Animals.AsNoTracking().ToListAsync(ct);
         var saved = await context.AnimalIdentityMappings.AsNoTracking().Where(m => m.Source == request.Source).ToDictionaryAsync(m => m.SourceKey, ct);
-        var existingImport = await context.HerdDataImports.AsNoTracking().FirstOrDefaultAsync(i =>
-            i.FileHash == hash || (i.Source == request.Source && i.ReportDate == request.ReportDate), ct);
+        var sameDateImports = await context.HerdDataImports.AsNoTracking().Where(i => i.Source == request.Source && i.ReportDate == request.ReportDate).ToListAsync(ct);
+        var existingImport = sameDateImports.FirstOrDefault(i => i.FileHash == hash || ImportBucket(i.FileName) == ImportBucket(request.FileName));
         var preview = new HerdDataPreview
         {
             Source = request.Source,
@@ -53,8 +53,9 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var hash = Hash(request.CsvText);
         var existing = await context.HerdDataImports.Include(i => i.Records).SingleOrDefaultAsync(i => i.FileHash == hash, ct);
         if (existing != null) return existing;
-        var sameDateImport = await context.HerdDataImports.Include(i => i.Records)
-            .SingleOrDefaultAsync(i => i.Source == request.Source && i.ReportDate == request.ReportDate, ct);
+        var sameDateImports = await context.HerdDataImports.Include(i => i.Records)
+            .Where(i => i.Source == request.Source && i.ReportDate == request.ReportDate).ToListAsync(ct);
+        var sameDateImport = sameDateImports.SingleOrDefault(i => ImportBucket(i.FileName) == ImportBucket(request.FileName));
         if (sameDateImport != null && !request.ConfirmDuplicateReplace)
             throw new InvalidOperationException($"A {request.Source} report for {request.ReportDate:yyyy-MM-dd} is already stored. Review the duplicate warning and explicitly accept replacement or decline it.");
         if (sameDateImport != null) context.HerdDataImports.Remove(sameDateImport);
@@ -151,6 +152,11 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
     }
     private static string Normalize(string? value) => new((value ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
     private static string NormalizeId(string? value) => new((value ?? "").Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    private static string ImportBucket(string fileName)
+    {
+        var separator = fileName.IndexOf("::", StringComparison.Ordinal);
+        return separator > 0 ? fileName[..separator].ToUpperInvariant() : "CSV";
+    }
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     private static decimal? Dec(string? value) => decimal.TryParse(value?.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
     private static int? Int(string? value) => int.TryParse(value?.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;

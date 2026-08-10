@@ -1861,12 +1861,11 @@ onMounted(async () => {
     <!-- SHOW BAGGING -->
     <section v-else-if="activeTab === 'showBagging'" class="rp-panel">
       <div class="rp-ph">
-        <h2>Bagging Group Planner</h2>
+        <h2>Show Bagging</h2>
         <div class="rp-ph-actions">
           <button type="button" class="rp-add-btn" @click="shareBaggingLink">Share Link</button>
           <button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button>
           <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload Data</button>
-          <button type="button" class="rp-add-btn" @click="addBlankBaggingRow">+ Blank Row</button>
         </div>
       </div>
       <p v-if="baggingShareStatus" class="rp-hint">{{ baggingShareStatus }}</p>
@@ -1971,7 +1970,7 @@ onMounted(async () => {
       </div>
       </details>
 
-      <div class="bagging-glance-panel">
+      <div v-if="false" class="bagging-glance-panel">
         <div class="browse-label">Bagging At A Glance</div>
         <p class="bagging-search-hint">Each group is collapsed into one summary so you can glance and open only the row you need.</p>
         <div v-if="baggingRowGroups.length === 0" class="rp-empty-sm">No bagging rows yet. Add cows above and they will appear here.</div>
@@ -2003,10 +2002,12 @@ onMounted(async () => {
 
       <div id="bagging-rows" />
 
+      <div v-if="showBaggingRowsSorted.length > 0" class="browse-label">Current Cows</div>
+
       <details v-for="group in baggingRowGroups" :key="`group-edit-${group.name}`" class="bagging-edit-group">
         <summary class="bagging-edit-summary">
           <strong>{{ group.name }}</strong>
-          <span>{{ group.records.length }} editable row{{ group.records.length === 1 ? '' : 's' }}</span>
+          <span>{{ group.records.length }} cow{{ group.records.length === 1 ? '' : 's' }} · tap to view</span>
         </summary>
         <div class="bagging-edit-group-body">
           <div v-for="row in group.records" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-card">

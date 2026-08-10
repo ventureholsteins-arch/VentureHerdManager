@@ -264,8 +264,8 @@ async function refreshDashboard() {
 }
 
 // Modal event handlers
-const openHeatModal = () => {
-  heatModalRef.value?.openModal()
+const openHeatModal = (id?: number, name?: string) => {
+  heatModalRef.value?.openModal(id, name)
 }
 const openBreedingModal = (id: number, name: string) => breedingModalRef.value?.openModal(id, name)
 const openCalvingModal = (id: number, name: string) => calvingModalRef.value?.openModal(id, name)
@@ -718,7 +718,7 @@ onMounted(() => {
 
             <!-- Action row -->
             <div class="player-card-actions">
-              <button @click.stop="openHeatModal" class="pca-btn pca-heat" title="Record Heat"><RetroIcon name="heat" :size="20" /><span>Heat</span></button>
+              <button @click.stop="openHeatModal(animal.animalId, dashboardAnimalName(animal))" class="pca-btn pca-heat" title="Record Heat"><RetroIcon name="heat" :size="20" /><span>Heat</span></button>
               <button @click.stop="openBreedingModal(animal.animalId, dashboardAnimalName(animal))" class="pca-btn pca-breed" title="Record Breeding"><RetroIcon name="embryo" :size="20" /><span>Breed</span></button>
               <button @click.stop="openEditModal(animal)" class="pca-btn pca-edit" title="Edit"><RetroIcon name="note" :size="20" /><span>Edit</span></button>
               <button @click.stop="router.push(`/animals/${animal.animalId}`)" class="pca-btn pca-open" title="Open"><RetroIcon name="calf" :size="20" /><span>Open</span></button>

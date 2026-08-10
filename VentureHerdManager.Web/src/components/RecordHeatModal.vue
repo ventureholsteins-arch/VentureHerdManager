@@ -170,7 +170,7 @@ function selectAnimal(animal: Animal) {
   animalSearch.value = animalDisplayName(animal)
 }
 
-const openModal = async () => {
+const openModal = async (animalId?: number, animalName?: string) => {
   isOpen.value = true
   // Load animals list
   try {
@@ -180,6 +180,14 @@ const openModal = async () => {
     ])
     if (animalResponse.ok) animals.value = await animalResponse.json()
     availableEmbryos.value = embryos.filter(embryo => embryo.status === 0)
+
+    if (animalId) {
+      selectedAnimalId.value = String(animalId)
+      const selected = animals.value.find(animal => animal.animalId === animalId)
+      animalSearch.value = selected
+        ? animalDisplayName(selected)
+        : (animalName || `Animal #${animalId}`)
+    }
   } catch (err) {
     console.error('Failed to load animals:', err)
   }

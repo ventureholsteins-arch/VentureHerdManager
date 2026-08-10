@@ -162,6 +162,7 @@ const pcdartResult = ref<PcdartImportResult | null>(null)
 const pcdartError = ref('')
 const pcdartApplySuggested = ref(true)
 const embryoLoadError = ref('')
+const embryoActionId = ref<number | null>(null)
 const baggingActionStatus = ref('')
 const reportsLoadError = ref('')
 
@@ -1097,16 +1098,35 @@ async function markEmbryoLost(rec: EmbryoRecord) {
     return
   }
 
+  embryoActionId.value = rec.embryoRecordId
+
   try {
+    if (rec.status !== 'Implanted') {
+      const implanted = await implantEmbryo(
+        rec.embryoRecordId,
+        rec.recipientAnimalId,
+        rec.implantDate
+      )
+      applyEmbryoFromApi(rec, implanted)
+    }
+
     const updated = await recordEmbryoOutcome(
       rec.embryoRecordId,
       false,
       rec.failureNotes || rec.notes || ''
     )
     applyEmbryoFromApi(rec, updated)
+    await Promise.all([
+      loadRemoteEmbryos(),
+      loadEmbryoImplants()
+    ])
   } catch (error) {
     console.error('Failed to record embryo loss:', error)
-    alert('Failed to record that this embryo did not stick.')
+    alert(error instanceof Error
+      ? error.message
+      : 'Failed to record that this embryo did not stick.')
+  } finally {
+    embryoActionId.value = null
   }
 }
 
@@ -1519,8 +1539,8 @@ onMounted(async () => {
                   <span v-if="rec.implantDate && rec.status === 'Implanted'" class="emb-date">{{ rec.implantDate }}</span>
                 </div>
                 <div class="emb-actions">
-                  <button type="button" class="rp-add-btn emb-action-btn" @click="markEmbryoImplanted(rec)">Mark Implanted</button>
-                  <button type="button" class="rp-add-btn emb-action-btn emb-loss" @click="markEmbryoLost(rec)">Did Not Stick</button>
+                  <button v-if="rec.status === 'In Storage' || rec.status === 'Assigned'" type="button" class="rp-add-btn emb-action-btn" @click="markEmbryoImplanted(rec)">Mark Implanted</button>
+                  <button v-if="rec.status === 'Implanted'" type="button" class="rp-add-btn emb-action-btn emb-loss" :disabled="embryoActionId === rec.embryoRecordId" @click="markEmbryoLost(rec)">{{ embryoActionId === rec.embryoRecordId ? 'Recording…' : 'Did Not Stick' }}</button>
                   <button type="button" class="rp-add-btn emb-action-btn" @click="saveEmbryoRecord(rec)">Save</button>
                   <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.id)">✕</button>
                 </div>

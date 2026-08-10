@@ -17,7 +17,13 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var hash = Hash(request.CsvText);
         var animals = await context.Animals.AsNoTracking().ToListAsync(ct);
         var saved = await context.AnimalIdentityMappings.AsNoTracking().Where(m => m.Source == request.Source).ToDictionaryAsync(m => m.SourceKey, ct);
-        var preview = new HerdDataPreview { Source = request.Source, RowsRead = parsed.Count, DuplicateImport = await context.HerdDataImports.AnyAsync(i => i.FileHash == hash, ct) };
+        var preview = new HerdDataPreview
+        {
+            Source = request.Source,
+            RowsRead = parsed.Count,
+            DuplicateImport = await context.HerdDataImports.AnyAsync(i =>
+                i.FileHash == hash || (i.Source == request.Source && i.ReportDate == request.ReportDate), ct)
+        };
         foreach (var row in parsed)
         {
             var candidates = FindCandidates(row, animals);
@@ -41,6 +47,8 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var hash = Hash(request.CsvText);
         var existing = await context.HerdDataImports.Include(i => i.Records).SingleOrDefaultAsync(i => i.FileHash == hash, ct);
         if (existing != null) return existing;
+        if (await context.HerdDataImports.AnyAsync(i => i.Source == request.Source && i.ReportDate == request.ReportDate, ct))
+            throw new InvalidOperationException($"A {request.Source} report for {request.ReportDate:yyyy-MM-dd} is already stored. Nothing was added. Change the report date only if this is truly a different report.");
         var parsed = Parse(request);
         var preview = await PreviewAsync(request, ct);
         if (preview.Rows.Any(r => r.NeedsConfirmation)) throw new InvalidOperationException("Every source row must be matched to a herd animal before import.");

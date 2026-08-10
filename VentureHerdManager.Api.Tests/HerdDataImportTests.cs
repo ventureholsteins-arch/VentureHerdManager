@@ -88,11 +88,36 @@ public sealed class HerdDataImportTests
         Assert.Equal("840003293928967", blank.RegistrationNumber);
         Assert.Equal("VENTURE ALLEYOOP PAYTON", blank.RegisteredName);
 
-        var second = new HerdDataImportRequest { Source = HerdDataSource.Zoetis, FileName = "core2.csv", ReportDate = request.ReportDate, CsvText = csv + "\n" };
+        var second = new HerdDataImportRequest { Source = HerdDataSource.Zoetis, FileName = "core2.csv", ReportDate = request.ReportDate.AddDays(1), CsvText = csv + "\n" };
         second.AnimalMappings["HO840003293928967"] = preserved.AnimalId;
         await service.ApplyAsync(second);
         Assert.Equal("123456789", preserved.RegistrationNumber);
         Assert.Equal("KEEP THIS NAME", preserved.RegisteredName);
+    }
+
+    [Fact]
+    public async Task SameSourceAndReportDateCannotCreateDuplicateAnimalRows()
+    {
+        await using var context = CreateContext();
+        var cow = new Animal { BarnName = "Paddy", RegistrationNumber = "145283179" };
+        context.Animals.Add(cow);
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var first = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Pcdart, FileName = "first.csv", ReportDate = new DateOnly(2026, 8, 10),
+            CsvText = "BarnName,DHIID,Milk\nPADDY,145283179,80"
+        };
+        await service.ApplyAsync(first);
+        var repeated = new HerdDataImportRequest
+        {
+            Source = first.Source, FileName = "renamed.csv", ReportDate = first.ReportDate,
+            CsvText = "BarnName,DHIID,Milk\r\nPADDY,145283179,80 "
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ApplyAsync(repeated));
+        Assert.Contains("already stored", error.Message);
+        Assert.Single(context.AnimalDataRecords);
     }
 
     private static ApplicationDbContext CreateContext()

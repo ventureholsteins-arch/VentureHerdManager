@@ -58,7 +58,9 @@ async function previewImport() {
     preview.value = await previewHerdData(payload())
     for (const row of preview.value.rows) if (row.animalId) mappings.value[row.sourceKey] = row.animalId
     status.value = needsMatch.value.length === 0
-      ? `${preview.value.rowsRead} rows matched. Tap Save confirmed import.`
+      ? preview.value.duplicateImport
+        ? `This ${source.value === 2 ? 'Zoetis' : 'PC-DART'} report date is already stored. Nothing needs to be added again.`
+        : `${preview.value.rowsRead} rows matched. Tap Save confirmed import.`
       : `${preview.value.rowsRead} rows read. Confirm the ${needsMatch.value.length} highlighted match${needsMatch.value.length === 1 ? '' : 'es'}, then save.`
   } catch (error) { status.value = error instanceof Error ? error.message : 'Preview failed.' }
   finally { busy.value = false }
@@ -87,7 +89,7 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
         <label class="choose-file" for="herd-data-file">Choose {{ source === 2 ? 'Zoetis Genomics' : 'PC-DART' }} CSV File</label>
         <input id="herd-data-file" ref="fileInput" class="file-input" type="file" accept=".csv,text/csv" @change="loadFile">
         <div class="controls"><select v-model.number="source"><option :value="1">PC-DART milk report</option><option :value="2">Zoetis genomic report</option></select><input v-model="reportDate" type="date"><strong class="selected-file">{{ fileName || 'No file selected yet' }}</strong></div>
-        <div class="actions"><button :disabled="busy || !csvText" @click="previewImport">Preview & match</button><button :disabled="busy || !preview || needsMatch.length > 0" @click="applyImport">Save confirmed import</button></div>
+        <div class="actions"><button :disabled="busy || !csvText" @click="previewImport">Preview & match</button><button :disabled="busy || !preview || preview.duplicateImport || needsMatch.length > 0" @click="applyImport">Save confirmed import</button></div>
         <p v-if="status" :class="{ error: status.includes('failed') || status.includes('required') }">{{ status }}</p>
         <div v-if="preview" class="match-list"><p><strong>{{ preview.rowsRead }}</strong> rows · {{ needsMatch.length }} need confirmation</p><label v-for="row in preview.rows" :key="row.sourceKey"><span>{{ row.sourceName }} <small>{{ row.officialId }}</small></span><select v-model.number="mappings[row.sourceKey]"><option :value="0">Choose animal…</option><option v-for="candidate in row.candidates" :key="candidate.animalId" :value="candidate.animalId">{{ candidate.animalName }} · {{ candidate.registrationNumber }}</option><option v-for="animal in animals" :key="`all-${animal.animalId}`" :value="animal.animalId">{{ animal.barnName || animal.registeredName || `#${animal.animalId}` }}</option></select></label></div>
       </details>

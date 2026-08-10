@@ -1,0 +1,135 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using VentureHerdManager.Api.Data;
+using VentureHerdManager.Api.DTOs;
+using VentureHerdManager.Api.Models;
+
+namespace VentureHerdManager.Api.Services;
+
+public sealed class HerdDataImportService(ApplicationDbContext context)
+{
+    public async Task<HerdDataPreview> PreviewAsync(HerdDataImportRequest request, CancellationToken ct = default)
+    {
+        var parsed = Parse(request);
+        var hash = Hash(request.CsvText);
+        var animals = await context.Animals.AsNoTracking().ToListAsync(ct);
+        var saved = await context.AnimalIdentityMappings.AsNoTracking().Where(m => m.Source == request.Source).ToDictionaryAsync(m => m.SourceKey, ct);
+        var preview = new HerdDataPreview { Source = request.Source, RowsRead = parsed.Count, DuplicateImport = await context.HerdDataImports.AnyAsync(i => i.FileHash == hash, ct) };
+        foreach (var row in parsed)
+        {
+            var candidates = FindCandidates(row, animals);
+            var mappedId = request.AnimalMappings.GetValueOrDefault(row.SourceKey);
+            if (mappedId == 0 && saved.TryGetValue(row.SourceKey, out var prior)) mappedId = prior.AnimalId;
+            if (mappedId == 0 && candidates.Count == 1) mappedId = candidates[0].AnimalId;
+            var animal = animals.FirstOrDefault(a => a.AnimalId == mappedId);
+            preview.Rows.Add(new HerdDataPreviewRow
+            {
+                SourceKey = row.SourceKey, SourceName = row.SourceName, OfficialId = row.OfficialId,
+                AnimalId = animal?.AnimalId, AnimalName = animal?.DisplayName,
+                NeedsConfirmation = animal == null,
+                Candidates = candidates.Take(12).Select(a => new HerdDataCandidate { AnimalId = a.AnimalId, AnimalName = a.DisplayName, RegistrationNumber = a.RegistrationNumber }).ToList()
+            });
+        }
+        return preview;
+    }
+
+    public async Task<HerdDataImport> ApplyAsync(HerdDataImportRequest request, CancellationToken ct = default)
+    {
+        var hash = Hash(request.CsvText);
+        var existing = await context.HerdDataImports.Include(i => i.Records).SingleOrDefaultAsync(i => i.FileHash == hash, ct);
+        if (existing != null) return existing;
+        var parsed = Parse(request);
+        var preview = await PreviewAsync(request, ct);
+        if (preview.Rows.Any(r => r.NeedsConfirmation)) throw new InvalidOperationException("Every source row must be matched to a herd animal before import.");
+        var batch = new HerdDataImport { Source = request.Source, FileName = request.FileName, FileHash = hash, ReportDate = request.ReportDate };
+        context.HerdDataImports.Add(batch);
+        for (var index = 0; index < parsed.Count; index++)
+        {
+            var row = parsed[index];
+            var match = preview.Rows[index];
+            var record = row.ToRecord(match.AnimalId!.Value, request.ReportDate, request.Source);
+            batch.Records.Add(record);
+            var mapping = await context.AnimalIdentityMappings.SingleOrDefaultAsync(m => m.Source == request.Source && m.SourceKey == row.SourceKey, ct);
+            if (mapping == null) context.AnimalIdentityMappings.Add(new AnimalIdentityMapping { Source = request.Source, SourceKey = row.SourceKey, SourceLabel = row.SourceName, AnimalId = match.AnimalId.Value });
+            else { mapping.AnimalId = match.AnimalId.Value; mapping.SourceLabel = row.SourceName; mapping.ConfirmedAt = DateTime.UtcNow; }
+        }
+        batch.RowsImported = batch.Records.Count;
+        await context.SaveChangesAsync(ct);
+        return batch;
+    }
+
+    private static List<ParsedRow> Parse(HerdDataImportRequest request)
+    {
+        var rows = ParseCsv(request.CsvText);
+        if (rows.Count < 2) return [];
+        var headers = rows[0];
+        return rows.Skip(1).Where(r => r.Any(v => !string.IsNullOrWhiteSpace(v))).Select(values => ParsedRow.From(headers, values, request.Source)).ToList();
+    }
+
+    private static List<Animal> FindCandidates(ParsedRow row, List<Animal> animals)
+    {
+        var official = NormalizeId(row.OfficialId);
+        var sourceName = Normalize(row.SourceName);
+        var sourceId = NormalizeId(row.SourceAnimalId);
+        return animals.Select(animal => new
+        {
+            Animal = animal,
+            Score = RegistrationMatch(official, animal.RegistrationNumber) || RegistrationMatch(sourceId, animal.RegistrationNumber) ? 100
+                : Normalize(animal.BarnName) == sourceName || Normalize(animal.RegisteredName) == sourceName ? 80
+                : Normalize(animal.BarnName).StartsWith(sourceName) || sourceName.StartsWith(Normalize(animal.BarnName)) ? 60 : 0
+        }).Where(x => x.Score > 0).OrderByDescending(x => x.Score).Select(x => x.Animal).DistinctBy(a => a.AnimalId).ToList();
+    }
+
+    private static bool RegistrationMatch(string source, string? target)
+    {
+        var normalized = NormalizeId(target);
+        return source.Length >= 6 && normalized.Length >= 6 && (source == normalized || source.EndsWith(normalized) || normalized.EndsWith(source));
+    }
+    private static string Normalize(string? value) => new((value ?? "").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+    private static string NormalizeId(string? value) => new((value ?? "").Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+    private static decimal? Dec(string? value) => decimal.TryParse(value?.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+    private static int? Int(string? value) => int.TryParse(value?.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+    private static DateOnly? Date(string? value) => DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) ? parsed : null;
+
+    private static List<List<string>> ParseCsv(string text)
+    {
+        var result = new List<List<string>>(); var row = new List<string>(); var field = new StringBuilder(); var quoted = false;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (c == '"') { if (quoted && i + 1 < text.Length && text[i + 1] == '"') { field.Append('"'); i++; } else quoted = !quoted; }
+            else if (c == ',' && !quoted) { row.Add(field.ToString()); field.Clear(); }
+            else if ((c == '\n' || c == '\r') && !quoted) { if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++; row.Add(field.ToString()); field.Clear(); if (row.Any(v => v.Length > 0)) result.Add(row); row = []; }
+            else field.Append(c);
+        }
+        row.Add(field.ToString()); if (row.Any(v => v.Length > 0)) result.Add(row); return result;
+    }
+
+    private sealed class ParsedRow
+    {
+        public string SourceKey { get; init; } = ""; public string SourceName { get; init; } = ""; public string SourceAnimalId { get; init; } = ""; public string? OfficialId { get; init; }
+        public Dictionary<string, string> Values { get; init; } = [];
+        public static ParsedRow From(List<string> headers, List<string> values, HerdDataSource source)
+        {
+            var data = headers.Select((h, i) => new { Key = h.Trim(), Value = i < values.Count ? values[i].Trim() : "" }).GroupBy(x => x.Key).ToDictionary(g => g.Key, g => g.Last().Value, StringComparer.OrdinalIgnoreCase);
+            var id = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("DHIID", "") : data.GetValueOrDefault("Animal ID", "");
+            var name = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("BarnName", "") : data.GetValueOrDefault("Animal Name", "");
+            var official = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("DHIID") : data.GetValueOrDefault("Official ID");
+            return new ParsedRow { SourceKey = NormalizeId(!string.IsNullOrWhiteSpace(official) ? official : !string.IsNullOrWhiteSpace(id) ? id : name), SourceName = name, SourceAnimalId = id, OfficialId = official, Values = data };
+        }
+        public AnimalDataRecord ToRecord(int animalId, DateOnly reportDate, HerdDataSource source) => new()
+        {
+            AnimalId = animalId, Source = source, ReportDate = reportDate, SourceAnimalId = SourceAnimalId, SourceAnimalName = SourceName, OfficialId = OfficialId,
+            DaysInMilk = Int(Values.GetValueOrDefault("DIM")), Milk = source == HerdDataSource.Pcdart ? Dec(Values.GetValueOrDefault("Milk")) : null,
+            FatPercent = Dec(Values.GetValueOrDefault("Fat%")), ProteinPercent = Dec(Values.GetValueOrDefault("Pro%")), LastCalvingDate = Date(Values.GetValueOrDefault("LastCalv")),
+            Tpi = Int(Values.GetValueOrDefault("TPI")), NetMerit = Int(Values.GetValueOrDefault("NM$")), MilkPta = source == HerdDataSource.Zoetis ? Int(Values.GetValueOrDefault("MILK")) : null,
+            FatPta = Int(Values.GetValueOrDefault("FAT")), ProteinPta = Int(Values.GetValueOrDefault("PROT")), SomaticCellScore = Dec(Values.GetValueOrDefault("SCS")),
+            DaughterPregnancyRate = Dec(Values.GetValueOrDefault("DPR")), ProductiveLife = Dec(Values.GetValueOrDefault("PL")), TypeScore = Dec(Values.GetValueOrDefault("TYPE FS")),
+            UdderComposite = Dec(Values.GetValueOrDefault("UDC")), FeetLegsComposite = Dec(Values.GetValueOrDefault("FLC")), RawDataJson = JsonSerializer.Serialize(Values)
+        };
+    }
+}

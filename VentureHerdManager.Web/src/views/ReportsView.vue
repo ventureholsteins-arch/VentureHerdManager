@@ -1390,6 +1390,7 @@ onMounted(async () => {
         <div class="rp-hero-actions">
           <span class="rp-brand">Venture Herd Manager</span>
           <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/print')">Print Reports</button>
+          <button class="rp-back rp-print-link" type="button" @click="router.push('/reports/herd-data')">Milk & Genomics</button>
         </div>
       </div>
       <h1 class="rp-title">Reports &amp; Show Planner</h1>

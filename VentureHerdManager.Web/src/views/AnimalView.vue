@@ -7,6 +7,7 @@ import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
 import RetroIcon from '../components/RetroIcon.vue'
+import { getAnimalHerdData, getAdminKey, getMatingSuggestions } from '../api/herdData'
 
 import {
   getAnimalNotes,
@@ -79,6 +80,8 @@ const dryOffEvents = ref<DryOffEvent[]>([])
 const lutEvents = ref<LutalyseEvent[]>([])
 const animalNotes = ref<AnimalNote[]>([])
 const timelineEntries = ref<AnimalTimelineEntry[]>([])
+const herdDataRecords = ref<any[]>([])
+const matingData = ref<any>(null)
 const showAchievements = ref<ShowAchievement[]>([])
 
 const loading = ref(true)
@@ -294,6 +297,14 @@ onMounted(async () => {
     animalNotes.value = await getAnimalNotes(
       animalId.value
     )
+
+    if (getAdminKey()) {
+      try {
+        herdDataRecords.value = await getAnimalHerdData(animalId.value)
+        matingData.value = await getMatingSuggestions(animalId.value).catch(() => null)
+      }
+      catch (error) { console.warn('Private milk/genomic history is unavailable:', error) }
+    }
 
     openPendingAction()
   } catch (error) {
@@ -1255,6 +1266,33 @@ const scoreLabel = computed(() => {
       </section>
 
       <section class="panel">
+        <div class="private-data-heading">
+          <h2>Milk &amp; Genomic History</h2>
+          <button class="mini-btn" type="button" @click="router.push('/reports/herd-data')">Open analytics</button>
+        </div>
+        <p v-if="!getAdminKey()" class="upload-hint">Unlock the private Milk &amp; Genomic Analytics page to display these records.</p>
+        <div v-else-if="herdDataRecords.length === 0" class="timeline-card"><strong>No imported milk or genomic records yet.</strong></div>
+        <div v-else class="data-history-grid">
+          <article v-for="record in herdDataRecords" :key="record.animalDataRecordId" class="data-history-card">
+            <strong>{{ record.source === 1 ? 'PC-DART milk test' : 'Zoetis genomic evaluation' }}</strong>
+            <small>{{ record.reportDate }}</small>
+            <div v-if="record.source === 1"><span>Milk {{ record.milk ?? '—' }}</span><span>DIM {{ record.daysInMilk ?? '—' }}</span><span>Fat {{ record.fatPercent ?? '—' }}%</span><span>Protein {{ record.proteinPercent ?? '—' }}%</span></div>
+            <div v-else><span>TPI {{ record.tpi ?? '—' }}</span><span>NM$ {{ record.netMerit ?? '—' }}</span><span>Milk PTA {{ record.milkPta ?? '—' }}</span><span>DPR {{ record.daughterPregnancyRate ?? '—' }}</span><span>Type {{ record.typeScore ?? '—' }}</span><span>UDC {{ record.udderComposite ?? '—' }}</span><span>FLC {{ record.feetLegsComposite ?? '—' }}</span></div>
+          </article>
+        </div>
+        <div v-if="matingData" class="mating-review">
+          <h3>Linear &amp; Mating Suggestions</h3>
+          <p class="upload-hint">Suggestions prioritize sires that improve this animal’s weaker genomic composites. Always review pedigree, recessives, inbreeding, calving ease, and your mating goals before breeding.</p>
+          <div class="cow-proof-row"><span>TPI {{ matingData.cow.tpi ?? '—' }}</span><span>Milk {{ matingData.cow.milkPta ?? '—' }}</span><span>DPR {{ matingData.cow.daughterPregnancyRate ?? '—' }}</span><span>PL {{ matingData.cow.productiveLife ?? '—' }}</span><span>Type {{ matingData.cow.typeScore ?? '—' }}</span><span>UDC {{ matingData.cow.udderComposite ?? '—' }}</span><span>FLC {{ matingData.cow.feetLegsComposite ?? '—' }}</span></div>
+          <details v-for="sire in matingData.suggestions" :key="sire.sireReferenceId" class="sire-suggestion">
+            <summary><strong>{{ sire.name }}</strong><span>{{ sire.naabCode || 'No NAAB code' }} · match {{ Number(sire.score).toFixed(1) }}</span></summary>
+            <div class="cow-proof-row"><span>NM$ {{ sire.netMerit ?? '—' }}</span><span>Milk {{ sire.ptaMilk ?? '—' }}</span><span>DPR {{ sire.daughterPregnancyRate ?? '—' }}</span><span>PL {{ sire.productiveLife ?? '—' }}</span><span>Type {{ sire.ptaType ?? '—' }}</span><span>UDC {{ sire.udderComposite ?? '—' }}</span><span>FLC {{ sire.feetLegsComposite ?? '—' }}</span></div>
+            <p>{{ sire.reasons.join(' · ') || 'Balanced candidate; review full proof.' }}</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel">
         <h2>Unified Timeline</h2>
 
         <div
@@ -1865,6 +1903,8 @@ const scoreLabel = computed(() => {
   border-radius: 8px;
   background: linear-gradient(180deg, #f8fafc, #f1f5f9);
 }
+.private-data-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.private-data-heading h2{margin:0}.data-history-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.data-history-card{display:grid;gap:7px;padding:13px;border:1px solid #d9e3dc;border-left:4px solid #31572c;border-radius:8px;background:#f8fbf8}.data-history-card>div{display:flex;flex-wrap:wrap;gap:7px}.data-history-card span{padding:4px 7px;border-radius:5px;background:#fff;font-size:.82rem;font-weight:700}.data-history-card small{color:#64748b}
+.mating-review{margin-top:18px;padding-top:14px;border-top:1px solid #d9e3dc}.cow-proof-row{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}.cow-proof-row span{padding:5px 8px;border-radius:6px;background:#eef5ef;font-size:.8rem;font-weight:800}.sire-suggestion{margin:8px 0;border:1px solid #d8e2da;border-radius:8px;background:#fff}.sire-suggestion summary{display:flex;justify-content:space-between;gap:10px;padding:11px;cursor:pointer}.sire-suggestion summary span{color:#64748b;font-size:.8rem}.sire-suggestion>div,.sire-suggestion>p{margin:9px 11px}
 
 .timeline-actions {
   position: absolute;

@@ -58,6 +58,17 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_42FA626C45354D3BB3461FCEBCD0838D }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F9A546A8675146939A9EC31824FDA1B2 }}
 
+      - name: Configure private herd data access
+        uses: azure/cli@v2
+        env:
+          HERD_DATA_ADMIN_KEY: ${{ secrets.HERD_DATA_ADMIN_KEY }}
+        with:
+          inlineScript: >
+            az webapp config appsettings set
+            --resource-group VentureHerdMananger
+            --name Demo-API-123
+            --settings HerdDataImport__AdminKey="$HERD_DATA_ADMIN_KEY"
+
       - name: Configure API startup
         uses: azure/cli@v2
         with:

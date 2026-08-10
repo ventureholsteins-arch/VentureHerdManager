@@ -45,6 +45,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<DemoSession> DemoSessions => Set<DemoSession>();
 
     public DbSet<SireReference> SireReferences => Set<SireReference>();
+    public DbSet<HerdDataImport> HerdDataImports => Set<HerdDataImport>();
+    public DbSet<AnimalDataRecord> AnimalDataRecords => Set<AnimalDataRecord>();
+    public DbSet<AnimalIdentityMapping> AnimalIdentityMappings => Set<AnimalIdentityMapping>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -64,6 +67,7 @@ public class ApplicationDbContext : DbContext
         ConfigureShowAchievement(modelBuilder);
         ConfigureDemoSession(modelBuilder);
         ConfigureSireReference(modelBuilder);
+        ConfigureHerdData(modelBuilder);
 
         ConfigureDemoScope<Animal>(modelBuilder);
         ConfigureDemoScope<HeatEvent>(modelBuilder);
@@ -502,6 +506,27 @@ public class ApplicationDbContext : DbContext
             .HasDefaultValueSql("SYSUTCDATETIME()");
         entity.Property(sire => sire.UpdatedAt)
             .HasDefaultValueSql("SYSUTCDATETIME()");
+    }
+
+    private static void ConfigureHerdData(ModelBuilder modelBuilder)
+    {
+        var import = modelBuilder.Entity<HerdDataImport>();
+        import.HasKey(value => value.HerdDataImportId);
+        import.HasIndex(value => value.FileHash).IsUnique();
+        import.HasIndex(value => new { value.Source, value.ReportDate });
+
+        var record = modelBuilder.Entity<AnimalDataRecord>();
+        record.HasKey(value => value.AnimalDataRecordId);
+        record.HasOne(value => value.Import).WithMany(value => value.Records).HasForeignKey(value => value.HerdDataImportId).OnDelete(DeleteBehavior.Cascade);
+        record.HasOne(value => value.Animal).WithMany(value => value.DataRecords).HasForeignKey(value => value.AnimalId).OnDelete(DeleteBehavior.Cascade);
+        record.HasIndex(value => new { value.AnimalId, value.Source, value.ReportDate });
+        foreach (var property in new[] { nameof(AnimalDataRecord.Milk), nameof(AnimalDataRecord.FatPercent), nameof(AnimalDataRecord.ProteinPercent), nameof(AnimalDataRecord.SomaticCellScore), nameof(AnimalDataRecord.DaughterPregnancyRate), nameof(AnimalDataRecord.ProductiveLife), nameof(AnimalDataRecord.TypeScore), nameof(AnimalDataRecord.UdderComposite), nameof(AnimalDataRecord.FeetLegsComposite) })
+            record.Property(property).HasPrecision(12, 3);
+
+        var mapping = modelBuilder.Entity<AnimalIdentityMapping>();
+        mapping.HasKey(value => value.AnimalIdentityMappingId);
+        mapping.HasOne(value => value.Animal).WithMany(value => value.IdentityMappings).HasForeignKey(value => value.AnimalId).OnDelete(DeleteBehavior.Cascade);
+        mapping.HasIndex(value => new { value.Source, value.SourceKey }).IsUnique();
     }
 
     private void ConfigureDemoScope<TEntity>(ModelBuilder modelBuilder)

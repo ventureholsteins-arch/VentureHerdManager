@@ -62,6 +62,8 @@ builder.Services.AddScoped<CalendarService>();
 builder.Services.AddScoped<DemoSessionMaintenanceService>();
 builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
 builder.Services.AddScoped<PcdartImportService>();
+builder.Services.AddScoped<HerdDataImportService>();
+builder.Services.AddSingleton<HerdDataAdminAccess>();
 builder.Services.AddScoped<PaperRecordImportService>();
 builder.Services.AddScoped<NaabSireCatalogService>();
 builder.Services.AddSingleton<DatabaseInitializationState>();

@@ -110,6 +110,10 @@ public class Animal
     public ICollection<ShowAchievement> ShowAchievements { get; set; } =
         new List<ShowAchievement>();
 
+    public ICollection<AnimalDataRecord> DataRecords { get; set; } = [];
+
+    public ICollection<AnimalIdentityMapping> IdentityMappings { get; set; } = [];
+
     [NotMapped]
     public string DisplayName =>
         !string.IsNullOrWhiteSpace(BarnName)

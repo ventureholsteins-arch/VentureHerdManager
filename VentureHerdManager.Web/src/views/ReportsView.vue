@@ -49,6 +49,7 @@ interface ShowBaggingQuarter {
   key: 'frontLeft' | 'frontRight' | 'rearLeft' | 'rearRight'
   label: string
   hoursBeforeRing: number | null
+  milkOutTime?: string
 }
 
 interface ShowBaggingRow {
@@ -61,6 +62,7 @@ interface ShowBaggingRow {
   entryTime: string
   notes: string
   quarters: ShowBaggingQuarter[]
+  remindersEnabled?: boolean
   showAchievementId?: number
 }
 
@@ -275,12 +277,14 @@ function normalizeBaggingRow(row: Partial<ShowBaggingRow>): ShowBaggingRow {
     entryTime: row.entryTime ?? showBaggingStartTime.value,
     notes: row.notes ?? '',
     showAchievementId: row.showAchievementId,
+    remindersEnabled: row.remindersEnabled ?? true,
     quarters: quarterTemplates.map(template => {
       const found = incomingQuarters.find(quarter => quarter.key === template.key)
       return {
         key: template.key,
         label: template.label,
-        hoursBeforeRing: found?.hoursBeforeRing ?? null
+        hoursBeforeRing: found?.hoursBeforeRing ?? null,
+        milkOutTime: found?.milkOutTime ?? ''
       }
     })
   }
@@ -760,7 +764,7 @@ function addShowBaggingRow(animal: Animal) {
     return
   }
 
-  const entryTime = showBaggingStartTime.value || toLocalDateTimeInput(new Date())
+  const entryTime = `${showBaggingShowDate.value || new Date().toISOString().slice(0, 10)}T12:00`
   const quarters = createDefaultBaggingQuarters()
 
   showBaggingRows.value.push({
@@ -772,7 +776,8 @@ function addShowBaggingRow(animal: Animal) {
     wasSuccessful: true,
     entryTime,
     notes: '',
-    quarters
+    quarters,
+    remindersEnabled: true
   })
 
   baggingActionStatus.value = `Added ${animal.barnName || animal.registeredName || `#${animal.animalId}`} to bagging rows.`
@@ -788,9 +793,10 @@ function addBlankBaggingRow() {
     showName: showBaggingShowName.value,
     showDate: showBaggingShowDate.value,
     wasSuccessful: true,
-    entryTime: showBaggingStartTime.value,
+    entryTime: `${showBaggingShowDate.value || new Date().toISOString().slice(0, 10)}T12:00`,
     notes: '',
-    quarters: createDefaultBaggingQuarters()
+    quarters: createDefaultBaggingQuarters(),
+    remindersEnabled: true
   })
 }
 
@@ -848,24 +854,25 @@ function editQuarterHours(row: ShowBaggingRow, quarterKey: ShowBaggingQuarter['k
 
 function baggingSummary(row: ShowBaggingRow): string {
   const parts = row.quarters
-    .filter(quarter => quarter.hoursBeforeRing !== null)
-    .map(quarter => `${quarter.label}: ${quarter.hoursBeforeRing}h`) 
+    .filter(quarter => Boolean(quarter.milkOutTime) || quarter.hoursBeforeRing !== null)
+    .map(quarter => `${quarter.label}: ${quarter.milkOutTime ? formatTime(quarter.milkOutTime) : getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing)}`)
 
-  return parts.length > 0 ? parts.join(' · ') : 'No quarter hours entered'
+  return parts.length > 0 ? parts.join(' · ') : 'No milk-out times entered'
 }
 
 function baggingDetailNotes(row: ShowBaggingRow): string {
   const quarterLines = row.quarters
     .map(quarter => {
-      const milkTime = getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing)
-      const hours = quarter.hoursBeforeRing === null ? '—' : `${quarter.hoursBeforeRing}h`
-      return `${quarter.label}: ${hours} -> milk at ${milkTime}`
+      const milkTime = quarter.milkOutTime
+        ? formatTime(quarter.milkOutTime)
+        : getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing)
+      return `${quarter.label}: milk at ${milkTime}`
     })
     .join('\n')
 
   return [
-    `Show start: ${formatTime(showBaggingStartTime.value)}`,
-    `Cow enters ring: ${formatTime(row.entryTime)} (${formatHoursDifference(parseHoursDifference(row.entryTime))})`,
+    `Cow goes into ring: ${formatTime(row.entryTime)}`,
+    `15-minute reminders: ${row.remindersEnabled ? 'On' : 'Off'}`,
     quarterLines,
     row.notes.trim() ? `Notes: ${row.notes.trim()}` : ''
   ].filter(Boolean).join('\n')
@@ -912,8 +919,7 @@ async function saveBaggingRow(row: ShowBaggingRow) {
       achievements.value[existingIndex] = mirroredRecord
     }
 
-    activeTab.value = 'achievements'
-    achievementSearch.value = achievementPayload.showName
+    baggingActionStatus.value = `${getBaggingRowAnimalLabel(row)} bagging schedule saved.`
   } catch (error) {
     console.error('Failed to save bagging row:', error)
     alert('Failed to save bagging record.')
@@ -1567,7 +1573,6 @@ onMounted(async () => {
       <div class="rp-ph">
         <h2>Embryo Inventory</h2>
         <div class="rp-ph-actions">
-          <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload Data</button>
           <button type="button" class="rp-add-btn" @click="addEmbryoRecord">+ Add Embryo</button>
         </div>
       </div>
@@ -1890,16 +1895,6 @@ onMounted(async () => {
           <input v-model="showBaggingShowDate" type="date" />
         </label>
 
-        <label>
-          Cow Show Start
-          <input v-model="showBaggingStartTime" type="datetime-local" />
-        </label>
-
-        <div class="bagging-summary-card">
-          <strong>Start of cow show</strong>
-          <span>{{ formatTime(showBaggingStartTime) }}</span>
-          <small>{{ formatHoursDifference(showBaggingStartHoursFromNow) }}</small>
-        </div>
         <label class="bagging-phone-field">
           Phone numbers for this show
           <textarea v-model="showBaggingPhoneNumbers" rows="2" inputmode="tel" placeholder="Enter numbers separated by commas" />
@@ -2004,13 +1999,13 @@ onMounted(async () => {
 
       <div v-if="showBaggingRowsSorted.length > 0" class="browse-label">Current Cows</div>
 
-      <details v-for="group in baggingRowGroups" :key="`group-edit-${group.name}`" class="bagging-edit-group">
+      <details v-for="row in showBaggingRowsSorted" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-edit-group cow-bagging-details">
         <summary class="bagging-edit-summary">
-          <strong>{{ group.name }}</strong>
-          <span>{{ group.records.length }} cow{{ group.records.length === 1 ? '' : 's' }} · tap to view</span>
+          <strong>{{ getBaggingRowAnimalLabel(row) }}</strong>
+          <span>Ring {{ formatTime(row.entryTime) }} · tap to open</span>
         </summary>
         <div class="bagging-edit-group-body">
-          <div v-for="row in group.records" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-card">
+          <div class="bagging-card">
             <div class="bagging-card-hd">
               <div>
                 <button type="button" class="bagging-show-link" @click="openBaggingHistoryForGroup(row.showName || showBaggingShowName)">
@@ -2044,7 +2039,7 @@ onMounted(async () => {
               </label>
 
               <label>
-                Ring Entry Time
+                When does this cow go into the ring?
                 <input v-model="row.entryTime" type="datetime-local" />
               </label>
 
@@ -2053,26 +2048,28 @@ onMounted(async () => {
                 Successful bagging / result
               </label>
 
+              <label class="bagging-success-toggle reminder-toggle">
+                <input v-model="row.remindersEnabled" type="checkbox" />
+                Remind crew 15 minutes before each milk-out
+              </label>
+
               <div class="bagging-entry-summary">
                 <strong>Entry in {{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</strong>
                 <span>{{ formatTime(row.entryTime) }}</span>
               </div>
             </div>
 
-            <div class="bagging-udder-grid">
-              <button
+            <div class="bagging-udder-grid exact-times">
+              <label
                 v-for="quarter in row.quarters"
                 :key="quarter.key"
-                type="button"
                 class="udder-quarter"
-                @click="editQuarterHours(row, quarter.key)"
               >
                 <span class="quarter-label">{{ quarter.label }}</span>
-                <strong class="quarter-hours-label">Hours Before Ring</strong>
-                <strong class="quarter-hours-value">{{ quarter.hoursBeforeRing === null ? 'Tap to set' : `${quarter.hoursBeforeRing}h` }}</strong>
-                <small class="quarter-time-label">Milk Time</small>
-                <small class="quarter-time-value">{{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</small>
-              </button>
+                <strong class="quarter-hours-label">Milk this quarter at</strong>
+                <input v-model="quarter.milkOutTime" type="datetime-local" />
+                <small class="quarter-time-value">Alert at {{ quarter.milkOutTime ? formatTime(addHoursToInput(quarter.milkOutTime, -0.25)) : '—' }}</small>
+              </label>
             </div>
 
             <label class="bagging-notes">
@@ -2627,12 +2624,16 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-card-actions { display: flex; gap: 8px; align-items: center; }
 .bagging-meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .bagging-success-toggle { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-size: 0.86rem; color: #0f1f16; }
+.reminder-toggle { border: 2px solid #31572c; border-radius: 10px; padding: 10px 12px; background: #f0f7f1; font-weight: 900; }
+.reminder-toggle input { width: 22px; height: 22px; accent-color: #31572c; }
 .bagging-entry-summary { border: 1px solid #e0e8e1; border-radius: 8px; padding: 10px; background: #f8fbf8; display: grid; gap: 4px; align-content: center; }
 .bagging-entry-summary strong { color: #0f1f16; font-size: 0.86rem; }
 .bagging-entry-summary span { color: #5d6f63; font-size: 0.82rem; }
 .bagging-udder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
 .udder-quarter { border: 1px solid #c8d4cb; border-radius: 10px; background: #fff; color: #0f1f16; padding: 12px; display: grid; gap: 3px; cursor: pointer; text-align: left; min-height: 132px; }
 .udder-quarter:hover { border-color: #31572c; background: #f0f7f1; }
+.exact-times .udder-quarter { cursor: default; min-height: 0; gap: 7px; }
+.exact-times .udder-quarter input { width: 100%; min-height: 48px; box-sizing: border-box; border: 1px solid #9fb2a3; border-radius: 8px; padding: 8px; font-size: 1rem; background: #fff; color: #0f1f16; }
 .quarter-label { font-size: 0.82rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; color: #31572c; }
 .quarter-hours-label { font-size: 0.7rem; color: #5d6f63; letter-spacing: 0.04em; text-transform: uppercase; }
 .quarter-hours-value { font-size: 1.08rem; color: #0f1f16; font-weight: 900; }

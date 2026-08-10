@@ -20,6 +20,7 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         var animals = await context.Animals.AsNoTracking().ToListAsync(ct);
         var dataIds = await context.AnimalDataRecords.AsNoTracking().Where(record => record.OfficialId != null)
             .Select(record => new { record.AnimalId, record.OfficialId }).ToListAsync(ct);
+        var savedMappings = await context.AnimalIdentityMappings.AsNoTracking().Select(mapping => new { mapping.AnimalId, mapping.Source, mapping.SourceKey }).ToListAsync(ct);
         var animalFindings = new List<object>();
         for (var leftIndex = 0; leftIndex < animals.Count; leftIndex++)
         for (var rightIndex = leftIndex + 1; rightIndex < animals.Count; rightIndex++)
@@ -27,9 +28,11 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             var left = animals[leftIndex]; var right = animals[rightIndex]; var reasons = new List<string>();
             var leftRegistration = Normal(left.RegistrationNumber); var rightRegistration = Normal(right.RegistrationNumber);
             if (leftRegistration.Length >= 6 && leftRegistration == rightRegistration) reasons.Add("Same registration/DHI ID");
+            if (leftRegistration.Length >= 8 && rightRegistration.Length >= 8 && (leftRegistration.EndsWith(rightRegistration, StringComparison.Ordinal) || rightRegistration.EndsWith(leftRegistration, StringComparison.Ordinal))) reasons.Add("Registration/DHI IDs share the same ending");
             var leftNames = new[] { Normal(left.BarnName), Normal(left.RegisteredName) }.Where(value => value.Length > 1).ToHashSet();
             var rightNames = new[] { Normal(right.BarnName), Normal(right.RegisteredName) }.Where(value => value.Length > 1).ToHashSet();
             if (leftNames.Overlaps(rightNames)) reasons.Add("Same animal name");
+            if (leftNames.Any(leftName => rightNames.Any(rightName => leftName.Length >= 5 && rightName.Length >= 5 && EditDistance(leftName, rightName) <= 1))) reasons.Add("Animal names differ by only one character");
             var leftBarn = Normal(left.BarnName); var rightBarn = Normal(right.BarnName);
             var leftRegistered = Normal(left.RegisteredName); var rightRegistered = Normal(right.RegisteredName);
             if ((leftBarn.Length >= 4 && rightRegistered.Contains(leftBarn, StringComparison.Ordinal))
@@ -39,16 +42,19 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             var leftImportedIds = dataIds.Where(value => value.AnimalId == left.AnimalId).Select(value => Normal(value.OfficialId)).Where(value => value.Length >= 6).ToHashSet();
             var rightImportedIds = dataIds.Where(value => value.AnimalId == right.AnimalId).Select(value => Normal(value.OfficialId)).Where(value => value.Length >= 6).ToHashSet();
             if (leftImportedIds.Overlaps(rightImportedIds)) reasons.Add("Same imported official ID");
+            var leftMappingIds = savedMappings.Where(value => value.AnimalId == left.AnimalId).Select(value => $"{value.Source}|{Normal(value.SourceKey)}").ToHashSet();
+            var rightMappingIds = savedMappings.Where(value => value.AnimalId == right.AnimalId).Select(value => $"{value.Source}|{Normal(value.SourceKey)}").ToHashSet();
+            if (leftMappingIds.Overlaps(rightMappingIds)) reasons.Add("Same saved PC-DART/Zoetis identity mapping");
             if (reasons.Count > 0) animalFindings.Add(new { left = AnimalCard(left), right = AnimalCard(right), reasons = reasons.Distinct() });
         }
 
         var eventFindings = new List<object>();
-        AddDuplicateEvents(eventFindings, "heat", await context.HeatEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.HeatDateTime.ToString("yyyy-MM-dd HH:mm"), value => value.HeatEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}");
-        AddDuplicateEvents(eventFindings, "breeding", await context.BreedingEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => $"{value.BreedingDate:yyyy-MM-dd}|{Normal(value.SireUsed)}", value => value.BreedingEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}");
-        AddDuplicateEvents(eventFindings, "calving", await context.CalvingEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.CalvingDate.ToString("yyyy-MM-dd"), value => value.CalvingEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}");
-        AddDuplicateEvents(eventFindings, "dryOff", await context.DryOffEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.DryOffDate.ToString("yyyy-MM-dd"), value => value.DryOffEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}");
-        AddDuplicateEvents(eventFindings, "lutalyse", await context.LutalyseEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.AdministrationDate.ToString("yyyy-MM-dd HH:mm"), value => value.LutalyseEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}");
-        AddDuplicateEvents(eventFindings, "classification", await context.ClassificationRecords.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => $"{value.ClassificationDate:yyyy-MM-dd}|{value.Score}", value => value.ClassificationRecordId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}");
+        AddNearEvents(eventFindings, "heat", await context.HeatEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.HeatDateTime, value => value.HeatEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => $"strength {value.HeatStrength}", 12);
+        AddNearEvents(eventFindings, "breeding", await context.BreedingEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.BreedingDate, value => value.BreedingEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => $"sire {value.SireUsed}", 36);
+        AddNearEvents(eventFindings, "calving", await context.CalvingEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.CalvingDate, value => value.CalvingEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => $"{value.NumberOfCalves} calf/calves", 48);
+        AddNearEvents(eventFindings, "dryOff", await context.DryOffEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.DryOffDate, value => value.DryOffEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => value.Reason ?? "dry-off", 48);
+        AddNearEvents(eventFindings, "lutalyse", await context.LutalyseEvents.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.AdministrationDate, value => value.LutalyseEventId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => "LUT injection", 24);
+        AddNearEvents(eventFindings, "classification", await context.ClassificationRecords.AsNoTracking().Include(value => value.Animal).ToListAsync(ct), value => value.AnimalId, value => value.ClassificationDate ?? value.CreatedAt, value => value.ClassificationRecordId, value => value.Animal?.DisplayName ?? $"#{value.AnimalId}", value => $"score {value.Score}", 168);
         return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings });
     }
 
@@ -97,10 +103,25 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
     }
 
     private static object AnimalCard(Animal animal) => new { animal.AnimalId, animal.BarnName, animal.RegisteredName, animal.RegistrationNumber, animal.BirthDate, animal.DamName, animal.SireName, animal.CreatedAt };
-    private static void AddDuplicateEvents<T>(List<object> output, string type, IEnumerable<T> values, Func<T, int> animalId, Func<T, string> signature, Func<T, int> id, Func<T, string> animalName)
+    private static void AddNearEvents<T>(List<object> output, string type, IEnumerable<T> values, Func<T, int> animalId, Func<T, DateTime> date, Func<T, int> id, Func<T, string> animalName, Func<T, string> detail, double maximumHours)
     {
-        foreach (var group in values.GroupBy(value => $"{animalId(value)}|{signature(value)}").Where(group => group.Count() > 1))
-        { var records = group.ToList(); output.Add(new { eventType = type, animalId = animalId(records[0]), animalName = animalName(records[0]), signature = signature(records[0]), eventIds = records.Select(id).ToList(), count = records.Count }); }
+        foreach (var group in values.GroupBy(animalId))
+        {
+            var records = group.OrderBy(date).ToList();
+            for (var left = 0; left < records.Count; left++) for (var right = left + 1; right < records.Count; right++)
+            {
+                var hours = Math.Abs((date(records[right]) - date(records[left])).TotalHours); if (hours > maximumHours) break;
+                var timing = hours < .02 ? "same timestamp" : hours < 24 ? $"{hours:0.#} hours apart" : $"{hours / 24:0.#} days apart";
+                output.Add(new { eventType = type, animalId = group.Key, animalName = animalName(records[left]), signature = $"{date(records[left]):MMM d, yyyy h:mm tt} and {date(records[right]):MMM d, yyyy h:mm tt} - {timing} - {detail(records[left])} / {detail(records[right])}", eventIds = new[] { id(records[left]), id(records[right]) }, count = 2, reviewReason = $"Two {type} records are unusually close together" });
+            }
+        }
+    }
+
+    private static int EditDistance(string left, string right)
+    {
+        var prior = Enumerable.Range(0, right.Length + 1).ToArray();
+        for (var i = 1; i <= left.Length; i++) { var current = new int[right.Length + 1]; current[0] = i; for (var j = 1; j <= right.Length; j++) current[j] = Math.Min(Math.Min(current[j - 1] + 1, prior[j] + 1), prior[j - 1] + (left[i - 1] == right[j - 1] ? 0 : 1)); prior = current; }
+        return prior[right.Length];
     }
 }
 

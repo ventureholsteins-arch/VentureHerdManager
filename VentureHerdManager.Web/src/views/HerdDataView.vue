@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getAnimalsBasic } from '../api/animals'
 import { applyHerdData, getHerdDataAnalytics, previewHerdData, type HerdDataPreview, type HerdDataSource } from '../api/herdData'
@@ -18,9 +18,21 @@ const mappings = ref<Record<string, number>>({})
 const status = ref('')
 const busy = ref(false)
 const combinedSearch = ref('')
+const importDetails = ref<HTMLDetailsElement | null>(null)
+
+function chooseSource(nextSource: HerdDataSource) {
+  source.value = nextSource
+  nextTick(() => {
+    if (importDetails.value) importDetails.value.open = true
+  })
+}
 
 onMounted(async () => {
   source.value = route.query.source === '2' ? 2 : 1
+  if (route.query.source === '1' || route.query.source === '2') {
+    await nextTick()
+    if (importDetails.value) importDetails.value.open = true
+  }
   try {
     ;[analytics.value, animals.value] = await Promise.all([getHerdDataAnalytics(), getAnimalsBasic()])
   } catch (error) { status.value = error instanceof Error ? error.message : 'Private analytics could not load.' }
@@ -58,11 +70,11 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
   <main class="data-page">
     <header><button @click="router.push('/reports')">← Reports</button><h1>Milk & Genomic Analytics</h1><p>Private herd production, genomic comparisons, and mating decisions.</p></header>
     <div class="import-choice">
-      <button type="button" :class="{ active: source === 1 }" @click="source = 1">Import PC-DART Milk</button>
-      <button type="button" :class="{ active: source === 2 }" @click="source = 2">Import Zoetis Genomics</button>
+      <button type="button" :class="{ active: source === 1 }" @click="chooseSource(1)">Import PC-DART Milk</button>
+      <button type="button" :class="{ active: source === 2 }" @click="chooseSource(2)">Import Zoetis Genomics</button>
     </div>
     <template>
-      <details class="card import-card">
+      <details ref="importDetails" class="card import-card">
         <summary>Import report</summary>
         <div class="controls"><select v-model.number="source"><option :value="1">PC-DART milk report</option><option :value="2">Zoetis genomic report</option></select><input v-model="reportDate" type="date"><input type="file" accept=".csv,text/csv" @change="loadFile"></div>
         <div class="actions"><button :disabled="busy || !csvText" @click="previewImport">Preview & match</button><button :disabled="busy || !preview || needsMatch.length > 0" @click="applyImport">Save confirmed import</button></div>

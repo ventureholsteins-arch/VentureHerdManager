@@ -199,11 +199,12 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         {
             AnimalId = animalId, Source = source, ReportDate = reportDate, SourceAnimalId = SourceAnimalId, SourceAnimalName = SourceName, OfficialId = OfficialId,
             DaysInMilk = Int(Values.GetValueOrDefault("DIM")), Milk = source == HerdDataSource.Pcdart ? Dec(Values.GetValueOrDefault("Milk")) : null,
-            FatPercent = Dec(Values.GetValueOrDefault("Fat%")), ProteinPercent = Dec(Values.GetValueOrDefault("Pro%")), LastCalvingDate = Date(Values.GetValueOrDefault("LastCalv")),
+            FatPercent = Dec(First("Fat%", "Fat %", "Curr TD % Fat", "Current TD % Fat")), ProteinPercent = Dec(First("Pro%", "Protein%", "Protein %", "Prt%", "Curr TD % Prt", "Current TD % Prt")), LastCalvingDate = Date(Values.GetValueOrDefault("LastCalv")),
             Tpi = Int(Values.GetValueOrDefault("TPI")), NetMerit = Int(Values.GetValueOrDefault("NM$")), MilkPta = source == HerdDataSource.Zoetis ? Int(Values.GetValueOrDefault("MILK")) : null,
-            FatPta = Int(Values.GetValueOrDefault("FAT")), ProteinPta = Int(Values.GetValueOrDefault("PROT")), SomaticCellScore = Dec(Values.GetValueOrDefault("SCS")),
+            FatPta = Int(Values.GetValueOrDefault("FAT")), ProteinPta = Int(Values.GetValueOrDefault("PROT")), SomaticCellScore = Dec(First("SCS", "SCC", "Current SCC", "Curr SCC")),
             DaughterPregnancyRate = Dec(Values.GetValueOrDefault("DPR")), ProductiveLife = Dec(Values.GetValueOrDefault("PL")), TypeScore = Dec(Values.GetValueOrDefault("TYPE FS")),
             UdderComposite = Dec(Values.GetValueOrDefault("UDC")), FeetLegsComposite = Dec(Values.GetValueOrDefault("FLC")), RawDataJson = JsonSerializer.Serialize(Values)
         };
+        private string? First(params string[] aliases) => aliases.Select(alias => Values.GetValueOrDefault(alias)).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
     }
 }

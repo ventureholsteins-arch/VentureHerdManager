@@ -527,6 +527,12 @@ const showBaggingMatchCount = computed(() => showBaggingBrowseAnimals.value.leng
 
 const showBaggingRowsSorted = computed(() => [...showBaggingRows.value].sort((left, right) => left.lineupOrder - right.lineupOrder))
 
+const baggingCowsByShowTime = computed(() => [...showBaggingRows.value].sort((left, right) => {
+  const leftTime = new Date(left.entryTime).getTime()
+  const rightTime = new Date(right.entryTime).getTime()
+  return (Number.isNaN(leftTime) ? Number.MAX_SAFE_INTEGER : leftTime) - (Number.isNaN(rightTime) ? Number.MAX_SAFE_INTEGER : rightTime)
+}))
+
 const baggingTimeline = computed(() => {
   const grouped = new Map<string, { time: string; items: Array<{ rowId: number; cow: string; action: string }> }>()
   const addItem = (time: string, rowId: number, cow: string, action: string) => {
@@ -540,7 +546,8 @@ const baggingTimeline = computed(() => {
   for (const row of showBaggingRowsSorted.value) {
     const cow = getBaggingRowAnimalLabel(row)
     for (const quarter of row.quarters) {
-      if (quarter.milkOutTime) addItem(quarter.milkOutTime, row.id, cow, `Milk ${quarter.label}`)
+      const milkTime = quarter.milkOutTime || (quarter.hoursBeforeRing !== null ? addHoursToInput(row.entryTime, -quarter.hoursBeforeRing) : '')
+      if (milkTime) addItem(milkTime, row.id, cow, `Milk ${quarter.label}`)
     }
     addItem(row.entryTime, row.id, cow, 'Goes into the ring')
   }
@@ -791,7 +798,7 @@ function addShowBaggingRow(animal: Animal) {
     return
   }
 
-  const entryTime = `${showBaggingShowDate.value || new Date().toISOString().slice(0, 10)}T12:00`
+  const entryTime = showBaggingStartTime.value || `${showBaggingShowDate.value || new Date().toISOString().slice(0, 10)}T12:00`
   const quarters = createDefaultBaggingQuarters()
 
   showBaggingRows.value.push({
@@ -1902,6 +1909,18 @@ onMounted(async () => {
       </div>
       <p v-if="baggingShareStatus" class="rp-hint">{{ baggingShareStatus }}</p>
 
+      <section class="bagging-show-anchor">
+        <label>
+          <strong>When does the show start?</strong>
+          <input v-model="showBaggingStartTime" type="datetime-local" />
+        </label>
+        <div>
+          <small>Show starts</small>
+          <strong>{{ formatHoursDifference(parseHoursDifference(showBaggingStartTime)) }}</strong>
+          <span>{{ formatScheduleDateTime(showBaggingStartTime) }}</span>
+        </div>
+      </section>
+
       <div v-if="hasNoAnimals" class="rp-error" style="margin-bottom: 12px;">
         No cows are loaded in this environment yet. Bagging add/search needs herd animals. Try Reload Data.
       </div>
@@ -2024,10 +2043,22 @@ onMounted(async () => {
 
       <div id="bagging-rows" />
 
+      <section v-if="baggingCowsByShowTime.length > 0" class="bagging-cow-overview">
+        <div class="bagging-timeline-heading">
+          <strong>All cows at a glance</strong>
+          <span>{{ baggingCowsByShowTime.length }} cow{{ baggingCowsByShowTime.length === 1 ? '' : 's' }}</span>
+        </div>
+        <button v-for="row in baggingCowsByShowTime" :key="`overview-${row.id}`" type="button" @click="jumpToBaggingRow(row.id)">
+          <strong>{{ getBaggingRowAnimalLabel(row) }}</strong>
+          <span class="cow-show-clock">{{ formatTime(row.entryTime) }}</span>
+          <span>{{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</span>
+        </button>
+      </section>
+
       <section v-if="baggingTimeline.length > 0" class="bagging-timeline">
         <div class="bagging-timeline-heading">
-          <strong>What happens next</strong>
-          <span>{{ showBaggingRowsSorted.length }} cow{{ showBaggingRowsSorted.length === 1 ? '' : 's' }}</span>
+          <strong>Milking and ring schedule</strong>
+          <span>Earliest first</span>
         </div>
         <div v-for="group in baggingTimeline" :key="group.time" class="bagging-time-group">
           <time :datetime="group.time">{{ formatScheduleDateTime(group.time) }}</time>
@@ -2046,7 +2077,7 @@ onMounted(async () => {
       <details v-for="row in showBaggingRowsSorted" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-edit-group cow-bagging-details">
         <summary class="bagging-edit-summary">
           <strong>{{ getBaggingRowAnimalLabel(row) }}</strong>
-          <span>Ring {{ formatTime(row.entryTime) }} · tap to open</span>
+          <span>{{ formatTime(row.entryTime) }} · {{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</span>
         </summary>
         <div class="bagging-edit-group-body">
           <div class="bagging-card">
@@ -2083,7 +2114,7 @@ onMounted(async () => {
               </label>
 
               <label>
-                When does this cow go into the ring?
+                When does this cow go out?
                 <input v-model="row.entryTime" type="datetime-local" />
               </label>
 
@@ -2110,9 +2141,10 @@ onMounted(async () => {
                 class="udder-quarter"
               >
                 <span class="quarter-label">{{ quarter.label }}</span>
-                <strong class="quarter-hours-label">Milk this quarter at</strong>
-                <input v-model="quarter.milkOutTime" type="datetime-local" />
-                <small class="quarter-time-value">Alert at {{ quarter.milkOutTime ? formatTime(addHoursToInput(quarter.milkOutTime, -0.25)) : '—' }}</small>
+                <strong class="quarter-hours-label">Hours before cow goes out</strong>
+                <input v-model.number="quarter.hoursBeforeRing" type="number" min="0" step="0.5" inputmode="decimal" placeholder="Example: 8" @input="quarter.milkOutTime = ''" />
+                <strong class="quarter-time-value">Milk at {{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</strong>
+                <small class="quarter-alert-time">Alert at {{ quarter.hoursBeforeRing === null ? '—' : formatTime(addHoursToInput(row.entryTime, -quarter.hoursBeforeRing - 0.25)) }}</small>
               </label>
             </div>
 
@@ -2635,6 +2667,19 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-summary-card span { font-size: 1rem; font-weight: 900; color: #0f1f16; }
 .bagging-summary-card small { font-size: 0.8rem; color: #5d6f63; }
 .bagging-search-panel { border: 1px solid #d9e3dc; border-radius: 10px; padding: 12px; background: #f8fbf8; margin-bottom: 14px; }
+.bagging-show-anchor { border:2px solid #31572c;border-radius:12px;background:#f0f7f1;padding:12px;margin:12px 0;display:grid;grid-template-columns:minmax(220px,1fr) minmax(190px,.7fr);gap:12px;align-items:end; }
+.bagging-show-anchor label,.bagging-show-anchor>div { display:grid;gap:5px; }
+.bagging-show-anchor input { min-height:50px;border:1px solid #8ea391;border-radius:8px;padding:8px;font-size:1rem;background:#fff;color:#0f1f16;box-sizing:border-box;width:100%; }
+.bagging-show-anchor>div { border-radius:9px;background:#17331f;color:#fff;padding:10px 12px; }
+.bagging-show-anchor>div small { color:#d9eadc;font-weight:800;text-transform:uppercase;letter-spacing:.05em; }
+.bagging-show-anchor>div strong { font-size:1.2rem; }
+.bagging-show-anchor>div span { font-size:.82rem; }
+.bagging-cow-overview { border:2px solid #31572c;border-radius:12px;background:#fff;margin:14px 0;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px; }
+.bagging-cow-overview .bagging-timeline-heading { grid-column:1/-1; }
+.bagging-cow-overview>button { min-height:68px;border:1px solid #a9bbaa;border-radius:9px;background:#f8fbf8;color:#0f1f16;padding:9px;text-align:left;display:grid;grid-template-columns:1fr auto;gap:3px 8px;cursor:pointer; }
+.bagging-cow-overview>button strong { font-size:1rem; }
+.bagging-cow-overview>button span:last-child { grid-column:1/-1;color:#31572c;font-size:.82rem;font-weight:850; }
+.cow-show-clock { font-size:1rem;font-weight:950;color:#17331f; }
 .bagging-timeline { border:2px solid #31572c;border-radius:12px;background:#fff;margin:14px 0;padding:12px;display:grid;gap:10px; }
 .bagging-timeline-heading { display:flex;justify-content:space-between;align-items:center;gap:10px;color:#17331f;font-size:1.05rem; }
 .bagging-timeline-heading span { background:#e8f5ea;border-radius:999px;padding:4px 10px;font-size:.8rem;font-weight:900; }
@@ -2759,6 +2804,9 @@ textarea { min-height: 72px; resize: vertical; }
   .rp-full { grid-column: 1; }
   .rp-tabs button { padding: 12px 12px 9px; font-size: 0.75rem; }
   .bagging-top-grid { grid-template-columns: 1fr; }
+  .bagging-show-anchor { grid-template-columns: 1fr; }
+  .bagging-cow-overview { grid-template-columns: repeat(2,minmax(0,1fr));padding:9px;gap:6px; }
+  .bagging-cow-overview>button { min-width:0; }
   .bagging-meta-grid { grid-template-columns: 1fr; }
   .bagging-udder-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .bagging-card-hd { flex-direction: column; }

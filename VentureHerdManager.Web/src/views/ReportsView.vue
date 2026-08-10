@@ -121,7 +121,7 @@ watch(pageMode, mode => selectReportCategory(mode === 'embryos' ? 'embryos' : mo
 
 function categoryForTab(tab: HubTab): ReportCategory {
   if (tab === 'embryos' || tab === 'embryoImplants') return 'embryos'
-  if (tab === 'showString' || tab === 'showBagging' || tab === 'achievements') return 'shows'
+  if (tab === 'showString' || tab === 'showBagging' || tab === 'achievements' || tab === 'checklist') return 'shows'
   if (tab === 'pcdartImport') return 'data'
   return 'decisions'
 }
@@ -1518,7 +1518,6 @@ onMounted(async () => {
         <button type="button" @click="router.push('/reports/herd-data?view=genomics')"><RetroIcon name="reports" :size="22" />Genomic Analytics</button>
         <button type="button" @click="router.push('/reports/herd-data?view=linear')"><RetroIcon name="reports" :size="22" />Farm Linear</button>
         <button :class="{ active: activeTab === 'lists' }" @click="selectReportTab('lists')"><RetroIcon name="note" :size="22" />Herd Lists</button>
-        <button :class="{ active: activeTab === 'checklist' }" @click="selectReportTab('checklist')"><RetroIcon name="note" :size="22" />Checklist</button>
       </template>
       <template v-else-if="activeCategory === 'embryos'">
         <button :class="{ active: activeTab === 'embryos' }" @click="selectReportTab('embryos')"><RetroIcon name="embryo" :size="22" />Inventory</button>
@@ -1527,7 +1526,8 @@ onMounted(async () => {
       <template v-else-if="activeCategory === 'shows'">
         <button :class="{ active: activeTab === 'showString' }" @click="selectReportTab('showString')"><RetroIcon name="calf" :size="22" />Show String</button>
         <button :class="{ active: activeTab === 'showBagging' }" @click="selectReportTab('showBagging')"><RetroIcon name="calving" :size="22" />Bagging</button>
-        <button :class="{ active: activeTab === 'achievements' }" @click="selectReportTab('achievements')"><RetroIcon name="calf" :size="22" />Results</button>
+        <button :class="{ active: activeTab === 'checklist' }" @click="selectReportTab('checklist')"><RetroIcon name="note" :size="22" />Checklist</button>
+        <button :class="{ active: activeTab === 'achievements' }" @click="selectReportTab('achievements')"><RetroIcon name="calf" :size="22" />Achievements</button>
       </template>
       <template v-else>
         <button type="button" @click="router.push('/reports/audit')"><RetroIcon name="reports" :size="22" />Audit Center</button>

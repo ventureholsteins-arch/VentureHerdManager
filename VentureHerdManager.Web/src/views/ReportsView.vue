@@ -257,6 +257,12 @@ function formatTime(value: string | null | undefined): string {
   return parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
+function formatScheduleDateTime(value: string): string {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return 'Time not set'
+  return parsed.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 function createDefaultBaggingQuarters(): ShowBaggingQuarter[] {
   return quarterTemplates.map(template => ({
     key: template.key,
@@ -520,6 +526,27 @@ const showBaggingBrowseAnimals = computed(() => {
 const showBaggingMatchCount = computed(() => showBaggingBrowseAnimals.value.length)
 
 const showBaggingRowsSorted = computed(() => [...showBaggingRows.value].sort((left, right) => left.lineupOrder - right.lineupOrder))
+
+const baggingTimeline = computed(() => {
+  const grouped = new Map<string, { time: string; items: Array<{ rowId: number; cow: string; action: string }> }>()
+  const addItem = (time: string, rowId: number, cow: string, action: string) => {
+    if (!time || Number.isNaN(new Date(time).getTime())) return
+    const key = toLocalDateTimeInput(time)
+    const group = grouped.get(key) ?? { time: key, items: [] }
+    group.items.push({ rowId, cow, action })
+    grouped.set(key, group)
+  }
+
+  for (const row of showBaggingRowsSorted.value) {
+    const cow = getBaggingRowAnimalLabel(row)
+    for (const quarter of row.quarters) {
+      if (quarter.milkOutTime) addItem(quarter.milkOutTime, row.id, cow, `Milk ${quarter.label}`)
+    }
+    addItem(row.entryTime, row.id, cow, 'Goes into the ring')
+  }
+
+  return Array.from(grouped.values()).sort((left, right) => new Date(left.time).getTime() - new Date(right.time).getTime())
+})
 
 const baggingRowsGlance = computed(() =>
   showBaggingRowsSorted.value.map(row => ({
@@ -1997,6 +2024,23 @@ onMounted(async () => {
 
       <div id="bagging-rows" />
 
+      <section v-if="baggingTimeline.length > 0" class="bagging-timeline">
+        <div class="bagging-timeline-heading">
+          <strong>What happens next</strong>
+          <span>{{ showBaggingRowsSorted.length }} cow{{ showBaggingRowsSorted.length === 1 ? '' : 's' }}</span>
+        </div>
+        <div v-for="group in baggingTimeline" :key="group.time" class="bagging-time-group">
+          <time :datetime="group.time">{{ formatScheduleDateTime(group.time) }}</time>
+          <div class="bagging-time-items">
+            <button v-for="item in group.items" :key="`${item.rowId}-${item.action}`" type="button" @click="jumpToBaggingRow(item.rowId)">
+              <strong>{{ item.cow }}</strong>
+              <span>{{ item.action }}</span>
+            </button>
+          </div>
+          <small v-if="group.items.length > 1">{{ group.items.length }} jobs at this same time</small>
+        </div>
+      </section>
+
       <div v-if="showBaggingRowsSorted.length > 0" class="browse-label">Current Cows</div>
 
       <details v-for="row in showBaggingRowsSorted" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-edit-group cow-bagging-details">
@@ -2591,6 +2635,15 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-summary-card span { font-size: 1rem; font-weight: 900; color: #0f1f16; }
 .bagging-summary-card small { font-size: 0.8rem; color: #5d6f63; }
 .bagging-search-panel { border: 1px solid #d9e3dc; border-radius: 10px; padding: 12px; background: #f8fbf8; margin-bottom: 14px; }
+.bagging-timeline { border:2px solid #31572c;border-radius:12px;background:#fff;margin:14px 0;padding:12px;display:grid;gap:10px; }
+.bagging-timeline-heading { display:flex;justify-content:space-between;align-items:center;gap:10px;color:#17331f;font-size:1.05rem; }
+.bagging-timeline-heading span { background:#e8f5ea;border-radius:999px;padding:4px 10px;font-size:.8rem;font-weight:900; }
+.bagging-time-group { border:1px solid #cbd9ce;border-radius:10px;padding:10px;background:#f8fbf8;display:grid;gap:7px; }
+.bagging-time-group time { font-size:1rem;font-weight:950;color:#17331f; }
+.bagging-time-items { display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:7px; }
+.bagging-time-items button { min-height:52px;border:1px solid #9fb2a3;border-radius:9px;background:#fff;color:#0f1f16;padding:8px 10px;text-align:left;display:grid;gap:2px;cursor:pointer; }
+.bagging-time-items button strong { font-size:.95rem; }
+.bagging-time-items button span,.bagging-time-group small { color:#31572c;font-size:.8rem;font-weight:750; }
 .bagging-search-hint { margin: 0 0 8px; font-size: 0.84rem; color: #31572c; font-weight: 700; }
 .bagging-search-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 0.82rem; color: #5d6f63; }
 .bagging-tools-note { font-weight: 700; color: #31572c; }

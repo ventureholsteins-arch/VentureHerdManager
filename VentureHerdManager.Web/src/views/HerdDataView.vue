@@ -229,7 +229,7 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
 const linearRows = computed(() => [...(analytics.value?.genomic ?? [])].sort((a: any, b: any) => (b.typeScore ?? -99) - (a.typeScore ?? -99)))
 const milkRows = computed(() => analytics.value?.milk ?? [])
 const milkHistory = computed(() => analytics.value?.milkHistory ?? [])
-const latestMilkTrend = computed(() => { const rows = milkHistory.value; if (rows.length < 2) return null; const current = rows.at(-1); const prior = rows.at(-2); return { milk: (current.averageMilk ?? 0) - (prior.averageMilk ?? 0), fat: current.averageFatPercent != null && prior.averageFatPercent != null ? current.averageFatPercent - prior.averageFatPercent : null, protein: current.averageProteinPercent != null && prior.averageProteinPercent != null ? current.averageProteinPercent - prior.averageProteinPercent : null } })
+const latestMilkTrend = computed(() => { const rows = milkHistory.value; if (rows.length < 2) return null; const current = rows.at(-1); const prior = rows.at(-2); return { milk: (current.averageMilk ?? 0) - (prior.averageMilk ?? 0), fat: current.averageFatPercent != null && prior.averageFatPercent != null ? current.averageFatPercent - prior.averageFatPercent : 0, protein: current.averageProteinPercent != null && prior.averageProteinPercent != null ? current.averageProteinPercent - prior.averageProteinPercent : 0 } })
 const milkLeaderBoards = computed(() => [
   { key: 'milk', label: 'Milk Volume', unit: ' lb', percentKey: '' },
   { key: 'fatPounds', label: 'Fat Production', unit: ' lb', percentKey: 'fatPercent' },

@@ -11,6 +11,7 @@ import ReportsView from '../views/ReportsView.vue'
 import PrintReportsView from '../views/PrintReportsView.vue'
 import SireCatalogView from '../views/SireCatalogView.vue'
 import HerdDataView from '../views/HerdDataView.vue'
+import AuditView from '../views/AuditView.vue'
 import DemoView from '../views/DemoView.vue'
 
 import SettingsView from '../views/SettingsView.vue'
@@ -70,6 +71,11 @@ const router = createRouter({
       path: '/reports/herd-data',
       name: 'herd-data',
       component: HerdDataView
+    },
+    {
+      path: '/reports/audit',
+      name: 'audit',
+      component: AuditView
     },
     {
       path: '/settings',

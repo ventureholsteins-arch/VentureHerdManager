@@ -1530,6 +1530,7 @@ onMounted(async () => {
         <button :class="{ active: activeTab === 'achievements' }" @click="selectReportTab('achievements')"><RetroIcon name="calf" :size="22" />Results</button>
       </template>
       <template v-else>
+        <button type="button" @click="router.push('/reports/audit')"><RetroIcon name="reports" :size="22" />Audit Center</button>
         <button type="button" @click="router.push('/reports/herd-data?source=1')"><RetroIcon name="reports" :size="22" />Import PC-DART</button>
         <button type="button" @click="router.push('/reports/herd-data?view=imports&source=1&type=currentMilkingPdf')"><RetroIcon name="note" :size="22" />Current Milking PDF</button>
         <button type="button" @click="router.push('/reports/herd-data?view=imports&source=1&type=cowPagePdf')"><RetroIcon name="note" :size="22" />Individual Cow PDF</button>

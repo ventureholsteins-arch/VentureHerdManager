@@ -288,40 +288,20 @@ onMounted(async () => {
     snapshot.value = animalSnapshot
     animal.value = animalSnapshot.animal
     timelineEntries.value = animalSnapshot.timeline
-
-    heatEvents.value = await getHeatEvents(
-      animalId.value
-    )
-
-    breedingEvents.value = await getBreedings(
-      animalId.value
-    )
-
-    calvingEvents.value = await getCalvings(
-      animalId.value
-    )
-
-    dryOffEvents.value = await getDryOffEvents(
-      animalId.value
-    )
-
-    lutEvents.value = await getLutEvents(
-      animalId.value
-    )
-
-    animalNotes.value = await getAnimalNotes(
-      animalId.value
-    )
-
-    if (getAdminKey()) {
-      try {
-        herdDataRecords.value = await getAnimalHerdData(animalId.value)
-        matingData.value = await getMatingSuggestions(animalId.value).catch(() => null)
-      }
-      catch (error) { console.warn('Private milk/genomic history is unavailable:', error) }
-    }
-
+    loading.value = false
     openPendingAction()
+    void Promise.all([
+      getHeatEvents(animalId.value).then(value => { heatEvents.value = value }),
+      getBreedings(animalId.value).then(value => { breedingEvents.value = value }),
+      getCalvings(animalId.value).then(value => { calvingEvents.value = value }),
+      getDryOffEvents(animalId.value).then(value => { dryOffEvents.value = value }),
+      getLutEvents(animalId.value).then(value => { lutEvents.value = value }),
+      getAnimalNotes(animalId.value).then(value => { animalNotes.value = value })
+    ]).catch(error => console.warn('Some animal history is still loading:', error))
+    if (getAdminKey()) void Promise.all([
+      getAnimalHerdData(animalId.value).then(value => { herdDataRecords.value = value }),
+      getMatingSuggestions(animalId.value).then(value => { matingData.value = value }).catch(() => null)
+    ]).catch(error => console.warn('Private milk/genomic history is unavailable:', error))
   } catch (error) {
     console.error('Failed to load animal:', error)
   } finally {

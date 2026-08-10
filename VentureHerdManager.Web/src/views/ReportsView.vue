@@ -796,6 +796,13 @@ function getScoreLabel(score: number | null | undefined): string {
   return `GP ${Math.round(score)}`
 }
 
+function formatShowBirthDate(value: string | null | undefined): string {
+  if (!value) return 'Birth date missing'
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+  if (!year || !month || !day) return value
+  return `Born ${month}/${day}/${year}`
+}
+
 function barPct(value: number, allValues: number[]): number {
   const max = Math.max(...allValues, 1)
   if (max === 0) return 0
@@ -1895,7 +1902,8 @@ onMounted(async () => {
             </div>
             <div class="lineup-meta-row">
               <span class="lineup-class-pill">{{ row.animalId ? getShowClassLabel(animals.find(a => a.animalId === row.animalId)?.birthDate, animals.find(a => a.animalId === row.animalId)?.animalStage) : '' }}</span>
-              <span class="lineup-age" v-if="row.animalId">{{ formatCurrentAge(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
+              <span class="lineup-age" v-if="row.animalId"><b>SHOW AGE</b> {{ formatCurrentAge(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
+              <span class="lineup-birth" v-if="row.animalId">{{ formatShowBirthDate(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
               <span class="lineup-score" v-if="animals.find(a => a.animalId === row.animalId)?.latestScore">{{ getScoreLabel(animals.find(a => a.animalId === row.animalId)?.latestScore) }}</span>
             </div>
             <div class="lineup-notes-row">
@@ -1931,7 +1939,8 @@ onMounted(async () => {
             </div>
             <div class="lineup-meta-row">
               <span class="lineup-class-pill heifer-pill">{{ row.animalId ? getShowClassLabel(animals.find(a => a.animalId === row.animalId)?.birthDate, animals.find(a => a.animalId === row.animalId)?.animalStage) : '' }}</span>
-              <span class="lineup-age" v-if="row.animalId">{{ formatCurrentAge(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
+              <span class="lineup-age" v-if="row.animalId"><b>SHOW AGE</b> {{ formatCurrentAge(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
+              <span class="lineup-birth" v-if="row.animalId">{{ formatShowBirthDate(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
             </div>
             <div class="lineup-notes-row">
               <div class="lineup-note-block">
@@ -2642,6 +2651,19 @@ textarea { min-height: 72px; resize: vertical; }
   font-size: 0.82rem;
   font-weight: 700;
   color: #5d6f63;
+}
+
+.lineup-age b {
+  margin-right: 3px;
+  color: #123b68;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+}
+
+.lineup-birth {
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .lineup-score {

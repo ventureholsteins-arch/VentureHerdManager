@@ -99,6 +99,8 @@ const breedingNotes = ref('')
 const showPregCheckForm = ref(false)
 const selectedBreedingId = ref<number | null>(null)
 const pregnancyStatus = ref(1)
+const pregCheckSaving = ref(false)
+const pregCheckError = ref('')
 
 const showCalvingForm = ref(false)
 const calfSex = ref(0)
@@ -212,15 +214,12 @@ function openBreedingForm() {
 
 function openPregCheckForm() {
   closeAllForms()
+  pregCheckError.value = ''
+  pregnancyStatus.value = 1
+  const eligible = breedingEvents.value.find(event => event.pregnancyStatus === 0 || event.pregnancyStatus === 3)
+    ?? breedingEvents.value[0]
+  selectedBreedingId.value = eligible?.breedingEventId ?? null
   showPregCheckForm.value = true
-
-  if (
-    breedingEvents.value.length > 0 &&
-    selectedBreedingId.value === null
-  ) {
-    selectedBreedingId.value =
-      breedingEvents.value[0]!.breedingEventId
-  }
 }
 
 function openCalvingForm() {
@@ -394,7 +393,14 @@ async function saveBreeding() {
 }
 
 async function savePregCheck() {
-  if (selectedBreedingId.value === null) return
+  if (pregCheckSaving.value) return
+  if (selectedBreedingId.value === null) {
+    pregCheckError.value = 'Record a breeding or embryo transfer before adding a pregnancy check.'
+    return
+  }
+
+  pregCheckSaving.value = true
+  pregCheckError.value = ''
 
   try {
     await updatePregnancyStatus(
@@ -412,6 +418,9 @@ async function savePregCheck() {
       'Failed to save pregnancy check:',
       error
     )
+    pregCheckError.value = error instanceof Error ? error.message : 'Pregnancy check could not be saved. Try again.'
+  } finally {
+    pregCheckSaving.value = false
   }
 }
 
@@ -1038,6 +1047,9 @@ const scoreLabel = computed(() => {
         >
           <h3>Record Pregnancy Check</h3>
 
+          <p v-if="breedingEvents.length === 0" class="form-error">No breeding or embryo transfer is recorded for this animal yet.</p>
+          <p v-if="pregCheckError" class="form-error">{{ pregCheckError }}</p>
+
           <label>Breeding</label>
 
           <select v-model.number="selectedBreedingId">
@@ -1067,9 +1079,10 @@ const scoreLabel = computed(() => {
           <div class="form-actions">
             <button
               class="save"
+              :disabled="pregCheckSaving || selectedBreedingId === null"
               @click="savePregCheck"
             >
-              Save Preg Check
+              {{ pregCheckSaving ? 'Saving…' : 'Save Preg Check' }}
             </button>
 
             <button
@@ -1787,6 +1800,7 @@ const scoreLabel = computed(() => {
 .form-card h3 {
   margin-top: 0;
 }
+.form-error{margin:6px 0;padding:9px 10px;border:1px solid #fecaca;border-radius:7px;background:#fff1f2;color:#991b1b;font-weight:750}.form-actions .save:disabled{opacity:.55;cursor:not-allowed}
 
 .pedigree {
   display: grid;

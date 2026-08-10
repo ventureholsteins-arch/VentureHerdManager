@@ -148,6 +148,7 @@ const showBaggingSearch = ref('')
 const showBaggingShowName = ref('')
 const showBaggingShowDate = ref(new Date().toISOString().slice(0, 10))
 const showBaggingStartTime = ref(toLocalDateTimeInput(new Date()))
+const showBaggingPhoneNumbers = ref('')
 const showBaggingRows = ref<ShowBaggingRow[]>([])
 const achievementSearch = ref('')
 const baggingHistorySearch = ref('')
@@ -311,7 +312,7 @@ function loadData() {
   groupLists.value = parseStored<AnimalGroupList[]>(listKey, defaultLists.map(l => ({ ...l }))).map(l => ({ ...l, searchQuery: '' }))
   showStringRows.value = parseStored<ShowStringRow[]>(showStringKey, []).map(r => ({ ...r, feedRation: '' }))
   showBaggingRows.value = parseStored<ShowBaggingRow[]>(showBaggingKey, []).map(r => normalizeBaggingRow(r))
-  const baggingMeta = parseStored<{ showName: string; showDate: string; showStartTime: string }>(showBaggingMetaKey, {
+  const baggingMeta = parseStored<{ showName: string; showDate: string; showStartTime: string; phoneNumbers?: string }>(showBaggingMetaKey, {
     showName: '',
     showDate: new Date().toISOString().slice(0, 10),
     showStartTime: toLocalDateTimeInput(new Date())
@@ -319,6 +320,7 @@ function loadData() {
   showBaggingShowName.value = baggingMeta.showName
   showBaggingShowDate.value = baggingMeta.showDate
   showBaggingStartTime.value = baggingMeta.showStartTime
+  showBaggingPhoneNumbers.value = baggingMeta.phoneNumbers ?? ''
   checklistItems.value = parseStored<ChecklistItem[]>(checklistKey, defaultChecklist.map(i => ({ ...i })))
   embryoRecords.value = parseStored<EmbryoRecord[]>(embryoKey, []).map(e => ({
     ...e,
@@ -435,14 +437,15 @@ function saveData() {
   localStorage.setItem(showBaggingMetaKey, JSON.stringify({
     showName: showBaggingShowName.value,
     showDate: showBaggingShowDate.value,
-    showStartTime: showBaggingStartTime.value
+    showStartTime: showBaggingStartTime.value,
+    phoneNumbers: showBaggingPhoneNumbers.value
   }))
   localStorage.setItem(checklistKey, JSON.stringify(checklistItems.value))
   localStorage.setItem(embryoKey, JSON.stringify(embryoRecords.value))
   localStorage.setItem(achievementsKey, JSON.stringify(achievements.value))
 }
 
-watch([groupLists, showStringRows, showBaggingRows, showBaggingShowName, showBaggingShowDate, showBaggingStartTime, checklistItems, embryoRecords, achievements], saveData, { deep: true })
+watch([groupLists, showStringRows, showBaggingRows, showBaggingShowName, showBaggingShowDate, showBaggingStartTime, showBaggingPhoneNumbers, checklistItems, embryoRecords, achievements], saveData, { deep: true })
 
 const animalOptions = computed(() =>
   [...animals.value].sort((a, b) =>
@@ -754,9 +757,6 @@ function addShowBaggingRow(animal: Animal) {
   const existing = showBaggingRows.value.find(row => row.animalId === animal.animalId)
   if (existing) {
     baggingActionStatus.value = `${animal.barnName || animal.registeredName || `#${animal.animalId}`} is already in bagging rows.`
-    nextTick(() => {
-      document.getElementById('bagging-rows')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
     return
   }
 
@@ -778,9 +778,6 @@ function addShowBaggingRow(animal: Animal) {
   baggingActionStatus.value = `Added ${animal.barnName || animal.registeredName || `#${animal.animalId}`} to bagging rows.`
   showBaggingSearch.value = ''
 
-  nextTick(() => {
-    document.getElementById('bagging-rows')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
 }
 
 function addBlankBaggingRow() {
@@ -977,6 +974,27 @@ async function shareBaggingLink() {
     console.error('Failed to share bagging link:', error)
     baggingShareStatus.value = shareUrl
   }
+}
+
+function textBaggingTeam() {
+  const numbers = showBaggingPhoneNumbers.value
+    .split(/[;,\n]+/)
+    .map(value => value.replace(/[^\d+]/g, ''))
+    .filter(Boolean)
+  if (numbers.length === 0) {
+    baggingShareStatus.value = 'Enter at least one phone number for this show.'
+    return
+  }
+  const resolved = router.resolve({ name: 'reports', query: { tab: 'showBagging', group: showBaggingShowName.value.trim() || undefined } })
+  const shareUrl = `${window.location.origin}${resolved.href}`
+  const nextCow = showBaggingRowsSorted.value[0]
+  const message = [
+    showBaggingShowName.value.trim() || 'Show bagging plan',
+    nextCow ? `First cow: ${getBaggingRowAnimalLabel(nextCow)} at ${formatTime(nextCow.entryTime)}` : '',
+    shareUrl
+  ].filter(Boolean).join('\n')
+  window.location.href = `sms:${numbers.join(',')}?&body=${encodeURIComponent(message)}`
+  baggingShareStatus.value = `Text prepared for ${numbers.length} contact${numbers.length === 1 ? '' : 's'}.`
 }
 
 async function shareAchievementsLink() {
@@ -1418,7 +1436,7 @@ onMounted(async () => {
 
     <!-- ANALYTICS -->
     <section v-else-if="activeTab === 'analytics'" class="rp-panel">
-      <div class="rp-ph">
+      <div class="rp-ph bagging-sticky-head">
         <h2>Herd Analytics</h2>
         <button type="button" class="rp-add-btn" @click="loadAnalytics" :disabled="analyticsLoading">{{ analyticsLoading ? 'Loading…' : '↻ Refresh' }}</button>
       </div>
@@ -1839,6 +1857,7 @@ onMounted(async () => {
         <h2>Bagging Group Planner</h2>
         <div class="rp-ph-actions">
           <button type="button" class="rp-add-btn" @click="shareBaggingLink">Share Link</button>
+          <button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button>
           <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload Data</button>
           <button type="button" class="rp-add-btn" @click="addBlankBaggingRow">+ Blank Row</button>
         </div>
@@ -1849,6 +1868,8 @@ onMounted(async () => {
         No cows are loaded in this environment yet. Bagging add/search needs herd animals. Try Reload Data.
       </div>
 
+      <details class="bagging-section-details">
+        <summary>Show setup &amp; text contacts</summary>
       <div class="bagging-top-grid">
         <label>
           Bagging Group
@@ -1873,8 +1894,16 @@ onMounted(async () => {
           <span>{{ formatTime(showBaggingStartTime) }}</span>
           <small>{{ formatHoursDifference(showBaggingStartHoursFromNow) }}</small>
         </div>
+        <label class="bagging-phone-field">
+          Phone numbers for this show
+          <textarea v-model="showBaggingPhoneNumbers" rows="2" inputmode="tel" placeholder="Enter numbers separated by commas" />
+          <small>Saved on this device with this show plan.</small>
+        </label>
       </div>
+      </details>
 
+      <details class="bagging-section-details">
+        <summary>Add a cow</summary>
       <div class="bagging-search-panel">
         <div class="browse-label">Quick Cow Search</div>
         <p class="bagging-search-hint">Type at least 2 letters to find a cow, then tap + Bag.</p>
@@ -1897,7 +1926,10 @@ onMounted(async () => {
           <p v-else-if="showBaggingBrowseAnimals.length === 0" class="rp-empty-sm">No cows match this search.</p>
         </div>
       </div>
+      </details>
 
+      <details class="bagging-section-details">
+        <summary>Past bagging history</summary>
       <div class="bagging-history-panel">
         <div class="browse-label">Bagging History Search</div>
         <div class="browse-filters">
@@ -1930,12 +1962,13 @@ onMounted(async () => {
           </article>
         </div>
       </div>
+      </details>
 
       <div class="bagging-glance-panel">
         <div class="browse-label">Bagging At A Glance</div>
         <p class="bagging-search-hint">Each group is collapsed into one summary so you can glance and open only the row you need.</p>
         <div v-if="baggingRowGroups.length === 0" class="rp-empty-sm">No bagging rows yet. Add cows above and they will appear here.</div>
-        <details v-for="group in baggingRowGroups" :key="`bag-group-${group.name}`" class="bagging-group-details" open>
+        <details v-for="group in baggingRowGroups" :key="`bag-group-${group.name}`" class="bagging-group-details">
           <summary class="bagging-group-summary">
             <strong>{{ group.name }}</strong>
             <span>{{ group.records.length }} cow{{ group.records.length === 1 ? '' : 's' }}</span>
@@ -1963,7 +1996,7 @@ onMounted(async () => {
 
       <div id="bagging-rows" />
 
-      <details v-for="group in baggingRowGroups" :key="`group-edit-${group.name}`" class="bagging-edit-group" open>
+      <details v-for="group in baggingRowGroups" :key="`group-edit-${group.name}`" class="bagging-edit-group">
         <summary class="bagging-edit-summary">
           <strong>{{ group.name }}</strong>
           <span>{{ group.records.length }} editable row{{ group.records.length === 1 ? '' : 's' }}</span>
@@ -2540,6 +2573,14 @@ textarea { min-height: 72px; resize: vertical; }
 
 /* show bagging */
 .bagging-top-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.bagging-section-details { border:1px solid #d9e3dc;border-radius:10px;background:#fff;margin-bottom:10px;overflow:hidden; }
+.bagging-section-details>summary { cursor:pointer;padding:13px 14px;font-weight:900;color:#17331f;background:#f5faf6; }
+.bagging-section-details[open]>summary { border-bottom:1px solid #d9e3dc; }
+.bagging-section-details>.bagging-top-grid,.bagging-section-details>.bagging-search-panel,.bagging-section-details>.bagging-history-panel { margin:0;padding:12px;border:0;border-radius:0; }
+.bagging-phone-field { grid-column:1/-1; }
+.bagging-phone-field textarea { width:100%;box-sizing:border-box;min-height:54px; }
+.bagging-phone-field small { text-transform:none;letter-spacing:0;color:#64748b;font-weight:600; }
+.bagging-sticky-head { position:sticky;top:4px;z-index:18;background:#fff;padding:8px;border:1px solid #d9e3dc;border-radius:10px; }
 .bagging-summary-card { border: 1px solid #d9e3dc; border-radius: 8px; background: #f8fbf8; padding: 10px 12px; display: grid; gap: 4px; align-content: center; }
 .bagging-summary-card strong { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: #31572c; }
 .bagging-summary-card span { font-size: 1rem; font-weight: 900; color: #0f1f16; }
@@ -2660,6 +2701,8 @@ textarea { min-height: 72px; resize: vertical; }
   .bagging-udder-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .bagging-card-hd { flex-direction: column; }
   .bagging-card-actions { width: 100%; justify-content: space-between; }
+  .bagging-sticky-head { align-items:stretch; }
+  .bagging-sticky-head .rp-ph-actions { display:grid;grid-template-columns:repeat(2,minmax(0,1fr)); }
   .bagging-search-tools { flex-direction: column; align-items: stretch; }
   .bagging-glance-grid { grid-template-columns: 1fr; }
   .udder-quarter { min-height: 120px; padding: 10px; }

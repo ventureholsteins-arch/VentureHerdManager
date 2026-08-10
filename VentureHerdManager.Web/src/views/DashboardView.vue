@@ -1630,8 +1630,9 @@ onMounted(() => {
 .animal-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 14px;
-  margin-top: 16px;
+  gap: 10px;
+  margin-top: 10px;
+  align-items: start;
 }
 
 .player-card {
@@ -1641,6 +1642,7 @@ onMounted(() => {
   border: 1.5px solid #d8dfd9;
   border-radius: 10px;
   overflow: hidden;
+  height: fit-content;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s;
 }
 
@@ -1659,7 +1661,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 12px;
+  padding: 5px 10px;
   background: #f4f7f4;
   border-bottom: 1px solid #e0e8e1;
 }
@@ -1718,8 +1720,8 @@ onMounted(() => {
 .badge-stage-5 { background: #ffedd5; color: #c2410c; }
 
 .player-card-body {
-  flex: 1;
-  padding: 14px 14px 10px;
+  flex: none;
+  padding: 9px 11px 7px;
   background: transparent;
   border: none;
   text-align: left;
@@ -1732,7 +1734,7 @@ onMounted(() => {
 }
 
 .player-name {
-  font-size: 1.2rem;
+  font-size: 1.08rem;
   font-weight: 900;
   color: #0f1f16;
   letter-spacing: -0.02em;
@@ -1769,7 +1771,7 @@ onMounted(() => {
 .stat-rail {
   display: flex;
   gap: 0;
-  margin-top: 12px;
+  margin-top: 7px;
   border-top: 1px solid #e8efe9;
   border-bottom: 1px solid #e8efe9;
 }
@@ -1779,7 +1781,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 4px 6px;
+  padding: 5px 3px 4px;
   border-right: 1px solid #e8efe9;
 }
 
@@ -1833,7 +1835,8 @@ onMounted(() => {
   font-size: 0.75rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 10px 6px;
+  min-height: 42px;
+  padding: 6px 4px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -1982,11 +1985,19 @@ onMounted(() => {
   }
 
   .player-card-actions {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 
   .pca-btn {
-    border-bottom: 1px solid #1e2a30;
+    border-bottom: 0;
+    flex-direction: column;
+    gap: 1px;
+    font-size: .64rem;
+    min-width: 0;
   }
+
+  .animal-grid { grid-template-columns: 1fr; gap: 8px; }
+  .player-meta { margin-top: 2px; }
+  .banner-reg { display: none; }
 }
 </style>

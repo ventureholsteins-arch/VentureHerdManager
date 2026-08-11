@@ -127,7 +127,6 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         var keep = await context.Animals.SingleOrDefaultAsync(value => value.AnimalId == request.KeepAnimalId, ct);
         var remove = await context.Animals.SingleOrDefaultAsync(value => value.AnimalId == request.RemoveAnimalId, ct);
         if (keep == null || remove == null) return NotFound("One of the animal cards no longer exists.");
-        await using var transaction = await context.Database.BeginTransactionAsync(ct);
         keep.BarnName ??= remove.BarnName; keep.RegisteredName ??= remove.RegisteredName; keep.RegistrationNumber ??= remove.RegistrationNumber;
         keep.BirthDate ??= remove.BirthDate; keep.Breed ??= remove.Breed; keep.SireName ??= remove.SireName; keep.DamName ??= remove.DamName;
         keep.ProfilePictureUrl ??= remove.ProfilePictureUrl; keep.Notes = string.Join("\n", new[] { keep.Notes, remove.Notes }.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct());
@@ -162,7 +161,7 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         remove.UpdatedAt = DateTime.UtcNow;
         remove.UpdatedBy = "Audit merge archive";
         remove.Notes = string.Join("\n", new[] { remove.Notes, $"Duplicate card archived after its records were merged into animal #{keep.AnimalId} ({keep.DisplayName}) on {DateTime.UtcNow:yyyy-MM-dd}." }.Where(value => !string.IsNullOrWhiteSpace(value)));
-        await context.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+        await context.SaveChangesAsync(ct);
         return Ok(new { keptAnimalId = keep.AnimalId, removedAnimalId = remove.AnimalId });
         }
         catch (Exception exception)

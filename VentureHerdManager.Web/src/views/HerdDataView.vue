@@ -229,12 +229,22 @@ const filteredCombined = computed(() => (analytics.value?.combined ?? []).filter
 const linearRows = computed(() => [...(analytics.value?.genomic ?? [])].sort((a: any, b: any) => (b.typeScore ?? -99) - (a.typeScore ?? -99)))
 const milkRows = computed(() => analytics.value?.milk ?? [])
 const milkHistory = computed(() => analytics.value?.milkHistory ?? [])
+const latestLifetimeRows = computed(() => {
+  const seen = new Set<number>()
+  return (analytics.value?.lifetimeProduction ?? []).filter((row: any) => {
+    if (seen.has(row.animalId)) return false
+    seen.add(row.animalId); return true
+  })
+})
 const latestMilkTrend = computed(() => { const rows = milkHistory.value; if (rows.length < 2) return null; const current = rows.at(-1); const prior = rows.at(-2); return { milk: (current.averageMilk ?? 0) - (prior.averageMilk ?? 0), fat: current.averageFatPercent != null && prior.averageFatPercent != null ? current.averageFatPercent - prior.averageFatPercent : 0, protein: current.averageProteinPercent != null && prior.averageProteinPercent != null ? current.averageProteinPercent - prior.averageProteinPercent : 0 } })
 const milkLeaderBoards = computed(() => [
-  { key: 'milk', label: 'Milk Volume', unit: ' lb', percentKey: '' },
-  { key: 'fatPounds', label: 'Fat Production', unit: ' lb', percentKey: 'fatPercent' },
-  { key: 'proteinPounds', label: 'Protein Production', unit: ' lb', percentKey: 'proteinPercent' }
-].map(board => ({ ...board, leaders: [...milkRows.value].filter((row: any) => row[board.key] != null).sort((a: any, b: any) => b[board.key] - a[board.key]).slice(0, 5) })))
+  { key: 'milk', label: 'Current Milk', unit: ' lb', lifetime: false },
+  { key: 'fatPounds', label: 'Current Fat Production', unit: ' lb', lifetime: false },
+  { key: 'proteinPounds', label: 'Current Protein Production', unit: ' lb', lifetime: false },
+  { key: 'lifetimeMilk', label: 'Lifetime Milk', unit: ' lb', lifetime: true },
+  { key: 'lifetimeFat', label: 'Lifetime Fat', unit: ' lb', lifetime: true },
+  { key: 'lifetimeProtein', label: 'Lifetime Protein', unit: ' lb', lifetime: true }
+].map(board => ({ ...board, leaders: [...(board.lifetime ? latestLifetimeRows.value : milkRows.value)].filter((row: any) => row[board.key] != null).sort((a: any, b: any) => b[board.key] - a[board.key]).slice(0, 5) })))
 const sireLeaderBoards = computed(() => [
   { key: 'averageMilk', label: 'Milk Sires', unit: ' lb' },
   { key: 'averageFatPounds', label: 'Fat Production Sires', unit: ' lb' },

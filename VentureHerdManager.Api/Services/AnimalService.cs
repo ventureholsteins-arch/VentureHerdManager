@@ -231,6 +231,9 @@ public class AnimalService
         existingAnimal.AnimalStatus =
             updatedAnimal.AnimalStatus;
 
+        existingAnimal.HerdLocation =
+            updatedAnimal.HerdLocation;
+
         existingAnimal.Breed =
             CleanOptionalText(updatedAnimal.Breed);
 
@@ -679,6 +682,29 @@ public class AnimalService
         return string.IsNullOrWhiteSpace(value)
             ? null
             : value.Trim();
+    }
+
+    public Animal? SetHerdLocation(
+        int animalId,
+        HerdLocation herdLocation,
+        string? updatedBy)
+    {
+        var animal = _context.Animals.FirstOrDefault(item => item.AnimalId == animalId);
+        if (animal == null)
+        {
+            return null;
+        }
+
+        if (animal.AnimalStatus != AnimalStatus.Active)
+        {
+            throw new InvalidOperationException("Only active animals can be moved between herd locations.");
+        }
+
+        animal.HerdLocation = herdLocation;
+        animal.UpdatedBy = CleanOptionalText(updatedBy);
+        animal.UpdatedAt = DateTime.UtcNow;
+        _context.SaveChanges();
+        return animal;
     }
 
     private static string? CleanSireText(string? value)

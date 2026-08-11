@@ -26,6 +26,8 @@ public class Animal
 
     public AnimalStatus AnimalStatus { get; set; } = AnimalStatus.Active;
 
+    public HerdLocation HerdLocation { get; set; } = HerdLocation.Home;
+
     [MaxLength(100)]
     public string? Breed { get; set; }
 
@@ -152,4 +154,10 @@ public enum AnimalStatus
     Active = 0,
     Sold = 1,
     Deceased = 2
+}
+
+public enum HerdLocation
+{
+    Home = 0,
+    Muellers = 1
 }

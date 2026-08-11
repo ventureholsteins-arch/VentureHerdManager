@@ -76,6 +76,7 @@ interface DashboardCachePayload {
 const searchQuery = ref('')
 const stageFilter = ref<number | null>(null)
 const statusFilter = ref<number | null>(0)
+const locationFilter = ref<number | null>(null)
 const pregnancyFilter = ref<number | null>(null)
 const favoriteOnly = ref(false)
 const latestPregnancyStatuses = ref<Record<number, number>>({})
@@ -107,7 +108,8 @@ const animalCounts = computed(() => ({
   milking: animals.value.filter(animal => animal.animalStage === 3).length,
   dry: animals.value.filter(animal => animal.animalStage === 4).length,
   heifers: animals.value.filter(animal => animal.animalStage === 2).length,
-  calves: animals.value.filter(animal => animal.animalStage === 1).length
+  calves: animals.value.filter(animal => animal.animalStage === 1).length,
+  muellers: animals.value.filter(animal => (animal.animalStatus ?? 0) === 0 && animal.herdLocation === 1).length
 }))
 
 function dashboardAnimalName(animal: Animal): string {
@@ -124,6 +126,10 @@ const filteredAnimals = computed(() => {
 
   if (statusFilter.value !== null) {
     result = result.filter(animal => (animal.animalStatus ?? 0) === statusFilter.value)
+  }
+
+  if (locationFilter.value !== null) {
+    result = result.filter(animal => (animal.herdLocation ?? 0) === locationFilter.value)
   }
 
   if (favoriteOnly.value) {
@@ -667,6 +673,15 @@ onMounted(() => {
               </label>
 
               <label>
+                Location
+                <select v-model.number="locationFilter">
+                  <option :value="null">All locations</option>
+                  <option :value="0">Home Herd</option>
+                  <option :value="1">At Mueller's ({{ animalCounts.muellers }})</option>
+                </select>
+              </label>
+
+              <label>
                 Pregnancy
                 <select v-model.number="pregnancyFilter">
                   <option :value="null">Any</option>
@@ -705,6 +720,7 @@ onMounted(() => {
               <div class="banner-left">
                 <span class="card-badge" :class="`badge-stage-${animal.animalStage}`">{{ getStageLabel(animal.animalStage) }}</span>
                 <span v-if="animal.isFavorite" class="fav-star" title="Favorite">★</span>
+                <span v-if="animal.herdLocation === 1" class="card-badge">AT MUELLER'S</span>
               </div>
               <span class="banner-reg">{{ animal.registrationNumber || '' }}</span>
               <label class="sale-report-toggle" @click.stop>

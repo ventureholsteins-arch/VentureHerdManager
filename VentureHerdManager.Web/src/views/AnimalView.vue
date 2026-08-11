@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
-import { getAnimal, markAnimalSold, restoreAnimal } from '../api/animals'
+import { getAnimal, markAnimalSold, restoreAnimal, setAnimalLocation } from '../api/animals'
 import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
@@ -287,6 +287,17 @@ async function saveSold() {
 async function undoSold() {
   if (!animal.value || !window.confirm(`Restore ${animal.value.barnName || animal.value.registeredName || 'this animal'} to the active herd?`)) return
   try { animal.value = await restoreAnimal(animalId.value) } catch (error) { alert(error instanceof Error ? error.message : 'Restore failed.') }
+}
+
+async function changeHerdLocation(herdLocation: number) {
+  if (!animal.value) return
+  const destination = herdLocation === 1 ? "Mueller's" : 'the home herd'
+  if (!window.confirm(`Move ${animal.value.barnName || animal.value.registeredName || 'this animal'} to ${destination}?`)) return
+  try {
+    animal.value = await setAnimalLocation(animal.value.animalId, herdLocation)
+  } catch (error) {
+    alert(error instanceof Error ? error.message : 'Herd location could not be updated.')
+  }
 }
 
 function openPendingAction() {
@@ -915,6 +926,7 @@ const scoreLabel = computed(() => {
         </div>
       </section>
       <section v-if="animal.animalStatus === 1" class="sold-banner"><div><strong>SOLD - ARCHIVED</strong><span>{{ animal.soldDate ? new Date(animal.soldDate).toLocaleDateString() : 'Sold animal' }} · All records are retained</span><p v-if="animal.soldNotes">{{ animal.soldNotes }}</p></div><button @click="undoSold">Restore to active herd</button></section>
+      <section v-if="animal.animalStatus === 0 && animal.herdLocation === 1" class="sold-banner muellers-banner"><div><strong>ACTIVE AT MUELLER'S</strong><span>Still part of the active herd · All records and reminders continue</span></div><button @click="changeHerdLocation(0)">Return to Home Herd</button></section>
 
       <section v-if="latestMilkRecord" class="latest-milk-strip">
         <div class="milk-strip-title"><span>LATEST MILK TEST</span><strong>{{ latestMilkRecord.reportDate }}</strong></div>
@@ -984,6 +996,7 @@ const scoreLabel = computed(() => {
             <span>Notes</span>
           </button>
           <button v-if="animal.animalStatus !== 1 && animal.sex === 1" class="sold-action" @click="openSoldForm"><span class="sold-icon">$</span><span>Mark Sold</span></button>
+          <button v-if="animal.animalStatus === 0 && animal.sex === 1" class="muellers-action" @click="changeHerdLocation(animal.herdLocation === 1 ? 0 : 1)"><span class="sold-icon">M</span><span>{{ animal.herdLocation === 1 ? 'Return Home' : "Move to Mueller's" }}</span></button>
         </div>
 
         <div v-if="showSoldForm" class="form-card sold-form"><h3>Mark Animal Sold</h3><p>This removes her from the active herd but keeps her card, timeline, milk, genomics, photos, pedigree, embryos, and every other record.</p><p v-if="soldError" class="form-error">{{ soldError }}</p><label>Sold date</label><input v-model="soldDate" type="date"><label>Buyer / sale notes (optional)</label><textarea v-model="soldNotes" rows="3" placeholder="Buyer, sale price, destination, reason, or other notes"></textarea><div class="form-actions"><button class="save sold-confirm" :disabled="soldSaving || !soldDate" @click="saveSold">{{ soldSaving ? 'Saving…' : 'Confirm Sold - Keep All Data' }}</button><button class="cancel" @click="showSoldForm = false">Cancel</button></div></div>

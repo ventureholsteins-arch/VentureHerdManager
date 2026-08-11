@@ -173,3 +173,9 @@ export async function restoreAnimal(animalId: number): Promise<Animal> {
   if (!response.ok) throw new Error(await response.text() || 'Failed to restore animal')
   return response.json()
 }
+
+export async function setAnimalLocation(animalId: number, herdLocation: number): Promise<Animal> {
+  const response = await fetch(`${API_BASE}/Animals/${animalId}/location`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ herdLocation, updatedBy: 'Animal card' }) })
+  if (!response.ok) throw new Error(await response.text() || 'Failed to update herd location')
+  return response.json()
+}

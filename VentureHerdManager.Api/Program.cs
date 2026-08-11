@@ -428,6 +428,7 @@ static async Task InitializeDatabaseAsync(
             ("DeceasedDate", "DATETIME2 NULL"),
             ("DeceasedNotes", "NVARCHAR(2000) NULL"),
             ("IsFavorite", "BIT NOT NULL CONSTRAINT [DF_Animals_IsFavorite] DEFAULT 0"),
+            ("HerdLocation", "INT NOT NULL CONSTRAINT [DF_Animals_HerdLocation] DEFAULT 0"),
             ("ProfilePictureUrl", "NVARCHAR(1000) NULL"),
             ("SoldDate", "DATETIME2 NULL"),
             ("SoldNotes", "NVARCHAR(2000) NULL"),

@@ -129,6 +129,25 @@ public class AnimalsController : ControllerBase
         return Ok(animal);
     }
 
+    [HttpPut("{animalId:int}/location")]
+    public IActionResult SetHerdLocation(
+        int animalId,
+        [FromBody] SetHerdLocationRequest request)
+    {
+        try
+        {
+            var animal = _animalService.SetHerdLocation(
+                animalId,
+                request.HerdLocation,
+                request.UpdatedBy);
+            return animal == null ? NotFound("Animal not found.") : Ok(animal);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
+    }
+
     [HttpPut("{animalId:int}/archive/deceased")]
     public IActionResult ArchiveAsDeceased(
         int animalId,
@@ -193,4 +212,10 @@ public class AnimalsController : ControllerBase
 
         return NoContent();
     }
+}
+
+public sealed class SetHerdLocationRequest
+{
+    public HerdLocation HerdLocation { get; set; }
+    public string? UpdatedBy { get; set; }
 }

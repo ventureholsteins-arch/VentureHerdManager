@@ -141,6 +141,17 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         foreach (var value in await context.EmbryoRecords.Where(value => value.DonorAnimalId == remove.AnimalId).ToListAsync(ct)) value.DonorAnimalId = keep.AnimalId;
         foreach (var value in await context.AnimalDataRecords.Where(value => value.AnimalId == remove.AnimalId).ToListAsync(ct)) value.AnimalId = keep.AnimalId;
         foreach (var value in await context.AnimalIdentityMappings.Where(value => value.AnimalId == remove.AnimalId).ToListAsync(ct)) value.AnimalId = keep.AnimalId;
+        var keptLifetimeByDate = await context.Set<LifetimeProductionSnapshot>().Where(value => value.AnimalId == keep.AnimalId).ToDictionaryAsync(value => value.ReportDate, ct);
+        foreach (var value in await context.Set<LifetimeProductionSnapshot>().Where(value => value.AnimalId == remove.AnimalId).ToListAsync(ct))
+        {
+            if (keptLifetimeByDate.TryGetValue(value.ReportDate, out var existing))
+            {
+                existing.LifetimeMilk ??= value.LifetimeMilk; existing.LifetimeFat ??= value.LifetimeFat; existing.LifetimeProtein ??= value.LifetimeProtein; existing.Lactations ??= value.Lactations;
+                context.Remove(value);
+            }
+            else { value.AnimalId = keep.AnimalId; keptLifetimeByDate[value.ReportDate] = value; }
+        }
+        await context.Database.ExecuteSqlInterpolatedAsync($"IF OBJECT_ID(N'[dbo].[AnimalProductionSnapshots]', N'U') IS NOT NULL UPDATE [dbo].[AnimalProductionSnapshots] SET [AnimalId] = {keep.AnimalId} WHERE [AnimalId] = {remove.AnimalId};", ct);
         context.Animals.Remove(remove); await context.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
         return Ok(new { keptAnimalId = keep.AnimalId, removedAnimalId = remove.AnimalId });
     }

@@ -1,7 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace VentureHerdManager.Api.Models;
 
+[Table("LifetimeProductionSnapshots")]
 public sealed class LifetimeProductionSnapshot
 {
     public int LifetimeProductionSnapshotId { get; set; }

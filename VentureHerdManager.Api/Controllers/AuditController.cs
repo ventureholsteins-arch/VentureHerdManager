@@ -170,6 +170,61 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         }
     }
 
+    [HttpPost("purge-confirmed-obsolete-cards")]
+    public async Task<IActionResult> PurgeConfirmedObsoleteCards(CancellationToken ct)
+    {
+        var denied = Guard(); if (denied != null) return denied;
+        var expected = new[]
+        {
+            new { Id = 35, Name = "Cole", Sire = "Stan", Dam = "Cade" },
+            new { Id = 75, Name = "P (Unnamed)", Sire = "Eye Candy", Dam = "Seashore" },
+            new { Id = 71, Name = "Sobra Jet", Sire = "Master", Dam = "Suzie" }
+        };
+        var cards = await context.Animals.Where(animal => expected.Select(value => value.Id).Contains(animal.AnimalId)).ToListAsync(ct);
+        foreach (var target in expected)
+        {
+            var card = cards.SingleOrDefault(animal => animal.AnimalId == target.Id);
+            if (card == null || card.BarnName != target.Name || card.SireName != target.Sire || card.DamName != target.Dam)
+                return Conflict($"Card #{target.Id} does not exactly match the approved cleanup target. Nothing was deleted.");
+        }
+
+        await using var transaction = await context.Database.BeginTransactionAsync(ct);
+        try
+        {
+            foreach (var target in expected)
+            {
+                var id = target.Id;
+                await context.Database.ExecuteSqlInterpolatedAsync($@"
+                    UPDATE [Animals] SET [DamId] = NULL WHERE [DamId] = {id};
+                    UPDATE [Animals] SET [SireId] = NULL WHERE [SireId] = {id};
+                    UPDATE [CalvingEvents] SET [CalfAnimalId] = NULL WHERE [CalfAnimalId] = {id};
+                    DELETE FROM [EmbryoRecords] WHERE [DonorAnimalId] = {id} OR [RecipientAnimalId] = {id};
+                    DELETE FROM [ShowAchievements] WHERE [AnimalId] = {id};
+                    DELETE FROM [AnimalIdentityMappings] WHERE [AnimalId] = {id};
+                    DELETE FROM [LifetimeProductionSnapshots] WHERE [AnimalId] = {id};
+                    DELETE FROM [AnimalDataRecords] WHERE [AnimalId] = {id};
+                    DELETE FROM [HeatEvents] WHERE [AnimalId] = {id};
+                    DELETE FROM [BreedingEvents] WHERE [AnimalId] = {id};
+                    DELETE FROM [DryOffEvents] WHERE [AnimalId] = {id};
+                    DELETE FROM [LutalyseEvents] WHERE [AnimalId] = {id};
+                    DELETE FROM [ClassificationRecords] WHERE [AnimalId] = {id};
+                    DELETE FROM [AnimalNotes] WHERE [AnimalId] = {id};
+                    DELETE FROM [AnimalPhotos] WHERE [AnimalId] = {id};
+                    DELETE FROM [CalvingEvents] WHERE [AnimalId] = {id};
+                    IF OBJECT_ID(N'[dbo].[AnimalProductionSnapshots]', N'U') IS NOT NULL
+                        DELETE FROM [dbo].[AnimalProductionSnapshots] WHERE [AnimalId] = {id};
+                    DELETE FROM [Animals] WHERE [AnimalId] = {id};", ct);
+            }
+            await transaction.CommitAsync(ct);
+            return Ok(new { deletedAnimalIds = expected.Select(value => value.Id).ToArray() });
+        }
+        catch (Exception exception)
+        {
+            await transaction.RollbackAsync(ct);
+            return Problem(title: "The obsolete cards were not deleted.", detail: exception.GetBaseException().Message, statusCode: 500);
+        }
+    }
+
     [HttpDelete("event/{eventType}/{eventId:int}")]
     public async Task<IActionResult> RemoveEvent(string eventType, int eventId, CancellationToken ct)
     {

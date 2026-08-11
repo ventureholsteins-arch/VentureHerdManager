@@ -26,6 +26,7 @@ import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 import RetroIcon from '../components/RetroIcon.vue'
 import { getHerdDataAnalytics } from '../api/herdData'
+import { getLatestBaggingSchedule, saveBaggingSchedule } from '../api/baggingSchedules'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'showBagging' | 'lists' | 'checklist' | 'pcdartImport' | 'achievements'
 type ReportCategory = 'decisions' | 'embryos' | 'shows' | 'data'
@@ -202,6 +203,8 @@ const pcdartApplySuggested = ref(true)
 const embryoLoadError = ref('')
 const embryoActionId = ref<number | null>(null)
 const baggingActionStatus = ref('')
+const baggingScheduleId = ref<number | undefined>()
+const baggingSaving = ref(false)
 const reportsLoadError = ref('')
 
 const listKey = 'venture-herd-lists-v2'
@@ -970,46 +973,41 @@ async function saveBaggingRow(row: ShowBaggingRow) {
     return
   }
 
-  const achievementPayload = {
-    animalId: row.animalId,
-    showName: row.showName?.trim() || showBaggingShowName.value.trim() || 'Show Bagging',
-    showDate: row.showDate || showBaggingShowDate.value || new Date().toISOString().slice(0, 10),
-    bagged: baggingSummary(row),
-    placed: row.wasSuccessful ? 'Successful' : 'Not Successful',
-    notes: baggingDetailNotes(row)
-  }
+  await saveWholeBaggingPlan()
+}
 
+async function saveWholeBaggingPlan() {
+  if (baggingSaving.value) return
+  if (!showBaggingRows.value.length) { alert('Add at least one cow first.'); return }
+  const invalid = showBaggingRows.value.find(row => !row.animalId || !row.entryTime || Number.isNaN(new Date(row.entryTime).getTime()))
+  if (invalid) { alert(`Choose a cow and show time for ${getBaggingRowAnimalLabel(invalid)}.`); return }
+  baggingSaving.value = true
   try {
-    if (row.showAchievementId) {
-      await updateAchievement(row.showAchievementId, achievementPayload)
-    } else {
-      const created = await createAchievement(achievementPayload)
-      row.showAchievementId = created.showAchievementId
-    }
-
-    const existingIndex = achievements.value.findIndex(record => record.showAchievementId === row.showAchievementId)
-    const mirroredRecord: AchievementRecord = {
-      id: row.showAchievementId ?? nextAchievementId.value++,
-      animalId: row.animalId,
-      showName: achievementPayload.showName,
-      showDate: achievementPayload.showDate,
-      bagged: achievementPayload.bagged,
-      placed: achievementPayload.placed,
-      notes: achievementPayload.notes,
-      showAchievementId: row.showAchievementId
-    }
-
-    if (existingIndex === -1) {
-      achievements.value.unshift(mirroredRecord)
-    } else {
-      achievements.value[existingIndex] = mirroredRecord
-    }
-
-    baggingActionStatus.value = `${getBaggingRowAnimalLabel(row)} bagging schedule saved.`
+    const saved = await saveBaggingSchedule({
+      sharedBaggingScheduleId: baggingScheduleId.value,
+      showName: showBaggingShowName.value.trim() || 'Show Bagging',
+      showDate: showBaggingShowDate.value || new Date().toISOString().slice(0, 10),
+      scheduleJson: JSON.stringify({ showStartTime: showBaggingStartTime.value, phoneNumbers: showBaggingPhoneNumbers.value, rows: showBaggingRows.value })
+    })
+    baggingScheduleId.value = saved.sharedBaggingScheduleId
+    baggingActionStatus.value = `Saved ${showBaggingRows.value.length} cow${showBaggingRows.value.length === 1 ? '' : 's'} together.`
   } catch (error) {
-    console.error('Failed to save bagging row:', error)
-    alert('Failed to save bagging record.')
-  }
+    console.error('Failed to save bagging plan:', error)
+    alert(error instanceof Error ? error.message : 'Bagging plan could not be saved.')
+  } finally { baggingSaving.value = false }
+}
+
+async function loadSavedBaggingPlan() {
+  const saved = await getLatestBaggingSchedule()
+  if (!saved) return
+  baggingScheduleId.value = saved.sharedBaggingScheduleId
+  if (showBaggingRows.value.length) return
+  const plan = JSON.parse(saved.scheduleJson)
+  showBaggingShowName.value = saved.showName
+  showBaggingShowDate.value = saved.showDate
+  showBaggingStartTime.value = plan.showStartTime || showBaggingStartTime.value
+  showBaggingPhoneNumbers.value = plan.phoneNumbers || ''
+  showBaggingRows.value = (plan.rows || []).map((row: ShowBaggingRow) => normalizeBaggingRow(row))
 }
 
 async function shareShowStringLink() {
@@ -1365,6 +1363,8 @@ async function reloadReportsData() {
 
   try {
     animals.value = await getAnimals()
+    const activeIds = new Set(animals.value.map(animal => animal.animalId))
+    showBaggingRows.value = showBaggingRows.value.filter(row => !row.animalId || activeIds.has(row.animalId))
   } catch (error) {
     console.error('Failed to load animals during refresh:', error)
     const message = error instanceof Error
@@ -1375,6 +1375,7 @@ async function reloadReportsData() {
   }
 
   const results = await Promise.allSettled([
+    loadSavedBaggingPlan(),
     loadRemoteEmbryos(),
     loadRemoteAchievements(),
     loadEmbryoImplants(),
@@ -1986,6 +1987,7 @@ onMounted(async () => {
       <div class="rp-ph">
         <h2>Show Bagging</h2>
         <div class="rp-ph-actions">
+          <button type="button" class="rp-add-btn bagging-primary-save" :disabled="baggingSaving" @click="saveWholeBaggingPlan">{{ baggingSaving ? 'Saving…' : 'Save Whole Show' }}</button>
           <button type="button" class="rp-add-btn" @click="shareBaggingLink">Share Link</button>
           <button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button>
           <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload Data</button>
@@ -2132,11 +2134,12 @@ onMounted(async () => {
           <strong>All cows at a glance</strong>
           <span>{{ baggingCowsByShowTime.length }} cow{{ baggingCowsByShowTime.length === 1 ? '' : 's' }}</span>
         </div>
-        <button v-for="row in baggingCowsByShowTime" :key="`overview-${row.id}`" type="button" @click="jumpToBaggingRow(row.id)">
+        <article v-for="row in baggingCowsByShowTime" :key="`overview-${row.id}`" class="bagging-cow-quick-row">
           <strong>{{ getBaggingRowAnimalLabel(row) }}</strong>
-          <span class="cow-show-clock">{{ formatTime(row.entryTime) }}</span>
           <span>{{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</span>
-        </button>
+          <input v-model="row.entryTime" type="datetime-local" aria-label="Cow show time" />
+          <button type="button" @click="jumpToBaggingRow(row.id)">Edit quarters</button>
+        </article>
       </section>
 
       <section v-if="baggingTimeline.length > 0" class="bagging-timeline">
@@ -2173,7 +2176,6 @@ onMounted(async () => {
                 <div class="bagging-cow-line">{{ getBaggingRowAnimalLabel(row) }}</div>
               </div>
               <div class="bagging-card-actions">
-                <button type="button" class="rp-add-btn emb-action-btn" @click="saveBaggingRow(row)">Save Bagging</button>
                 <button type="button" class="rp-x" @click="removeShowBaggingRow(row.id)">✕</button>
               </div>
             </div>
@@ -2239,7 +2241,7 @@ onMounted(async () => {
               Notes / what happened
               <textarea v-model="row.notes" rows="3" placeholder="Milk letdown, timing adjustments, success notes, problems..." />
             </label>
-            <button type="button" class="bagging-save-bottom" @click="saveBaggingRow(row)">Save {{ getBaggingRowAnimalLabel(row) }}</button>
+            <button type="button" class="bagging-save-bottom" @click="saveWholeBaggingPlan">Save Whole Show</button>
           </div>
         </div>
       </details>
@@ -2785,9 +2787,12 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-show-anchor>div span { font-size:.82rem; }
 .bagging-cow-overview { border:2px solid #31572c;border-radius:12px;background:#fff;margin:14px 0;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px; }
 .bagging-cow-overview .bagging-timeline-heading { grid-column:1/-1; }
-.bagging-cow-overview>button { min-height:68px;border:1px solid #a9bbaa;border-radius:9px;background:#f8fbf8;color:#0f1f16;padding:9px;text-align:left;display:grid;grid-template-columns:1fr auto;gap:3px 8px;cursor:pointer; }
-.bagging-cow-overview>button strong { font-size:1rem; }
-.bagging-cow-overview>button span:last-child { grid-column:1/-1;color:#31572c;font-size:.82rem;font-weight:850; }
+.bagging-cow-quick-row { min-width:0;border:1px solid #a9bbaa;border-radius:9px;background:#f8fbf8;padding:9px;display:grid;grid-template-columns:1fr auto;gap:7px; }
+.bagging-cow-quick-row strong { font-size:1rem; }
+.bagging-cow-quick-row>span { color:#31572c;font-size:.78rem;font-weight:850;text-align:right; }
+.bagging-cow-quick-row input { grid-column:1/-1;width:100%;min-height:46px;box-sizing:border-box;border:1px solid #8ea391;border-radius:8px;padding:7px;background:#fff;color:#0f1f16;font-size:.95rem; }
+.bagging-cow-quick-row button { grid-column:1/-1;min-height:38px;border:1px solid #31572c;border-radius:8px;background:#eef6ef;color:#17331f;font-weight:900; }
+.bagging-primary-save { background:#17331f!important;color:#fff!important;border-color:#17331f!important; }
 .cow-show-clock { font-size:1rem;font-weight:950;color:#17331f; }
 .bagging-timeline { border:2px solid #31572c;border-radius:12px;background:#fff;margin:14px 0;padding:12px;display:grid;gap:10px; }
 .bagging-timeline-heading { display:flex;justify-content:space-between;align-items:center;gap:10px;color:#17331f;font-size:1.05rem; }

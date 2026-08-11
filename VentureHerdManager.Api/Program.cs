@@ -531,6 +531,28 @@ static async Task InitializeDatabaseAsync(
         Console.WriteLine($"ShowAchievements table warning: {ex.Message}");
     }
 
+    try
+    {
+        await context.Database.ExecuteSqlRawAsync(@"
+            IF OBJECT_ID(N'dbo.SharedBaggingSchedules', N'U') IS NULL
+            BEGIN
+                CREATE TABLE [SharedBaggingSchedules] (
+                    [SharedBaggingScheduleId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_SharedBaggingSchedules] PRIMARY KEY,
+                    [PublicToken] NVARCHAR(64) NOT NULL,
+                    [ShowName] NVARCHAR(200) NOT NULL,
+                    [ShowDate] DATE NOT NULL,
+                    [ScheduleJson] NVARCHAR(MAX) NOT NULL,
+                    [IsActive] BIT NOT NULL CONSTRAINT [DF_SharedBaggingSchedules_IsActive] DEFAULT 1,
+                    [CreatedAt] DATETIME2 NOT NULL CONSTRAINT [DF_SharedBaggingSchedules_CreatedAt] DEFAULT SYSUTCDATETIME(),
+                    [UpdatedAt] DATETIME2 NOT NULL CONSTRAINT [DF_SharedBaggingSchedules_UpdatedAt] DEFAULT SYSUTCDATETIME()
+                );
+                CREATE UNIQUE INDEX [IX_SharedBaggingSchedules_PublicToken] ON [SharedBaggingSchedules]([PublicToken]);
+            END");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Bagging schedule table warning: {ex.Message}");
+    }
     // ── EmbryoRecords table ───────────────────────────────────────────────────
     try
     {

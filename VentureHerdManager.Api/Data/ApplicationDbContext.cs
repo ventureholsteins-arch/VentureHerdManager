@@ -48,6 +48,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<HerdDataImport> HerdDataImports => Set<HerdDataImport>();
     public DbSet<AnimalDataRecord> AnimalDataRecords => Set<AnimalDataRecord>();
     public DbSet<AnimalIdentityMapping> AnimalIdentityMappings => Set<AnimalIdentityMapping>();
+    public DbSet<SharedBaggingSchedule> SharedBaggingSchedules => Set<SharedBaggingSchedule>();
+    public DbSet<BaggingPushSubscription> BaggingPushSubscriptions => Set<BaggingPushSubscription>();
+    public DbSet<BaggingReminderDelivery> BaggingReminderDeliveries => Set<BaggingReminderDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +71,7 @@ public class ApplicationDbContext : DbContext
         ConfigureDemoSession(modelBuilder);
         ConfigureSireReference(modelBuilder);
         ConfigureHerdData(modelBuilder);
+        ConfigureSharedBagging(modelBuilder);
 
         ConfigureDemoScope<Animal>(modelBuilder);
         ConfigureDemoScope<HeatEvent>(modelBuilder);
@@ -506,6 +510,30 @@ public class ApplicationDbContext : DbContext
             .HasDefaultValueSql("SYSUTCDATETIME()");
         entity.Property(sire => sire.UpdatedAt)
             .HasDefaultValueSql("SYSUTCDATETIME()");
+    }
+
+    private static void ConfigureSharedBagging(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<SharedBaggingSchedule>(entity =>
+        {
+            entity.HasIndex(x => x.PublicToken).IsUnique();
+            entity.Property(x => x.PublicToken).HasMaxLength(64);
+            entity.Property(x => x.ShowName).HasMaxLength(200);
+            entity.Property(x => x.ScheduleJson).HasColumnType("nvarchar(max)");
+        });
+        modelBuilder.Entity<BaggingPushSubscription>(entity =>
+        {
+            entity.HasIndex(x => new { x.SharedBaggingScheduleId, x.Endpoint }).IsUnique();
+            entity.Property(x => x.Endpoint).HasMaxLength(2000);
+            entity.Property(x => x.P256dh).HasMaxLength(500);
+            entity.Property(x => x.Auth).HasMaxLength(500);
+            entity.HasOne(x => x.Schedule).WithMany(x => x.Subscriptions).HasForeignKey(x => x.SharedBaggingScheduleId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<BaggingReminderDelivery>(entity =>
+        {
+            entity.HasIndex(x => new { x.SharedBaggingScheduleId, x.ReminderKey }).IsUnique();
+            entity.Property(x => x.ReminderKey).HasMaxLength(300);
+        });
     }
 
     private static void ConfigureHerdData(ModelBuilder modelBuilder)

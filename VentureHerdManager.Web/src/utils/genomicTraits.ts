@@ -39,6 +39,21 @@ export const genomicSummaryFields = [
   ['TYPE FS', 'Type', 'Final score type PTA'], ['UDC', 'UDC', 'Udder composite'], ['BDC', 'Body Composite', 'Body-size composite'], ['FLC', 'FLC', 'Feet and legs composite']
 ] as const
 
+export const genomicExtendedFields = [
+  ['HCR', 'Heifer Conception', 'Higher values indicate better heifer conception rate'], ['CCR', 'Cow Conception', 'Higher values indicate better cow conception rate'],
+  ['FI', 'Fertility Index', 'Combined measure of daughter pregnancy, cow conception, and heifer conception'], ['PL', 'Productive Life', 'Expected productive-life advantage'],
+  ['LIV', 'Livability', 'Expected ability of daughters to remain alive in the herd'], ['HCC', 'Health Cost Index', 'Expected health-cost advantage'],
+  ['SCE', 'Sire Calving Ease', 'Lower values generally mean fewer difficult births when used as a sire'], ['DCE', 'Daughter Calving Ease', 'Lower values generally mean daughters calve more easily'],
+  ['SSB', 'Sire Stillbirth', 'Lower values are preferred'], ['DSB', 'Daughter Stillbirth', 'Lower values are preferred'],
+  ['GL', 'Gestation Length', 'Expected gestation-length difference'], ['EFC', 'Early First Calving', 'Expected tendency for daughters to calve earlier']
+] as const
+
+export const genomicIdentityFields = [
+  ['Official ID', 'Official ID'], ['Breed', 'Breed'], ['Result Type', 'Result type'], ['Evaluation Date', 'Evaluation date'],
+  ['Parentage Status', 'Parentage status'], ['Sire of Record Official ID', 'Sire official ID'],
+  ['Dam of Record Official ID', 'Dam official ID'], ['Maternal Grandsire Official ID', 'Maternal grandsire official ID']
+] as const
+
 export function importedGenomicFields(record: any): Record<string, string> {
   try { return typeof record?.rawDataJson === 'string' ? JSON.parse(record.rawDataJson) : record?.rawDataJson ?? {} } catch { return {} }
 }

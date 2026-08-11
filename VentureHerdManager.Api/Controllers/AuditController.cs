@@ -66,7 +66,7 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
                 && animal.SireId == null
                 && string.IsNullOrWhiteSpace(animal.SireName))
             .OrderBy(animal => animal.DisplayName)
-            .Select(animal => AnimalCard(animal))
+            .Select(animal => new { animal.AnimalId, animal.BarnName, animal.RegisteredName, animal.RegistrationNumber, animal.BirthDate, animal.DamName, animal.SireName, animal.CreatedAt, SuggestedSire = SuggestSire(animal) })
             .ToList();
         var birthDateFindings = new List<object>();
         var birthFindingKeys = new HashSet<string>();
@@ -187,25 +187,27 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         var denied = Guard(); if (denied != null) return denied;
         var animal = await context.Animals.SingleOrDefaultAsync(value => value.AnimalId == request.AnimalId, ct);
         if (animal == null) return NotFound("The animal card no longer exists.");
-        var latest = await context.AnimalDataRecords.AsNoTracking().Where(value => value.AnimalId == request.AnimalId && value.Source == HerdDataSource.Pcdart).OrderByDescending(value => value.ReportDate).FirstOrDefaultAsync(ct);
-        if (latest == null) return BadRequest("No PC-DART record is stored for this animal.");
+        var pcdartHistory = await context.AnimalDataRecords.AsNoTracking().Where(value => value.AnimalId == request.AnimalId && value.Source == HerdDataSource.Pcdart).OrderByDescending(value => value.ReportDate).ToListAsync(ct);
+        if (pcdartHistory.Count == 0) return BadRequest("No PC-DART record is stored for this animal.");
         switch (request.Field.Trim().ToLowerInvariant())
         {
             case "registration":
-                if (string.IsNullOrWhiteSpace(latest.OfficialId)) return BadRequest("PC-DART did not supply a usable registration/DHI ID.");
-                animal.RegistrationNumber = latest.OfficialId.Trim();
+                var latestRegistration = pcdartHistory.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value.OfficialId));
+                if (latestRegistration == null) return BadRequest("PC-DART did not supply a usable registration/DHI ID.");
+                animal.RegistrationNumber = latestRegistration.OfficialId!.Trim();
                 break;
             case "birthdate":
                 DateOnly? importedBirth = null;
-                try { using var document = System.Text.Json.JsonDocument.Parse(latest.RawDataJson); foreach (var property in document.RootElement.EnumerateObject()) if ((property.Name.Equals("BirthDate", StringComparison.OrdinalIgnoreCase) || property.Name.Equals("Birth Date", StringComparison.OrdinalIgnoreCase)) && DateOnly.TryParse(property.Value.ToString(), out var parsed)) importedBirth = parsed; } catch (System.Text.Json.JsonException) { }
+                foreach (var record in pcdartHistory) { try { using var document = System.Text.Json.JsonDocument.Parse(record.RawDataJson); foreach (var property in document.RootElement.EnumerateObject()) if ((property.Name.Equals("BirthDate", StringComparison.OrdinalIgnoreCase) || property.Name.Equals("Birth Date", StringComparison.OrdinalIgnoreCase)) && DateOnly.TryParse(property.Value.ToString(), out var parsed)) importedBirth = parsed; } catch (System.Text.Json.JsonException) { } if (importedBirth.HasValue) break; }
                 if (!importedBirth.HasValue) return BadRequest("PC-DART did not supply an exact birthdate.");
                 animal.BirthDate = importedBirth;
                 break;
             case "calvingdate":
-                if (!latest.LastCalvingDate.HasValue) return BadRequest("PC-DART did not supply a calving date.");
+                var latestCalving = pcdartHistory.FirstOrDefault(value => value.LastCalvingDate.HasValue);
+                if (latestCalving == null) return BadRequest("PC-DART did not supply a calving date.");
                 var calving = await context.CalvingEvents.Where(value => value.AnimalId == animal.AnimalId).OrderByDescending(value => value.CalvingDate).FirstOrDefaultAsync(ct);
-                if (calving == null) context.CalvingEvents.Add(new CalvingEvent { AnimalId = animal.AnimalId, CalvingDate = latest.LastCalvingDate.Value.ToDateTime(new TimeOnly(12, 0)), Notes = "Calving date accepted from PC-DART audit.", CreatedBy = "Accepted PC-DART audit" });
-                else { calving.CalvingDate = latest.LastCalvingDate.Value.ToDateTime(TimeOnly.FromDateTime(calving.CalvingDate)); calving.UpdatedAt = DateTime.UtcNow; calving.UpdatedBy = "Accepted PC-DART audit"; }
+                if (calving == null) context.CalvingEvents.Add(new CalvingEvent { AnimalId = animal.AnimalId, CalvingDate = latestCalving.LastCalvingDate!.Value.ToDateTime(new TimeOnly(12, 0)), Notes = "Calving date accepted from PC-DART audit.", CreatedBy = "Accepted PC-DART audit" });
+                else { calving.CalvingDate = latestCalving.LastCalvingDate!.Value.ToDateTime(TimeOnly.FromDateTime(calving.CalvingDate)); calving.UpdatedAt = DateTime.UtcNow; calving.UpdatedBy = "Accepted PC-DART audit"; }
                 animal.AnimalStage = AnimalStage.Milking;
                 break;
             default: return BadRequest("Choose birthdate, registration, or calving date.");
@@ -215,7 +217,30 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         return Ok(new { request.AnimalId, request.Field, accepted = true });
     }
 
+    [HttpPost("accept-sire-suggestion/{animalId:int}")]
+    public async Task<IActionResult> AcceptSireSuggestion(int animalId, CancellationToken ct)
+    {
+        var denied = Guard(); if (denied != null) return denied;
+        var animal = await context.Animals.SingleOrDefaultAsync(value => value.AnimalId == animalId, ct);
+        if (animal == null) return NotFound();
+        var suggestion = SuggestSire(animal);
+        if (string.IsNullOrWhiteSpace(suggestion)) return BadRequest("No reliable sire word could be suggested from this registered name.");
+        animal.SireName = suggestion; animal.UpdatedAt = DateTime.UtcNow; animal.UpdatedBy = "Accepted audit sire suggestion";
+        await context.SaveChangesAsync(ct);
+        return Ok(new { animal.AnimalId, animal.SireName });
+    }
+
     private static object AnimalCard(Animal animal) => new { animal.AnimalId, animal.BarnName, animal.RegisteredName, animal.RegistrationNumber, animal.BirthDate, animal.DamName, animal.SireName, animal.CreatedAt };
+    private static string? SuggestSire(Animal animal)
+    {
+        var registered = (animal.RegisteredName ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(value => value.Trim('-', ' ')).Where(value => value.Length > 0 && !new[] { "ET", "RED", "TW" }.Contains(value, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (registered.Count < 2) return null;
+        var barnFirst = (animal.BarnName ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim('-', ' ');
+        var cowIndex = !string.IsNullOrWhiteSpace(barnFirst) ? registered.FindIndex(value => value.Equals(barnFirst, StringComparison.OrdinalIgnoreCase) || value.StartsWith(barnFirst, StringComparison.OrdinalIgnoreCase)) : registered.Count - 1;
+        if (cowIndex <= 0) cowIndex = registered.Count - 1;
+        var candidate = registered[cowIndex - 1];
+        return candidate.Length >= 2 && !candidate.Equals("VENTURE", StringComparison.OrdinalIgnoreCase) && !candidate.Equals("MS", StringComparison.OrdinalIgnoreCase) ? candidate.ToUpperInvariant() : null;
+    }
     private static void AddNearEvents<T>(List<object> output, string type, IEnumerable<T> values, Func<T, int> animalId, Func<T, DateTime> date, Func<T, int> id, Func<T, string> animalName, Func<T, string> comparisonDetail, Func<T, object> snapshot, double maximumHours)
     {
         foreach (var group in values.GroupBy(animalId))

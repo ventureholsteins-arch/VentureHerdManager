@@ -8,13 +8,14 @@ const appearance = ref<AppearanceSetting | null>(null)
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
 const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
 const demoResetting = ref(false)
-const appUnlocked = ref(Boolean(getAdminKey()))
+const appUnlocked = ref(isDemoOnly || Boolean(getAdminKey()))
 const unlockKey = ref('')
 const unlockBusy = ref(false)
 const unlockError = ref('')
 
 onMounted(async () => {
   if (isDemoOnly) {
+    appUnlocked.value = true
     return
   }
 

@@ -181,6 +181,40 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         if (record == null) return NotFound(); context.Remove(record); await context.SaveChangesAsync(ct); return NoContent();
     }
 
+    [HttpPost("accept-pcdart")]
+    public async Task<IActionResult> AcceptPcdart(AcceptPcdartAuditRequest request, CancellationToken ct)
+    {
+        var denied = Guard(); if (denied != null) return denied;
+        var animal = await context.Animals.SingleOrDefaultAsync(value => value.AnimalId == request.AnimalId, ct);
+        if (animal == null) return NotFound("The animal card no longer exists.");
+        var latest = await context.AnimalDataRecords.AsNoTracking().Where(value => value.AnimalId == request.AnimalId && value.Source == HerdDataSource.Pcdart).OrderByDescending(value => value.ReportDate).FirstOrDefaultAsync(ct);
+        if (latest == null) return BadRequest("No PC-DART record is stored for this animal.");
+        switch (request.Field.Trim().ToLowerInvariant())
+        {
+            case "registration":
+                if (string.IsNullOrWhiteSpace(latest.OfficialId)) return BadRequest("PC-DART did not supply a usable registration/DHI ID.");
+                animal.RegistrationNumber = latest.OfficialId.Trim();
+                break;
+            case "birthdate":
+                DateOnly? importedBirth = null;
+                try { using var document = System.Text.Json.JsonDocument.Parse(latest.RawDataJson); foreach (var property in document.RootElement.EnumerateObject()) if ((property.Name.Equals("BirthDate", StringComparison.OrdinalIgnoreCase) || property.Name.Equals("Birth Date", StringComparison.OrdinalIgnoreCase)) && DateOnly.TryParse(property.Value.ToString(), out var parsed)) importedBirth = parsed; } catch (System.Text.Json.JsonException) { }
+                if (!importedBirth.HasValue) return BadRequest("PC-DART did not supply an exact birthdate.");
+                animal.BirthDate = importedBirth;
+                break;
+            case "calvingdate":
+                if (!latest.LastCalvingDate.HasValue) return BadRequest("PC-DART did not supply a calving date.");
+                var calving = await context.CalvingEvents.Where(value => value.AnimalId == animal.AnimalId).OrderByDescending(value => value.CalvingDate).FirstOrDefaultAsync(ct);
+                if (calving == null) context.CalvingEvents.Add(new CalvingEvent { AnimalId = animal.AnimalId, CalvingDate = latest.LastCalvingDate.Value.ToDateTime(new TimeOnly(12, 0)), Notes = "Calving date accepted from PC-DART audit.", CreatedBy = "Accepted PC-DART audit" });
+                else { calving.CalvingDate = latest.LastCalvingDate.Value.ToDateTime(TimeOnly.FromDateTime(calving.CalvingDate)); calving.UpdatedAt = DateTime.UtcNow; calving.UpdatedBy = "Accepted PC-DART audit"; }
+                animal.AnimalStage = AnimalStage.Milking;
+                break;
+            default: return BadRequest("Choose birthdate, registration, or calving date.");
+        }
+        animal.UpdatedAt = DateTime.UtcNow; animal.UpdatedBy = "Accepted PC-DART audit";
+        await context.SaveChangesAsync(ct);
+        return Ok(new { request.AnimalId, request.Field, accepted = true });
+    }
+
     private static object AnimalCard(Animal animal) => new { animal.AnimalId, animal.BarnName, animal.RegisteredName, animal.RegistrationNumber, animal.BirthDate, animal.DamName, animal.SireName, animal.CreatedAt };
     private static void AddNearEvents<T>(List<object> output, string type, IEnumerable<T> values, Func<T, int> animalId, Func<T, DateTime> date, Func<T, int> id, Func<T, string> animalName, Func<T, string> comparisonDetail, Func<T, object> snapshot, double maximumHours)
     {
@@ -207,3 +241,4 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
 }
 
 public sealed class MergeAnimalsRequest { public int KeepAnimalId { get; set; } public int RemoveAnimalId { get; set; } }
+public sealed class AcceptPcdartAuditRequest { public int AnimalId { get; set; } public string Field { get; set; } = string.Empty; }

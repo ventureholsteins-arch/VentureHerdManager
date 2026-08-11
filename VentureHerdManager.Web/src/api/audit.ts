@@ -5,3 +5,4 @@ async function request(path = '', init?: RequestInit) { const response = await f
 export const getAudit = () => request()
 export const mergeAnimals = (keepAnimalId: number, removeAnimalId: number) => request('/merge', { method: 'POST', body: JSON.stringify({ keepAnimalId, removeAnimalId }) })
 export const removeDuplicateEvent = (eventType: string, eventId: number) => request(`/event/${encodeURIComponent(eventType)}/${eventId}`, { method: 'DELETE' })
+export const acceptPcdartDifference = (animalId: number, field: 'birthdate' | 'registration' | 'calvingdate') => request('/accept-pcdart', { method: 'POST', body: JSON.stringify({ animalId, field }) })

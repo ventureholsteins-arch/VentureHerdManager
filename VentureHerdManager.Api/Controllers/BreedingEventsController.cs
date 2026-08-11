@@ -10,6 +10,7 @@ namespace VentureHerdManager.Api.Controllers;
 [Route("api/[controller]")]
 public class BreedingEventsController : ControllerBase
 {
+    private static string NormalizeSireName(string? value) => string.IsNullOrWhiteSpace(value) ? "Service information pending" : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     private readonly ApplicationDbContext _context;
 
     public BreedingEventsController(ApplicationDbContext context)
@@ -45,9 +46,7 @@ public class BreedingEventsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<BreedingEvent>> Create(BreedingEvent breeding)
     {
-        breeding.SireUsed = string.IsNullOrWhiteSpace(breeding.SireUsed)
-            ? "Service information pending"
-            : breeding.SireUsed.Trim();
+        breeding.SireUsed = NormalizeSireName(breeding.SireUsed);
         var isEmbryoTransfer =
             breeding.BreedingType == BreedingType.EmbryoTransfer;
         var expectedDueDate = breeding.BreedingDate.AddDays(
@@ -126,9 +125,7 @@ public class BreedingEventsController : ControllerBase
         }
 
         breeding.BreedingDate = request.BreedingDate;
-        breeding.SireUsed = string.IsNullOrWhiteSpace(request.SireUsed)
-            ? "Service information pending"
-            : request.SireUsed.Trim();
+        breeding.SireUsed = NormalizeSireName(request.SireUsed);
         breeding.BreedingType = request.BreedingType;
         breeding.PregnancyStatus = request.PregnancyStatus;
         breeding.Notes = request.Notes;

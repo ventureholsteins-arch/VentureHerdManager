@@ -155,7 +155,7 @@ public class AnimalService
         animal.Breed =
             CleanOptionalText(animal.Breed);
         animal.SireName =
-            CleanOptionalText(animal.SireName);
+            CleanSireText(animal.SireName);
         animal.DamName =
             CleanOptionalText(animal.DamName);
         if (string.IsNullOrWhiteSpace(animal.BarnName) &&
@@ -238,7 +238,7 @@ public class AnimalService
             updatedAnimal.SireId;
 
         existingAnimal.SireName =
-            CleanOptionalText(updatedAnimal.SireName);
+            CleanSireText(updatedAnimal.SireName);
 
         existingAnimal.DamId =
             updatedAnimal.DamId;
@@ -679,5 +679,11 @@ public class AnimalService
         return string.IsNullOrWhiteSpace(value)
             ? null
             : value.Trim();
+    }
+
+    private static string? CleanSireText(string? value)
+    {
+        var cleaned = CleanOptionalText(value);
+        return cleaned == null ? null : string.Join(' ', cleaned.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 }

@@ -12,6 +12,11 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
 {
     private IActionResult? Guard() => admin.IsAuthorized(Request) ? null : Unauthorized("Admin access is required for herd auditing.");
     private static string Normal(string? value) => new((value ?? "").ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+    private static string Registration(string? value)
+    {
+        var normalized = Normal(value);
+        return normalized.StartsWith("84000", StringComparison.Ordinal) ? normalized[5..] : normalized;
+    }
 
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -94,7 +99,7 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             .Where(record => record.Source == HerdDataSource.Pcdart && Normal(record.OfficialId).Length >= 6 && Normal(record.OfficialId) != Normal(record.SourceAnimalName))
             .GroupBy(record => record.AnimalId)
             .Select(group => group.OrderByDescending(record => record.ReportDate).First())
-            .Where(record => Normal(record.Animal.RegistrationNumber) != Normal(record.OfficialId))
+            .Where(record => Registration(record.Animal.RegistrationNumber) != Registration(record.OfficialId))
             .OrderBy(record => record.Animal.DisplayName)
             .Select(record => new { record.AnimalId, AnimalName = record.Animal.DisplayName, CardRegistrationId = record.Animal.RegistrationNumber, PcdartRegistrationId = record.OfficialId, record.ReportDate, record.SourceAnimalName })
             .ToList();
@@ -116,6 +121,8 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
     public async Task<IActionResult> Merge(MergeAnimalsRequest request, CancellationToken ct)
     {
         var denied = Guard(); if (denied != null) return denied;
+        try
+        {
         if (request.KeepAnimalId == request.RemoveAnimalId) return BadRequest("Choose two different animal cards.");
         var keep = await context.Animals.SingleOrDefaultAsync(value => value.AnimalId == request.KeepAnimalId, ct);
         var remove = await context.Animals.SingleOrDefaultAsync(value => value.AnimalId == request.RemoveAnimalId, ct);
@@ -154,6 +161,11 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
         await context.Database.ExecuteSqlInterpolatedAsync($"IF OBJECT_ID(N'[dbo].[AnimalProductionSnapshots]', N'U') IS NOT NULL UPDATE [dbo].[AnimalProductionSnapshots] SET [AnimalId] = {keep.AnimalId} WHERE [AnimalId] = {remove.AnimalId};", ct);
         context.Animals.Remove(remove); await context.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
         return Ok(new { keptAnimalId = keep.AnimalId, removedAnimalId = remove.AnimalId });
+        }
+        catch (Exception exception)
+        {
+            return BadRequest($"The cards were not merged and no data was changed: {exception.GetBaseException().Message}");
+        }
     }
 
     [HttpDelete("event/{eventType}/{eventId:int}")]

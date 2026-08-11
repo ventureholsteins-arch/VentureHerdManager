@@ -23,6 +23,7 @@ const combinedSearch = ref('')
 const importDetails = ref<HTMLDetailsElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const duplicateDecision = ref<'pending' | 'accepted' | 'declined'>('pending')
+const savedConfirmation = ref<{ label: string; date: string; file: string } | null>(null)
 const creatingAnimalKey = ref('')
 const cowPageDraft = ref<any>(null)
 type AnalyticsView = 'attention' | 'milk' | 'classification' | 'genomics' | 'bulls' | 'linear' | 'combined' | 'imports'
@@ -124,6 +125,7 @@ onMounted(async () => {
 async function loadFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
+  savedConfirmation.value = null
   cowPageDraft.value = null
   busy.value = true
   status.value = `Reading ${file.name}…`
@@ -171,7 +173,14 @@ async function previewImport() {
 }
 async function applyImport(confirmDuplicateReplace = false) {
   busy.value = true; status.value = ''
-  try { await applyHerdData(payload(confirmDuplicateReplace)); analytics.value = await getHerdDataAnalytics(); status.value = confirmDuplicateReplace ? 'Duplicate reviewed. The stored report was replaced safely and only one copy remains.' : 'Import saved. Animal histories and analytics are updated.'; preview.value = null }
+  try {
+    const savedLabel = cowPageDraft.value?.name || `${preview.value?.rowsRead ?? 0} animal record${preview.value?.rowsRead === 1 ? '' : 's'}`
+    await applyHerdData(payload(confirmDuplicateReplace))
+    savedConfirmation.value = { label: savedLabel, date: reportDate.value, file: fileName.value }
+    analytics.value = await getHerdDataAnalytics()
+    status.value = confirmDuplicateReplace ? 'Duplicate reviewed. The stored report was replaced safely and only one copy remains.' : 'Import saved. Animal histories and analytics are updated.'
+    preview.value = null
+  }
   catch (error) { status.value = error instanceof Error ? error.message : 'Import failed.' }
   finally { busy.value = false }
 }
@@ -304,7 +313,8 @@ function herdAverage(key: string) { const values = linearRows.value.map((row: an
         <label class="choose-file" for="herd-data-file">Choose {{ importMode === 'currentMilkingPdf' ? 'Current Milking PDF' : importMode === 'cowPagePdf' ? 'Individual Cow PDF' : source === 2 ? 'Zoetis Genomics CSV' : 'PC-DART Milk CSV' }}</label>
         <input id="herd-data-file" ref="fileInput" class="file-input" type="file" :accept="importMode === 'currentMilkingPdf' || importMode === 'cowPagePdf' ? '.pdf,application/pdf' : '.csv,text/csv'" @change="loadFile">
         <div class="controls"><select v-model.number="source"><option :value="1">PC-DART milk report</option><option :value="2">Zoetis genomic report</option></select><input v-model="reportDate" type="date"><strong class="selected-file">{{ fileName || 'No file selected yet' }}</strong></div>
-        <div class="actions"><button :disabled="busy || !csvText" @click="previewImport">Preview & match</button><button :disabled="busy || !preview || preview.duplicateImport || needsMatch.length > 0" @click="applyImport(false)">Save confirmed import</button></div>
+        <div class="actions"><button :disabled="busy || !csvText" @click="previewImport">Preview &amp; match</button><button :disabled="busy || !preview || preview.duplicateImport || needsMatch.length > 0 || !!savedConfirmation" @click="applyImport(false)">{{ busy ? 'Saving…' : savedConfirmation ? '✓ Saved' : 'Save confirmed import' }}</button></div>
+        <section v-if="savedConfirmation" class="saved-confirmation" role="status"><strong>✓ Saved to the herd</strong><span>{{ savedConfirmation.label }} · {{ savedConfirmation.date }}</span><small>{{ savedConfirmation.file }}</small><p>This import is in the cow history and analytics. You do not need to tap save again.</p></section>
         <p v-if="status" :class="{ error: status.includes('failed') || status.includes('required') }">{{ status }}</p>
         <section v-if="importMode === 'cowPagePdf' && cowPageDraft" class="cow-page-audit"><h3>Review this cow page before saving</h3><p>Correct anything PC-DART shortened or the PDF reader interpreted incorrectly. Lifetime totals and the complete lactation/test-day record stay attached to this cow.</p><div><label>Cow name<input v-model="cowPageDraft.name"></label><label>DHI ID<input v-model="cowPageDraft.dhiId"></label><label>Birth date<input v-model="cowPageDraft.birthDate" type="date"></label><label>Test date<input v-model="cowPageDraft.testDate" type="date"></label><label>Last calving<input v-model="cowPageDraft.lastCalving" type="date"></label><label>Last-test milk<input v-model="cowPageDraft.milk" inputmode="decimal"></label><label>Last-test fat %<input v-model="cowPageDraft.fat" inputmode="decimal"></label><label>Last-test protein %<input v-model="cowPageDraft.protein" inputmode="decimal"></label><label>Lifetime milk<input v-model="cowPageDraft.lifetimeMilk" inputmode="numeric"></label><label>Lifetime fat<input v-model="cowPageDraft.lifetimeFat" inputmode="numeric"></label><label>Lifetime protein<input v-model="cowPageDraft.lifetimeProtein" inputmode="numeric"></label><label>Lactations<input v-model="cowPageDraft.lifetimeLactations" inputmode="numeric"></label><label>Milk/day since 24 months<input v-model="cowPageDraft.milkPerDaySince24Months" inputmode="decimal"></label><label>Yield deviation - milk<input v-model="cowPageDraft.yieldDeviationMilk" inputmode="numeric"></label><label>Relative ability - milk<input v-model="cowPageDraft.relativeAbilityMilk" inputmode="numeric"></label></div><details><summary>Captured lactation and test-day rows</summary><pre>{{ cowPageDraft.lactationRows }}</pre></details><button type="button" :disabled="busy" @click="applyCowPageCorrections">Apply corrections &amp; recheck match</button></section>
         <section v-if="preview?.duplicateImport" class="duplicate-warning">
@@ -352,4 +362,5 @@ function herdAverage(key: string) { const values = linearRows.value.map((row: an
 .data-page{max-width:1240px;margin:auto;padding:16px;background:#f5f7f2;min-height:100vh}header{padding:20px;border-radius:12px;background:#173422;color:#fff}header button,.card button{min-height:44px;border:0;border-radius:7px;padding:0 14px;font-weight:850}.card{margin:14px 0;padding:16px;border:1px solid #d8e2da;border-radius:12px;background:#fff}.card summary{cursor:pointer;font-size:1.2rem;font-weight:900;min-height:34px}.card[open] summary{margin-bottom:14px}.controls input,.controls select,.card>input,.match-list select{min-height:44px;border:1px solid #bdcbbf;border-radius:7px;padding:8px;width:100%;box-sizing:border-box}.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.actions{display:flex;gap:8px;margin-top:12px}.actions button{background:#31572c;color:#fff}.match-list{display:grid;gap:8px;margin-top:14px;max-height:620px;overflow:auto}.match-row{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;align-items:center;padding:9px;border:1px solid #e0e7e1;border-radius:8px}.match-row.unmatched{border:2px solid #b45309;background:#fffaf2}.match-list span{display:grid;font-weight:800}.match-list small{font-weight:400;color:#64746a}.create-animal-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr repeat(3,minmax(82px,.45fr));gap:7px;align-items:center}.create-animal-actions button{background:#31572c;color:#fff}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:9px;border-bottom:1px solid #e1e7e2;text-align:left}th{background:#eef5ef}.link{background:transparent!important;color:#31572c;padding:0!important}.error{color:#991b1b}@media(max-width:640px){.analytics-tabs{grid-template-columns:repeat(2,1fr)}.analytics-tabs button:last-child{grid-column:1/-1}.controls,.match-row,.duplicate-warning dl,.duplicate-actions,.create-animal-actions{grid-template-columns:1fr}.actions{display:grid}.actions button{width:100%}.data-page{padding:8px}.card{padding:12px}}
 @media(max-width:640px){.attention-grid{grid-template-columns:1fr}.attention-row{align-items:flex-start;flex-direction:column}.analytics-tabs button:last-child{grid-column:auto}}
 @media(max-width:700px){.ranking-grid,.genomic-score-strip,.milk-score-strip{grid-template-columns:1fr}.featured-traits,.milk-leader-grid{grid-template-columns:1fr}.trait-card-grid{grid-template-columns:repeat(2,1fr)}.trend-grid{grid-template-columns:repeat(2,1fr)}.cow-page-audit>div{grid-template-columns:1fr 1fr}}
+.saved-confirmation{display:grid;gap:4px;margin-top:12px;padding:14px;border:2px solid #15803d;border-radius:10px;background:#ecfdf3;color:#14532d}.saved-confirmation strong{font-size:1.2rem}.saved-confirmation span{font-weight:900}.saved-confirmation small{overflow-wrap:anywhere;color:#39724a}.saved-confirmation p{margin:4px 0 0}
 </style>

@@ -203,7 +203,9 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             var data = headers.Select((h, i) => new { Key = h.Trim(), Value = i < values.Count ? values[i].Trim() : "" }).GroupBy(x => x.Key).ToDictionary(g => g.Key, g => g.Last().Value, StringComparer.OrdinalIgnoreCase);
             var id = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("DHIID", "") : data.GetValueOrDefault("Animal ID", "");
             var name = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("BarnName", "") : data.GetValueOrDefault("Animal Name", "");
-            var official = source == HerdDataSource.Pcdart ? data.GetValueOrDefault("DHIID") : data.GetValueOrDefault("Official ID");
+            var official = source == HerdDataSource.Pcdart
+                ? data.GetValueOrDefault("DHIID")
+                : FirstValue(data, "Official ID", "CDCB #", "Registration Number", "Reg #");
             return new ParsedRow
             {
                 SourceKey = NormalizeId(!string.IsNullOrWhiteSpace(official) ? official : !string.IsNullOrWhiteSpace(id) ? id : name),
@@ -212,6 +214,9 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
                 Breed = data.GetValueOrDefault("Breed"), ImportedSex = data.GetValueOrDefault("Sex"), Values = data
             };
         }
+        private static string? FirstValue(Dictionary<string, string> values, params string[] aliases) =>
+            aliases.Select(alias => values.GetValueOrDefault(alias))
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         public AnimalDataRecord ToRecord(int animalId, DateOnly reportDate, HerdDataSource source) => new()
         {
             AnimalId = animalId, Source = source, ReportDate = reportDate, SourceAnimalId = SourceAnimalId, SourceAnimalName = SourceName, OfficialId = OfficialId,

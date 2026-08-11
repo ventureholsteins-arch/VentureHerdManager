@@ -818,7 +818,7 @@ const scoreLabel = computed(() => {
   const score = snapshot.value?.latestClassificationRecord?.score ?? animal.value?.latestScore
   if (score == null) return 'Not scored'
   const savedLabel = snapshot.value?.latestClassificationRecord?.classificationLabel?.trim()
-  if (savedLabel) return `${savedLabel} ${Math.round(score)}`
+  if (savedLabel) return /\d/.test(savedLabel) ? savedLabel : `${savedLabel} ${Math.round(score)}`
   if (score >= 90) return `EX ${Math.round(score)}`
   if (score >= 85) return `VG ${Math.round(score)}`
   return `GP ${Math.round(score)}`

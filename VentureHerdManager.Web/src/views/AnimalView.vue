@@ -67,6 +67,7 @@ import {
 
 import { uploadPhoto } from '../api/photos'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
+import { genomicLinearTraits, genomicSummaryFields, importedGenomicFields, linearPosition, numericTrait } from '../utils/genomicTraits'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,16 +85,15 @@ const animalNotes = ref<AnimalNote[]>([])
 const timelineEntries = ref<AnimalTimelineEntry[]>([])
 const herdDataRecords = ref<any[]>([])
 const matingData = ref<any>(null)
-const animalLinear = computed(() => {
-  const record = herdDataRecords.value.find(item => item.source === 2)
-  if (!record) return []
-  return [
-    { label: 'Type', value: record.typeScore }, { label: 'Udder', value: record.udderComposite },
-    { label: 'Feet & Legs', value: record.feetLegsComposite }, { label: 'Fertility', value: record.daughterPregnancyRate },
-    { label: 'Productive Life', value: record.productiveLife }
-  ]
-})
-function animalLinearWidth(value: unknown) { const number = Number(value); return Number.isFinite(number) ? `${Math.max(4, Math.min(100, 50 + number * 12))}%` : '0%' }
+const latestGenomicRecord = computed(() => herdDataRecords.value.find(item => item.source === 2) ?? null)
+const latestGenomicFields = computed(() => importedGenomicFields(latestGenomicRecord.value))
+const animalLinear = computed(() => genomicLinearTraits
+  .map(trait => ({ ...trait, value: numericTrait(latestGenomicFields.value, trait) }))
+  .filter(trait => trait.value != null))
+const genomicHighlights = computed(() => genomicSummaryFields
+  .map(([csv, label, note]) => ({ csv, label, note, value: latestGenomicFields.value[csv] }))
+  .filter(field => field.value != null && field.value !== ''))
+const animalLinearWidth = linearPosition
 function importedFields(record: any): Record<string, string> {
   try { return typeof record.rawDataJson === 'string' ? JSON.parse(record.rawDataJson) : record.rawDataJson ?? {} } catch { return {} }
 }
@@ -1406,9 +1406,16 @@ const scoreLabel = computed(() => {
             <details v-if="importedFields(record)['Report Type']" class="imported-full-record"><summary>{{ importedFields(record)['Report Type'] }}</summary><div class="imported-field-grid"><template v-for="(value, key) in importedFields(record)" :key="key"><span v-if="key !== 'Full Cow Record' && value"><small>{{ key }}</small><strong>{{ value }}</strong></span></template></div><pre v-if="importedFields(record)['Full Cow Record']">{{ importedFields(record)['Full Cow Record'] }}</pre></details>
           </article>
         </div>
+        <div v-if="genomicHighlights.length" class="genomic-highlight-grid">
+          <article v-for="field in genomicHighlights" :key="field.csv" class="genomic-highlight-card">
+            <small>{{ field.csv }}</small>
+            <strong>{{ field.value }}</strong>
+            <span>{{ field.label }}</span>
+          </article>
+        </div>
         <div v-if="animalLinear.length" class="animal-linear">
           <div class="private-data-heading"><h3>Linear at a Glance</h3><button class="mini-btn" type="button" @click="router.push('/reports/herd-data?view=linear')">Compare whole farm</button></div>
-          <div v-for="trait in animalLinear" :key="trait.label" class="animal-linear-row"><span>{{ trait.label }}</span><div><i :style="{ width: animalLinearWidth(trait.value) }"></i></div><strong>{{ trait.value ?? '—' }}</strong></div>
+          <div v-for="trait in animalLinear" :key="trait.label" class="animal-linear-row"><span><b>{{ trait.csv }}</b> {{ trait.label }}</span><div><i :style="{ width: animalLinearWidth(trait.value) }"></i></div><strong>{{ trait.value ?? '—' }}</strong></div>
         </div>
         <div v-if="matingData" class="mating-review">
           <h3>Linear &amp; Mating Suggestions</h3>
@@ -2039,6 +2046,7 @@ const scoreLabel = computed(() => {
   background: linear-gradient(180deg, #f8fafc, #f1f5f9);
 }
 .private-data-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.private-data-heading h2{margin:0}.data-history-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.data-history-card{display:grid;gap:7px;padding:13px;border:1px solid #d9e3dc;border-left:4px solid #31572c;border-radius:8px;background:#f8fbf8}.data-history-card>div{display:flex;flex-wrap:wrap;gap:7px}.data-history-card span{padding:4px 7px;border-radius:5px;background:#fff;font-size:.82rem;font-weight:700}.data-history-card small{color:#64748b}
+.genomic-highlight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px}.genomic-highlight-card{display:grid;gap:3px;padding:10px 11px;border:1px solid #d9e3dc;border-radius:8px;background:#fff}.genomic-highlight-card small{font-size:.68rem;font-weight:900;letter-spacing:.08em;color:#31572c}.genomic-highlight-card strong{font-size:1.15rem;color:#173422}.genomic-highlight-card span{font-size:.76rem;color:#64748b}
 .animal-linear{margin-top:14px;padding:13px;border:1px solid #d9e3dc;border-radius:10px;background:#fbfdfb}.animal-linear h3{margin:0}.animal-linear-row{display:grid;grid-template-columns:100px 1fr 48px;gap:8px;align-items:center;margin-top:9px;font-size:.82rem}.animal-linear-row>div{height:12px;background:#e4ebe5;border-radius:10px;overflow:hidden}.animal-linear-row i{display:block;height:100%;border-radius:10px;background:#4f772d}.animal-linear-row strong{text-align:right}
 .imported-full-record{margin-top:5px;border-top:1px solid #d9e3dc;padding-top:7px}.imported-full-record summary{cursor:pointer;font-weight:850;color:#31572c}.imported-field-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px!important;margin-top:8px}.imported-field-grid span{display:grid!important}.imported-field-grid small{font-size:.68rem;text-transform:uppercase;color:#64748b}.imported-full-record pre{max-height:360px;margin:8px 0 0;padding:10px;overflow:auto;white-space:pre-wrap;background:#f4f7f4;border-radius:7px;font:12px/1.45 monospace}
 .mating-review{margin-top:18px;padding-top:14px;border-top:1px solid #d9e3dc}.cow-proof-row{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}.cow-proof-row span{padding:5px 8px;border-radius:6px;background:#eef5ef;font-size:.8rem;font-weight:800}.sire-suggestion{margin:8px 0;border:1px solid #d8e2da;border-radius:8px;background:#fff}.sire-suggestion summary{display:flex;justify-content:space-between;gap:10px;padding:11px;cursor:pointer}.sire-suggestion summary span{color:#64748b;font-size:.8rem}.sire-suggestion>div,.sire-suggestion>p{margin:9px 11px}

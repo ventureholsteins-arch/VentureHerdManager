@@ -181,6 +181,37 @@ public sealed class HerdDataImportTests
     }
 
     [Fact]
+    public async Task ZoetisDuplicateReplacePreservesPriorValuesWhenNewCellsAreBlank()
+    {
+        await using var context = CreateContext();
+        var animal = new Animal { RegisteredName = "VENTURE ALLEYOOP PAYTON", RegistrationNumber = "840003293928967" };
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var reportDate = new DateOnly(2026, 8, 10);
+        await service.ApplyAsync(new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Zoetis, FileName = "core-a.csv", ReportDate = reportDate,
+            CsvText = "Animal ID,Official ID,Animal Name,TPI,NM$,SG,HCR\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,2125,-344,0.7,1.2"
+        });
+
+        await service.ApplyAsync(new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Zoetis, FileName = "core-b.csv", ReportDate = reportDate, ConfirmDuplicateReplace = true,
+            CsvText = "Animal ID,Official ID,Animal Name,TPI,NM$,SG,HCR,CCR\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,2140,,,1.4,2.1"
+        });
+
+        Assert.Single(context.HerdDataImports);
+        var stored = Assert.Single(context.AnimalDataRecords);
+        Assert.Equal(2140, stored.Tpi);
+        Assert.Equal(-344, stored.NetMerit);
+        using var raw = JsonDocument.Parse(stored.RawDataJson);
+        Assert.Equal("0.7", raw.RootElement.GetProperty("SG").GetString());
+        Assert.Equal("1.4", raw.RootElement.GetProperty("HCR").GetString());
+        Assert.Equal("2.1", raw.RootElement.GetProperty("CCR").GetString());
+    }
+
+    [Fact]
     public async Task BlankAnimalNamesDoNotBlockAnExactImportMatch()
     {
         await using var context = CreateContext();

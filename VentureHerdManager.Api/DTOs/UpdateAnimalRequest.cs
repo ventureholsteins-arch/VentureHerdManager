@@ -1,3 +1,5 @@
+using VentureHerdManager.Api.Models;
+
 namespace VentureHerdManager.Api.DTOs;
 
 public class UpdateAnimalRequest
@@ -11,6 +13,8 @@ public class UpdateAnimalRequest
     public string? SireName { get; set; }
 
     public int? CurrentLactation { get; set; }
+
+    public AnimalStage? AnimalStage { get; set; }
 
     public string? Notes { get; set; }
 

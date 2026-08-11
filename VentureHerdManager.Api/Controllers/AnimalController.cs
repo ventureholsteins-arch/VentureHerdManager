@@ -148,6 +148,15 @@ public class AnimalsController : ControllerBase
         }
     }
 
+    [HttpPut("{animalId:int}/archive/sold-without-date")]
+    public IActionResult ArchiveAsSoldWithoutDate(
+        int animalId,
+        [FromBody] RestoreAnimalRequest request)
+    {
+        var animal = _animalService.ArchiveAsSoldWithoutDate(animalId, request.UpdatedBy);
+        return animal == null ? NotFound("Animal not found.") : Ok(animal);
+    }
+
     [HttpPut("{animalId:int}/archive/deceased")]
     public IActionResult ArchiveAsDeceased(
         int animalId,

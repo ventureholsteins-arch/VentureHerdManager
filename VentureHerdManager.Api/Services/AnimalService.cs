@@ -343,6 +343,11 @@ public class AnimalService
             animal.CurrentLactation = request.CurrentLactation.Value;
         }
 
+        if (request.AnimalStage.HasValue)
+        {
+            animal.AnimalStage = request.AnimalStage.Value;
+        }
+
         if (!string.IsNullOrEmpty(request.Notes))
         {
             animal.Notes = request.Notes;
@@ -682,6 +687,26 @@ public class AnimalService
         return string.IsNullOrWhiteSpace(value)
             ? null
             : value.Trim();
+    }
+
+    public Animal? ArchiveAsSoldWithoutDate(int animalId, string? updatedBy)
+    {
+        var animal = _context.Animals.FirstOrDefault(item => item.AnimalId == animalId);
+        if (animal == null)
+        {
+            return null;
+        }
+
+        animal.AnimalStatus = AnimalStatus.Sold;
+        animal.SoldDate = null;
+        animal.SoldNotes = null;
+        animal.DeceasedDate = null;
+        animal.DeceasedNotes = null;
+        animal.IsFavorite = false;
+        animal.UpdatedBy = CleanOptionalText(updatedBy);
+        animal.UpdatedAt = DateTime.UtcNow;
+        _context.SaveChanges();
+        return animal;
     }
 
     public Animal? SetHerdLocation(

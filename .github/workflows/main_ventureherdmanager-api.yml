@@ -67,7 +67,7 @@ jobs:
             az webapp config appsettings set
             --resource-group VentureHerdMananger
             --name ventureherdmanager-api
-            --settings HerdDataImport__AdminKey="$HERD_DATA_ADMIN_KEY"
+            --settings HerdDataImport__AdminKey="$HERD_DATA_ADMIN_KEY" WEBSITE_RUN_FROM_PACKAGE="1"
 
       - name: Configure API startup
         uses: azure/cli@v2

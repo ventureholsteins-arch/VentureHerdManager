@@ -67,7 +67,7 @@ import {
 
 import { uploadPhoto } from '../api/photos'
 import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
-import { genomicLinearTraits, genomicSummaryFields, importedGenomicFields, linearPosition, numericTrait } from '../utils/genomicTraits'
+import { genomicExtendedFields, genomicIdentityFields, genomicLinearTraits, genomicSummaryFields, importedGenomicFields, linearPosition, numericTrait } from '../utils/genomicTraits'
 
 const route = useRoute()
 const router = useRouter()
@@ -92,6 +92,12 @@ const animalLinear = computed(() => genomicLinearTraits
   .filter(trait => trait.value != null))
 const genomicHighlights = computed(() => genomicSummaryFields
   .map(([csv, label, note]) => ({ csv, label, note, value: latestGenomicFields.value[csv] }))
+  .filter(field => field.value != null && field.value !== ''))
+const genomicExtended = computed(() => genomicExtendedFields
+  .map(([csv, label, note]) => ({ csv, label, note, value: latestGenomicFields.value[csv] }))
+  .filter(field => field.value != null && field.value !== ''))
+const genomicIdentity = computed(() => genomicIdentityFields
+  .map(([csv, label]) => ({ csv, label, value: latestGenomicFields.value[csv] }))
   .filter(field => field.value != null && field.value !== ''))
 const animalLinearWidth = linearPosition
 function importedFields(record: any): Record<string, string> {
@@ -1414,6 +1420,20 @@ const scoreLabel = computed(() => {
           </article>
         </div>
         <div v-if="animalLinear.length" class="animal-linear">
+          <details v-if="genomicExtended.length" class="imported-full-record">
+            <summary>Fertility, longevity &amp; calving traits</summary>
+            <div class="genomic-highlight-grid">
+              <article v-for="field in genomicExtended" :key="field.csv" class="genomic-highlight-card" :title="field.note">
+                <small>{{ field.csv }}</small><strong>{{ field.value }}</strong><span>{{ field.label }}</span>
+              </article>
+            </div>
+          </details>
+          <details v-if="genomicIdentity.length" class="imported-full-record">
+            <summary>Pedigree &amp; evaluation details</summary>
+            <div class="imported-field-grid">
+              <span v-for="field in genomicIdentity" :key="field.csv"><small>{{ field.label }}</small><strong>{{ field.value }}</strong></span>
+            </div>
+          </details>
           <div class="private-data-heading"><h3>Linear at a Glance</h3><button class="mini-btn" type="button" @click="router.push('/reports/herd-data?view=linear')">Compare whole farm</button></div>
           <div v-for="trait in animalLinear" :key="trait.label" class="animal-linear-row"><span><b>{{ trait.csv }}</b> {{ trait.label }}</span><div><i :style="{ width: animalLinearWidth(trait.value) }"></i></div><strong>{{ trait.value ?? '—' }}</strong></div>
         </div>

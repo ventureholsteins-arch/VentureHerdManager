@@ -22,7 +22,7 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
     public async Task<IActionResult> Get(CancellationToken ct)
     {
         var denied = Guard(); if (denied != null) return denied;
-        var animals = await context.Animals.AsNoTracking().ToListAsync(ct);
+        var animals = await context.Animals.AsNoTracking().Where(animal => animal.UpdatedBy != "Audit merge archive").ToListAsync(ct);
         var dataIds = await context.AnimalDataRecords.AsNoTracking().Where(record => record.OfficialId != null)
             .Select(record => new { record.AnimalId, record.OfficialId }).ToListAsync(ct);
         var savedMappings = await context.AnimalIdentityMappings.AsNoTracking().Select(mapping => new { mapping.AnimalId, mapping.Source, mapping.SourceKey }).ToListAsync(ct);
@@ -158,8 +158,11 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             }
             else { value.AnimalId = keep.AnimalId; keptLifetimeByDate[value.ReportDate] = value; }
         }
-        await context.Database.ExecuteSqlInterpolatedAsync($"IF OBJECT_ID(N'[dbo].[AnimalProductionSnapshots]', N'U') IS NOT NULL UPDATE [dbo].[AnimalProductionSnapshots] SET [AnimalId] = {keep.AnimalId} WHERE [AnimalId] = {remove.AnimalId};", ct);
-        context.Animals.Remove(remove); await context.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
+        remove.AnimalStatus = AnimalStatus.Sold;
+        remove.UpdatedAt = DateTime.UtcNow;
+        remove.UpdatedBy = "Audit merge archive";
+        remove.Notes = string.Join("\n", new[] { remove.Notes, $"Duplicate card archived after its records were merged into animal #{keep.AnimalId} ({keep.DisplayName}) on {DateTime.UtcNow:yyyy-MM-dd}." }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        await context.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
         return Ok(new { keptAnimalId = keep.AnimalId, removedAnimalId = remove.AnimalId });
         }
         catch (Exception exception)

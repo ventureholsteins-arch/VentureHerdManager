@@ -472,17 +472,26 @@ async function savePregCheck() {
   pregCheckSaving.value = true
   pregCheckError.value = ''
 
+  const breedingEventId = selectedBreedingId.value
+  const requestedStatus = pregnancyStatus.value
+
   try {
-    await updatePregnancyStatus(
-      selectedBreedingId.value,
-      pregnancyStatus.value
-    )
+    try {
+      await updatePregnancyStatus(breedingEventId, requestedStatus)
+    } catch (saveError) {
+      // Mobile Safari can lose the empty response after the API has committed
+      // the update. Verify the stored value before telling the user it failed.
+      const refreshed = await getBreedings(animalId.value)
+      breedingEvents.value = refreshed
+      const saved = refreshed.some(event =>
+        event.breedingEventId === breedingEventId
+        && event.pregnancyStatus === requestedStatus
+      )
+      if (!saved) throw saveError
+    }
 
     showPregCheckForm.value = false
-
-    breedingEvents.value = await getBreedings(
-      animalId.value
-    )
+    breedingEvents.value = await getBreedings(animalId.value)
   } catch (error) {
     console.error(
       'Failed to save pregnancy check:',

@@ -76,7 +76,7 @@ interface DashboardCachePayload {
 const searchQuery = ref('')
 const stageFilter = ref<number | null>(null)
 const statusFilter = ref<number | null>(0)
-const locationFilter = ref<number | null>(null)
+const locationFilter = ref<number | null>(0)
 const pregnancyFilter = ref<number | null>(null)
 const favoriteOnly = ref(false)
 const latestPregnancyStatuses = ref<Record<number, number>>({})

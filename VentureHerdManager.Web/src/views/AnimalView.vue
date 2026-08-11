@@ -256,7 +256,7 @@ function openBreedingForm() {
   showBreedingForm.value = true
 }
 
-async function openPregCheckForm() {
+async function openPregCheckForm(preferredBreedingId?: number) {
   closeAllForms()
   pregCheckError.value = ''
   pregnancyStatus.value = 1
@@ -270,7 +270,11 @@ async function openPregCheckForm() {
       pregCheckSaving.value = false
     }
   }
-  const eligible = breedingEvents.value.find(event => event.pregnancyStatus === 0 || event.pregnancyStatus === 3)
+  const preferred = preferredBreedingId == null
+    ? undefined
+    : breedingEvents.value.find(event => event.breedingEventId === preferredBreedingId)
+  const eligible = preferred
+    ?? breedingEvents.value.find(event => event.pregnancyStatus === 0 || event.pregnancyStatus === 3)
     ?? breedingEvents.value[0]
   selectedBreedingId.value = eligible?.breedingEventId ?? null
   showPregCheckForm.value = true
@@ -316,8 +320,9 @@ async function changeHerdLocation(herdLocation: number) {
 }
 
 function openPendingAction() {
+  const routeAction = typeof route.query.action === 'string' ? route.query.action : null
   const pendingAction =
-    sessionStorage.getItem('pendingAnimalAction')
+    routeAction ?? sessionStorage.getItem('pendingAnimalAction')
 
   if (pendingAction === 'heat') {
     openHeatForm()
@@ -336,7 +341,8 @@ function openPendingAction() {
   }
 
   if (pendingAction === 'pregCheck') {
-    void openPregCheckForm()
+    const routeBreedingId = Number(route.query.breedingId)
+    void openPregCheckForm(Number.isInteger(routeBreedingId) && routeBreedingId > 0 ? routeBreedingId : undefined)
   }
 
   sessionStorage.removeItem('pendingAnimalAction')

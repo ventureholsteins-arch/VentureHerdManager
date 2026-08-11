@@ -148,9 +148,11 @@ function openAnimal(animalId: number) {
   router.push(`/animals/${animalId}`)
 }
 
-function openPregCheck(animalId: number) {
-  sessionStorage.setItem('pendingAnimalAction', 'pregCheck')
-  router.push(`/animals/${animalId}`)
+function openPregCheck(animalId: number, breedingEventId: number) {
+  router.push({
+    path: `/animals/${animalId}`,
+    query: { action: 'pregCheck', breedingId: String(breedingEventId) }
+  })
 }
 
 function formatDate(value?: string | null) {
@@ -321,7 +323,7 @@ async function openReportSection(section: ReportSection) {
           v-for="item in visibleItems(filteredPregChecks, 'pregChecks')"
           :key="item.breedingEventId"
           class="event-row"
-          @click="openPregCheck(item.animalId)"
+          @click="openPregCheck(item.animalId, item.breedingEventId)"
         >
           <RetroIcon name="pregCheck" />
 

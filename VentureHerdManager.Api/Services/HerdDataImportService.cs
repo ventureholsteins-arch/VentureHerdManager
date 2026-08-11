@@ -87,7 +87,14 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             else { mapping.AnimalId = match.AnimalId.Value; mapping.SourceLabel = row.SourceName; mapping.ConfirmedAt = DateTime.UtcNow; }
         }
         batch.RowsImported = batch.Records.Count;
-        await context.SaveChangesAsync(ct);
+        try
+        {
+            await context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException exception)
+        {
+            throw new InvalidOperationException($"The confirmed import could not be stored: {exception.GetBaseException().Message}", exception);
+        }
         return batch;
     }
 

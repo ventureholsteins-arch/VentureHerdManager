@@ -1327,7 +1327,7 @@ const scoreLabel = computed(() => {
         <div v-else class="data-history-grid">
           <article v-for="record in herdDataRecords" :key="record.animalDataRecordId" class="data-history-card">
             <strong>{{ record.source === 1 ? 'PC-DART milk test' : 'Zoetis genomic evaluation' }}</strong>
-            <small>{{ record.reportDate }}</small>
+            <small>{{ record.reportDate }}<template v-if="record.source === 1 && record.sourceAnimalName"> · PC-DART name: {{ record.sourceAnimalName }}</template></small>
             <div v-if="record.source === 1"><span>Milk {{ record.milk ?? '—' }}</span><span>DIM {{ record.daysInMilk ?? '—' }}</span><span>Fat {{ record.fatPercent ?? '—' }}%</span><span>Protein {{ record.proteinPercent ?? '—' }}%</span></div>
             <div v-else><span>TPI {{ record.tpi ?? '—' }}</span><span>NM$ {{ record.netMerit ?? '—' }}</span><span>Milk PTA {{ record.milkPta ?? '—' }}</span><span>DPR {{ record.daughterPregnancyRate ?? '—' }}</span><span>Type {{ record.typeScore ?? '—' }}</span><span>UDC {{ record.udderComposite ?? '—' }}</span><span>FLC {{ record.feetLegsComposite ?? '—' }}</span></div>
             <details v-if="importedFields(record)['Report Type']" class="imported-full-record"><summary>{{ importedFields(record)['Report Type'] }}</summary><div class="imported-field-grid"><template v-for="(value, key) in importedFields(record)" :key="key"><span v-if="key !== 'Full Cow Record' && value"><small>{{ key }}</small><strong>{{ value }}</strong></span></template></div><pre v-if="importedFields(record)['Full Cow Record']">{{ importedFields(record)['Full Cow Record'] }}</pre></details>

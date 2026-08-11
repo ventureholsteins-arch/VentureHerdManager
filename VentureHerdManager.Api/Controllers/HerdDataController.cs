@@ -45,6 +45,51 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         return Ok(await context.AnimalDataRecords.AsNoTracking().Where(record => record.AnimalId == animalId).OrderByDescending(record => record.ReportDate).ToListAsync(ct));
     }
 
+    [HttpPost("consolidate-milk-tests")]
+    public async Task<IActionResult> ConsolidateMilkTests(ConsolidateMilkTestsRequest request, CancellationToken ct)
+    {
+        var denied = Guard(); if (denied != null) return denied;
+        if (request.SourceDate == request.KeepDate) return BadRequest("Choose two different report dates.");
+
+        var source = await context.AnimalDataRecords
+            .Where(record => record.Source == HerdDataSource.Pcdart && record.ReportDate == request.SourceDate)
+            .ToListAsync(ct);
+        var keep = await context.AnimalDataRecords
+            .Where(record => record.Source == HerdDataSource.Pcdart && record.ReportDate == request.KeepDate)
+            .ToListAsync(ct);
+        if (source.Count == 0 || keep.Count == 0) return NotFound("Both milk-test dates must exist before they can be consolidated.");
+
+        var sourceByAnimal = source.GroupBy(record => record.AnimalId).ToDictionary(group => group.Key, group => group.Single());
+        var keepByAnimal = keep.GroupBy(record => record.AnimalId).ToDictionary(group => group.Key, group => group.Single());
+        if (!sourceByAnimal.Keys.OrderBy(value => value).SequenceEqual(keepByAnimal.Keys.OrderBy(value => value)))
+            return Conflict("The two reports do not contain the same cows, so they were not merged.");
+
+        foreach (var (animalId, oldRecord) in sourceByAnimal)
+        {
+            var keptRecord = keepByAnimal[animalId];
+            if (oldRecord.Milk != keptRecord.Milk)
+                return Conflict($"Milk differs for animal #{animalId}, so the reports were not merged.");
+            keptRecord.DaysInMilk ??= oldRecord.DaysInMilk;
+            keptRecord.FatPercent ??= oldRecord.FatPercent;
+            keptRecord.ProteinPercent ??= oldRecord.ProteinPercent;
+            keptRecord.LastCalvingDate ??= oldRecord.LastCalvingDate;
+            keptRecord.OfficialId ??= oldRecord.OfficialId;
+        }
+
+        var affectedImportIds = source.Select(record => record.HerdDataImportId).Distinct().ToList();
+        context.AnimalDataRecords.RemoveRange(source);
+        await context.SaveChangesAsync(ct);
+
+        var emptyImports = await context.HerdDataImports
+            .Where(import => affectedImportIds.Contains(import.HerdDataImportId)
+                && !import.Records.Any()
+                && !import.LifetimeProductionSnapshots.Any())
+            .ToListAsync(ct);
+        context.HerdDataImports.RemoveRange(emptyImports);
+        await context.SaveChangesAsync(ct);
+        return Ok(new { keptDate = request.KeepDate, removedDuplicateDate = request.SourceDate, cowsMerged = source.Count });
+    }
+
     [HttpGet("analytics")]
     public async Task<IActionResult> Analytics(CancellationToken ct)
     {
@@ -148,4 +193,10 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         var avoid = rankedSires.Where(item => item.Concerns.Any()).OrderBy(item => item.Score).ThenBy(item => item.NetMerit).Take(10).ToList();
         return Ok(new { cow = new { cow.AnimalId, cow.ReportDate, cow.Tpi, cow.NetMerit, cow.MilkPta, cow.DaughterPregnancyRate, cow.ProductiveLife, cow.TypeScore, cow.UdderComposite, cow.FeetLegsComposite }, suggestions, avoid });
     }
+}
+
+public sealed class ConsolidateMilkTestsRequest
+{
+    public DateOnly SourceDate { get; set; }
+    public DateOnly KeepDate { get; set; }
 }

@@ -256,10 +256,20 @@ function openBreedingForm() {
   showBreedingForm.value = true
 }
 
-function openPregCheckForm() {
+async function openPregCheckForm() {
   closeAllForms()
   pregCheckError.value = ''
   pregnancyStatus.value = 1
+  if (breedingEvents.value.length === 0) {
+    pregCheckSaving.value = true
+    try {
+      breedingEvents.value = await getBreedings(animalId.value)
+    } catch (error) {
+      pregCheckError.value = error instanceof Error ? error.message : 'Breeding history could not be loaded.'
+    } finally {
+      pregCheckSaving.value = false
+    }
+  }
   const eligible = breedingEvents.value.find(event => event.pregnancyStatus === 0 || event.pregnancyStatus === 3)
     ?? breedingEvents.value[0]
   selectedBreedingId.value = eligible?.breedingEventId ?? null
@@ -323,6 +333,10 @@ function openPendingAction() {
 
   if (pendingAction === 'note') {
     openNoteForm()
+  }
+
+  if (pendingAction === 'pregCheck') {
+    void openPregCheckForm()
   }
 
   sessionStorage.removeItem('pendingAnimalAction')

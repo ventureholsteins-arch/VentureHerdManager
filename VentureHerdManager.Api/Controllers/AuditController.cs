@@ -38,7 +38,6 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             if ((leftBarn.Length >= 4 && rightRegistered.Contains(leftBarn, StringComparison.Ordinal))
                 || (rightBarn.Length >= 4 && leftRegistered.Contains(rightBarn, StringComparison.Ordinal)))
                 reasons.Add("Barn name appears in the other card's registered name");
-            if (left.BirthDate.HasValue && left.BirthDate == right.BirthDate && (leftNames.Overlaps(rightNames) || Normal(left.DamName) == Normal(right.DamName))) reasons.Add("Same birth date and identity clues");
             var leftImportedIds = dataIds.Where(value => value.AnimalId == left.AnimalId).Select(value => Normal(value.OfficialId)).Where(value => value.Length >= 6).ToHashSet();
             var rightImportedIds = dataIds.Where(value => value.AnimalId == right.AnimalId).Select(value => Normal(value.OfficialId)).Where(value => value.Length >= 6).ToHashSet();
             if (leftImportedIds.Overlaps(rightImportedIds)) reasons.Add("Same imported official ID");
@@ -64,7 +63,21 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             .OrderBy(animal => animal.DisplayName)
             .Select(animal => AnimalCard(animal))
             .ToList();
-        return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings, missingSireFindings });
+        var birthDateFindings = new List<object>();
+        foreach (var record in await context.AnimalDataRecords.AsNoTracking().Include(record => record.Animal).ToListAsync(ct))
+        {
+            DateOnly? importedBirthDate = null;
+            try
+            {
+                using var document = System.Text.Json.JsonDocument.Parse(record.RawDataJson);
+                foreach (var property in document.RootElement.EnumerateObject())
+                    if ((property.Name.Equals("BirthDate", StringComparison.OrdinalIgnoreCase) || property.Name.Equals("Birth Date", StringComparison.OrdinalIgnoreCase)) && DateOnly.TryParse(property.Value.ToString(), out var parsed)) { importedBirthDate = parsed; break; }
+            }
+            catch (System.Text.Json.JsonException) { }
+            if (importedBirthDate.HasValue && record.Animal.BirthDate != importedBirthDate)
+                birthDateFindings.Add(new { record.AnimalId, AnimalName = record.Animal.DisplayName, CurrentBirthDate = record.Animal.BirthDate, ImportedBirthDate = importedBirthDate, Source = record.Source.ToString(), record.ReportDate, record.SourceAnimalName });
+        }
+        return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings, missingSireFindings, birthDateFindings });
     }
 
     [HttpPost("merge")]

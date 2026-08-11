@@ -874,6 +874,9 @@ static async Task InitializeDatabaseAsync(
                 
                 IF COL_LENGTH(N'dbo.AnimalNotes', N'UpdatedBy') IS NULL
                   ALTER TABLE [AnimalNotes] ADD [UpdatedBy] NVARCHAR(200) NULL;
+
+                IF COL_LENGTH(N'dbo.AnimalNotes', N'NoteType') IS NULL
+                  ALTER TABLE [AnimalNotes] ADD [NoteType] INT NOT NULL CONSTRAINT [DF_AnimalNotes_NoteType] DEFAULT 0;
               END");
 
         Console.WriteLine("AnimalNotes table columns ensured.");

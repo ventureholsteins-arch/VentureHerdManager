@@ -64,18 +64,30 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             .Select(animal => AnimalCard(animal))
             .ToList();
         var birthDateFindings = new List<object>();
+        var birthFindingKeys = new HashSet<string>();
         foreach (var record in await context.AnimalDataRecords.AsNoTracking().Include(record => record.Animal).ToListAsync(ct))
         {
             DateOnly? importedBirthDate = null;
+            string? importedAge = null;
             try
             {
                 using var document = System.Text.Json.JsonDocument.Parse(record.RawDataJson);
                 foreach (var property in document.RootElement.EnumerateObject())
-                    if ((property.Name.Equals("BirthDate", StringComparison.OrdinalIgnoreCase) || property.Name.Equals("Birth Date", StringComparison.OrdinalIgnoreCase)) && DateOnly.TryParse(property.Value.ToString(), out var parsed)) { importedBirthDate = parsed; break; }
+                {
+                    if ((property.Name.Equals("BirthDate", StringComparison.OrdinalIgnoreCase) || property.Name.Equals("Birth Date", StringComparison.OrdinalIgnoreCase)) && DateOnly.TryParse(property.Value.ToString(), out var parsed)) importedBirthDate = parsed;
+                    if (property.Name.Equals("AgeYRMO_Ref", StringComparison.OrdinalIgnoreCase)) importedAge = property.Value.ToString().Trim();
+                }
             }
             catch (System.Text.Json.JsonException) { }
-            if (importedBirthDate.HasValue && record.Animal.BirthDate != importedBirthDate)
-                birthDateFindings.Add(new { record.AnimalId, AnimalName = record.Animal.DisplayName, CurrentBirthDate = record.Animal.BirthDate, ImportedBirthDate = importedBirthDate, Source = record.Source.ToString(), record.ReportDate, record.SourceAnimalName });
+            if (importedBirthDate.HasValue && record.Animal.BirthDate != importedBirthDate && birthFindingKeys.Add($"date:{record.AnimalId}:{importedBirthDate}"))
+                birthDateFindings.Add(new { record.AnimalId, AnimalName = record.Animal.DisplayName, CurrentBirthDate = record.Animal.BirthDate, ImportedBirthDate = importedBirthDate, ImportedAge = (string?)null, CurrentAgeAtReport = (string?)null, Source = record.Source.ToString(), record.ReportDate, record.SourceAnimalName });
+            var ageParts = importedAge?.Split('-');
+            if (record.Animal.BirthDate.HasValue && ageParts?.Length == 2 && int.TryParse(ageParts[0], out var years) && int.TryParse(ageParts[1], out var months))
+            {
+                var birth = record.Animal.BirthDate.Value; var currentMonths = (record.ReportDate.Year - birth.Year) * 12 + record.ReportDate.Month - birth.Month - (record.ReportDate.Day < birth.Day ? 1 : 0); var importedMonths = years * 12 + months;
+                if (Math.Abs(currentMonths - importedMonths) > 1 && birthFindingKeys.Add($"age:{record.AnimalId}:{importedAge}"))
+                    birthDateFindings.Add(new { record.AnimalId, AnimalName = record.Animal.DisplayName, CurrentBirthDate = record.Animal.BirthDate, ImportedBirthDate = (DateOnly?)null, ImportedAge = importedAge, CurrentAgeAtReport = $"{currentMonths / 12:00}-{currentMonths % 12:00}", Source = record.Source.ToString(), record.ReportDate, record.SourceAnimalName });
+            }
         }
         return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings, missingSireFindings, birthDateFindings });
     }

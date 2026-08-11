@@ -12,10 +12,14 @@ public class BreedingEventsController : ControllerBase
 {
     private static string NormalizeSireName(string? value) => string.IsNullOrWhiteSpace(value) ? "Service information pending" : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<BreedingEventsController> _logger;
 
-    public BreedingEventsController(ApplicationDbContext context)
+    public BreedingEventsController(
+        ApplicationDbContext context,
+        ILogger<BreedingEventsController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet("animal/{animalId}")]
@@ -92,11 +96,32 @@ public class BreedingEventsController : ControllerBase
             breeding.BreedingType == BreedingType.EmbryoTransfer
             || linkedEmbryo != null;
 
+        var checkedAt = DateTime.UtcNow;
+
+        // Commit the actual check result first. Production databases can lag
+        // newer optional scheduling/embryo fields; those must never roll back
+        // the pregnancy status the user just recorded.
+        var updated = await _context.BreedingEvents
+            .Where(b => b.BreedingEventId == breedingEventId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(b => b.PregnancyStatus, status)
+                .SetProperty(b => b.PregnancyCheckDate, checkedAt)
+                .SetProperty(b => b.UpdatedAt, checkedAt));
+
+        if (updated == 0)
+        {
+            return NotFound();
+        }
+
         ReproductiveEventRules.ApplyPregnancyStatus(
             breeding,
             status,
             isEmbryoTransfer,
-            DateTime.UtcNow);
+            checkedAt);
+
+        // The core values were written directly above, so do not make EF try
+        // to write them a second time with the optional synchronization.
+        _context.Entry(breeding).State = EntityState.Unchanged;
 
         if (linkedEmbryo != null)
         {
@@ -106,7 +131,18 @@ public class BreedingEventsController : ControllerBase
                 linkedEmbryo.FailureNotes);
         }
 
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Pregnancy status {PregnancyStatus} was saved for breeding {BreedingEventId}, but optional embryo synchronization could not be completed.",
+                status,
+                breedingEventId);
+        }
 
         return NoContent();
     }

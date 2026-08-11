@@ -11,7 +11,7 @@ namespace VentureHerdManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public sealed class HerdDataController(HerdDataImportService importer, ApplicationDbContext context, HerdDataAdminAccess admin) : ControllerBase
+public sealed class HerdDataController(HerdDataImportService importer, ApplicationDbContext context, HerdDataAdminAccess admin, ILogger<HerdDataController> logger) : ControllerBase
 {
     private IActionResult? Guard() => admin.IsAuthorized(Request) ? null : Unauthorized("Admin access is required for herd production and genomic data.");
 
@@ -31,6 +31,11 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
             return Ok(new { imported.HerdDataImportId, imported.Source, imported.FileName, imported.ReportDate, imported.RowsImported, imported.ImportedAt });
         }
         catch (InvalidOperationException exception) { return BadRequest(exception.Message); }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Confirmed herd import {FileName} could not be saved", request.FileName);
+            return Problem(title: "The confirmed import could not be saved.", detail: exception.GetBaseException().Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
 
     [HttpGet("animal/{animalId:int}")]

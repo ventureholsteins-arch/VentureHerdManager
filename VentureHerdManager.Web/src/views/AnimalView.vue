@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import { getAnimal, markAnimalSold, restoreAnimal } from '../api/animals'
@@ -7,6 +7,7 @@ import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
 import RetroIcon from '../components/RetroIcon.vue'
+import EditAnimalModal from '../components/EditAnimalModal.vue'
 import { getAnimalHerdData, getAdminKey, getMatingSuggestions } from '../api/herdData'
 
 import {
@@ -71,6 +72,7 @@ const route = useRoute()
 const router = useRouter()
 
 const animal = ref<Animal | null>(null)
+const editAnimalModalRef = ref<InstanceType<typeof EditAnimalModal>>()
 const snapshot = ref<AnimalSnapshot | null>(null)
 
 const heatEvents = ref<HeatEvent[]>([])
@@ -146,6 +148,18 @@ const soldError = ref('')
 const noteText = ref('')
 
 const animalId = computed(() => Number(route.params.animalId))
+
+async function openEditAnimal() {
+  if (!animal.value) return
+  animal.value.latestScore = snapshot.value?.latestClassificationRecord?.score ?? animal.value.latestScore
+  animal.value.latestBaa = snapshot.value?.latestClassificationRecord?.baa ?? animal.value.latestBaa
+  await nextTick(); editAnimalModalRef.value?.openModal()
+}
+
+async function onAnimalEdited(updated: Animal) {
+  animal.value = updated
+  await reloadAnimalData()
+}
 
 async function reloadAnimalData() {
   const animalSnapshot = await getAnimalSnapshot(animalId.value)
@@ -830,6 +844,7 @@ const scoreLabel = computed(() => {
     <button class="back" @click="goBack">
       ← Herd
     </button>
+    <EditAnimalModal ref="editAnimalModalRef" :animal="animal" @saved="onAnimalEdited" />
 
     <p v-if="loading">
       Loading...
@@ -858,6 +873,7 @@ const scoreLabel = computed(() => {
             Reg #: {{ animal.registrationNumber || 'None' }}
           </small>
         </div>
+        <button type="button" class="edit-animal-button" @click="openEditAnimal">Edit Animal</button>
       </section>
 
       <section class="info-grid">
@@ -1808,6 +1824,8 @@ const scoreLabel = computed(() => {
   color: #64748b;
 }
 
+.edit-animal-button{margin-left:auto;min-height:44px;border:0;border-radius:8px;background:#31572c;color:#fff;padding:9px 16px;font-weight:900;cursor:pointer}
+
 .info-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2071,6 +2089,8 @@ const scoreLabel = computed(() => {
 .latest-milk-strip>button{min-width:120px;border:0;border-radius:6px;background:#1769c2;color:#fff;font-weight:850}
 
 @media (max-width: 700px) {
+  .hero{align-items:flex-start;flex-wrap:wrap}
+  .edit-animal-button{width:100%;margin-left:0}
   .latest-milk-strip{grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
   .milk-strip-title,.latest-milk-strip>button{grid-column:1/-1}
 

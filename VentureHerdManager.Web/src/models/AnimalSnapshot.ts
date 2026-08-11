@@ -16,7 +16,7 @@ export interface AnimalSnapshot {
   latestBreedingEvent?: { breedingEventId: number; breedingDate: string } | null
   latestCalvingEvent?: { calvingEventId: number; calvingDate: string } | null
   latestDryOffEvent?: { dryOffEventId: number; dryOffDate: string } | null
-  latestClassificationRecord?: { classificationRecordId: number; classificationDate: string } | null
+  latestClassificationRecord?: { classificationRecordId: number; classificationDate?: string | null; score?: number | null; baa?: number | null; classificationLabel?: string | null } | null
   photos: Array<{
     animalPhotoId: number
     animalId: number

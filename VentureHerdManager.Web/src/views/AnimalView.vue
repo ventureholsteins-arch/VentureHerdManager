@@ -815,9 +815,10 @@ const showClassLabel = computed(() => {
 })
 
 const scoreLabel = computed(() => {
-  if (!animal.value?.latestScore) return 'Not scored'
-
-  const score = animal.value.latestScore
+  const score = snapshot.value?.latestClassificationRecord?.score ?? animal.value?.latestScore
+  if (score == null) return 'Not scored'
+  const savedLabel = snapshot.value?.latestClassificationRecord?.classificationLabel?.trim()
+  if (savedLabel) return `${savedLabel} ${Math.round(score)}`
   if (score >= 90) return `EX ${Math.round(score)}`
   if (score >= 85) return `VG ${Math.round(score)}`
   return `GP ${Math.round(score)}`

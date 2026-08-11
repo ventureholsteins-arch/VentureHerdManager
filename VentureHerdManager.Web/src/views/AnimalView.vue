@@ -85,7 +85,12 @@ const animalNotes = ref<AnimalNote[]>([])
 const timelineEntries = ref<AnimalTimelineEntry[]>([])
 const herdDataRecords = ref<any[]>([])
 const matingData = ref<any>(null)
-const latestGenomicRecord = computed(() => herdDataRecords.value.find(item => item.source === 2) ?? null)
+function latestRecordForSource(source: number) {
+  return herdDataRecords.value
+    .filter(record => record.source === source)
+    .sort((a, b) => String(b.reportDate).localeCompare(String(a.reportDate)))[0] ?? null
+}
+const latestGenomicRecord = computed(() => latestRecordForSource(2))
 const latestGenomicFields = computed(() => importedGenomicFields(latestGenomicRecord.value))
 const animalLinear = computed(() => genomicLinearTraits
   .map(trait => ({ ...trait, value: numericTrait(latestGenomicFields.value, trait) }))
@@ -103,8 +108,18 @@ const animalLinearWidth = linearPosition
 function importedFields(record: any): Record<string, string> {
   try { return typeof record.rawDataJson === 'string' ? JSON.parse(record.rawDataJson) : record.rawDataJson ?? {} } catch { return {} }
 }
-const latestMilkRecord = computed(() => herdDataRecords.value.find(record => record.source === 1) ?? null)
+const latestMilkRecord = computed(() => latestRecordForSource(1))
 const latestMilkFields = computed(() => latestMilkRecord.value ? importedFields(latestMilkRecord.value) : {})
+const showAllHerdDataRecords = ref(false)
+const latestHerdDataRecords = computed(() => {
+  const latestMilk = latestRecordForSource(1)
+  const latestGenomic = latestRecordForSource(2)
+  return [latestMilk, latestGenomic]
+    .filter(Boolean)
+    .sort((a, b) => String(b.reportDate).localeCompare(String(a.reportDate)))
+})
+const visibleHerdDataRecords = computed(() => showAllHerdDataRecords.value ? herdDataRecords.value : latestHerdDataRecords.value)
+const hiddenHerdDataRecordCount = computed(() => Math.max(0, herdDataRecords.value.length - latestHerdDataRecords.value.length))
 const showAchievements = ref<ShowAchievement[]>([])
 
 const loading = ref(true)
@@ -884,6 +899,12 @@ const ageLabel = computed(() => {
   return formatCurrentAge(animal.value.birthDate)
 })
 
+const breedLabel = computed(() => {
+  const breed = animal.value?.breed?.trim()
+  if (!breed) return 'Unknown'
+  return /^holstein$/i.test(breed) ? 'HO' : breed
+})
+
 const showClassLabel = computed(() => {
   if (!animal.value) return 'Class TBD'
   return getShowClassLabel(animal.value.birthDate, animal.value.animalStage)
@@ -898,6 +919,8 @@ const scoreLabel = computed(() => {
   if (score >= 85) return `VG ${Math.round(score)}`
   return `GP ${Math.round(score)}`
 })
+
+const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
 </script>
 
 <template>
@@ -911,7 +934,7 @@ const scoreLabel = computed(() => {
       Loading...
     </p>
 
-    <div v-else-if="animal">
+    <div v-else-if="animal" class="animal-layout">
       <section class="hero">
         <div class="avatar">
           🐄
@@ -945,7 +968,7 @@ const scoreLabel = computed(() => {
 
         <div class="info-card">
           <span>Breed</span>
-          <strong>{{ animal.breed || 'Unknown' }}</strong>
+          <strong>{{ breedLabel }}</strong>
         </div>
 
         <div class="info-card">
@@ -978,6 +1001,20 @@ const scoreLabel = computed(() => {
       <section v-if="animal.animalStatus === 1" class="sold-banner"><div><strong>SOLD - ARCHIVED</strong><span>{{ animal.soldDate ? new Date(animal.soldDate).toLocaleDateString() : 'Sold animal' }} · All records are retained</span><p v-if="animal.soldNotes">{{ animal.soldNotes }}</p></div><button @click="undoSold">Restore to active herd</button></section>
       <section v-if="animal.animalStatus === 0 && animal.herdLocation === 1" class="sold-banner muellers-banner"><div><strong>ACTIVE AT MUELLER'S</strong><span>Still part of the active herd · All records and reminders continue</span></div><button @click="changeHerdLocation(0)">Return to Home Herd</button></section>
 
+      <section v-if="getAdminKey() && linearQuickGlance.length" class="panel linear-quick-panel">
+        <div class="private-data-heading">
+          <h2>Linear Quick Glance</h2>
+          <button class="mini-btn" type="button" @click="router.push('/reports/herd-data?view=linear')">Open full linear</button>
+        </div>
+        <div class="linear-chip-grid">
+          <article v-for="trait in linearQuickGlance" :key="`quick-${trait.csv}`" class="linear-chip">
+            <small>{{ trait.csv }}</small>
+            <strong>{{ trait.value ?? '—' }}</strong>
+            <span>{{ trait.label }}</span>
+          </article>
+        </div>
+      </section>
+
       <section v-if="latestMilkRecord" class="latest-milk-strip">
         <div class="milk-strip-title"><span>LATEST MILK TEST</span><strong>{{ latestMilkRecord.reportDate }}</strong></div>
         <article><small>Current milk</small><strong>{{ latestMilkRecord.milk ?? '—' }}</strong></article>
@@ -990,7 +1027,7 @@ const scoreLabel = computed(() => {
         <button @click="router.push('/reports/herd-data?view=milk')">Milk analytics →</button>
       </section>
 
-      <section class="panel">
+      <section class="panel pedigree-panel">
         <h2>Pedigree</h2>
 
         <div class="pedigree">
@@ -1012,7 +1049,7 @@ const scoreLabel = computed(() => {
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel quick-actions-panel">
         <h2>Quick Actions</h2>
 
         <div class="actions">
@@ -1396,58 +1433,47 @@ const scoreLabel = computed(() => {
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel milk-genomic-panel">
         <div class="private-data-heading">
           <h2>Milk &amp; Genomic History</h2>
           <button class="mini-btn" type="button" @click="router.push('/reports/herd-data')">Open analytics</button>
         </div>
         <p v-if="!getAdminKey()" class="upload-hint">Unlock the private Milk &amp; Genomic Analytics page to display these records.</p>
-        <div v-else-if="herdDataRecords.length === 0" class="timeline-card"><strong>No imported milk or genomic records yet.</strong></div>
-        <div v-else class="data-history-grid">
-          <article v-for="record in herdDataRecords" :key="record.animalDataRecordId" class="data-history-card">
-            <strong>{{ record.source === 1 ? 'PC-DART milk test' : 'Zoetis genomic evaluation' }}</strong>
-            <small>{{ record.reportDate }}<template v-if="record.source === 1 && record.sourceAnimalName"> · PC-DART name: {{ record.sourceAnimalName }}</template></small>
-            <div v-if="record.source === 1"><span>Milk {{ record.milk ?? '—' }}</span><span>DIM {{ record.daysInMilk ?? '—' }}</span><span>Fat {{ record.fatPercent ?? '—' }}%</span><span>Protein {{ record.proteinPercent ?? '—' }}%</span></div>
-            <div v-else><span>TPI {{ record.tpi ?? '—' }}</span><span>NM$ {{ record.netMerit ?? '—' }}</span><span>Milk PTA {{ record.milkPta ?? '—' }}</span><span>DPR {{ record.daughterPregnancyRate ?? '—' }}</span><span>Type {{ record.typeScore ?? '—' }}</span><span>UDC {{ record.udderComposite ?? '—' }}</span><span>FLC {{ record.feetLegsComposite ?? '—' }}</span></div>
-            <details v-if="importedFields(record)['Report Type']" class="imported-full-record"><summary>{{ importedFields(record)['Report Type'] }}</summary><div class="imported-field-grid"><template v-for="(value, key) in importedFields(record)" :key="key"><span v-if="key !== 'Full Cow Record' && value"><small>{{ key }}</small><strong>{{ value }}</strong></span></template></div><pre v-if="importedFields(record)['Full Cow Record']">{{ importedFields(record)['Full Cow Record'] }}</pre></details>
-          </article>
-        </div>
-        <div v-if="genomicHighlights.length" class="genomic-highlight-grid">
-          <article v-for="field in genomicHighlights" :key="field.csv" class="genomic-highlight-card">
-            <small>{{ field.csv }}</small>
-            <strong>{{ field.value }}</strong>
-            <span>{{ field.label }}</span>
-          </article>
-        </div>
-        <div v-if="animalLinear.length" class="animal-linear">
-          <details v-if="genomicExtended.length" class="imported-full-record">
-            <summary>Fertility, longevity &amp; calving traits</summary>
-            <div class="genomic-highlight-grid">
-              <article v-for="field in genomicExtended" :key="field.csv" class="genomic-highlight-card" :title="field.note">
-                <small>{{ field.csv }}</small><strong>{{ field.value }}</strong><span>{{ field.label }}</span>
-              </article>
-            </div>
-          </details>
-          <details v-if="genomicIdentity.length" class="imported-full-record">
-            <summary>Pedigree &amp; evaluation details</summary>
-            <div class="imported-field-grid">
-              <span v-for="field in genomicIdentity" :key="field.csv"><small>{{ field.label }}</small><strong>{{ field.value }}</strong></span>
-            </div>
-          </details>
-          <div class="private-data-heading"><h3>Linear at a Glance</h3><button class="mini-btn" type="button" @click="router.push('/reports/herd-data?view=linear')">Compare whole farm</button></div>
-          <div v-for="trait in animalLinear" :key="trait.label" class="animal-linear-row"><span><b>{{ trait.csv }}</b> {{ trait.label }}</span><div><i :style="{ width: animalLinearWidth(trait.value) }"></i></div><strong>{{ trait.value ?? '—' }}</strong></div>
-        </div>
-        <div v-if="matingData" class="mating-review">
-          <h3>Linear &amp; Mating Suggestions</h3>
-          <p class="upload-hint">Suggestions prioritize sires that improve this animal’s weaker genomic composites. Always review pedigree, recessives, inbreeding, calving ease, and your mating goals before breeding.</p>
-          <div class="cow-proof-row"><span>TPI {{ matingData.cow.tpi ?? '—' }}</span><span>Milk {{ matingData.cow.milkPta ?? '—' }}</span><span>DPR {{ matingData.cow.daughterPregnancyRate ?? '—' }}</span><span>PL {{ matingData.cow.productiveLife ?? '—' }}</span><span>Type {{ matingData.cow.typeScore ?? '—' }}</span><span>UDC {{ matingData.cow.udderComposite ?? '—' }}</span><span>FLC {{ matingData.cow.feetLegsComposite ?? '—' }}</span></div>
-          <details v-for="sire in matingData.suggestions" :key="sire.sireReferenceId" class="sire-suggestion">
-            <summary><strong>{{ sire.name }}</strong><span>{{ sire.naabCode || 'No NAAB code' }} · match {{ Number(sire.score).toFixed(1) }}</span></summary>
-            <div class="cow-proof-row"><span>NM$ {{ sire.netMerit ?? '—' }}</span><span>Milk {{ sire.ptaMilk ?? '—' }}</span><span>DPR {{ sire.daughterPregnancyRate ?? '—' }}</span><span>PL {{ sire.productiveLife ?? '—' }}</span><span>Type {{ sire.ptaType ?? '—' }}</span><span>UDC {{ sire.udderComposite ?? '—' }}</span><span>FLC {{ sire.feetLegsComposite ?? '—' }}</span></div>
-            <p>{{ sire.reasons.join(' · ') || 'Balanced candidate; review full proof.' }}</p>
-          </details>
-          <details v-if="matingData.avoid?.length" class="avoid-sires"><summary>Sires to avoid for this specific cow ({{ matingData.avoid.length }})</summary><p class="upload-hint">These bulls are not universally bad. They are flagged because their current proof may fail to improve this cow's particular weaknesses.</p><article v-for="sire in matingData.avoid" :key="`avoid-${sire.sireReferenceId}`"><strong>{{ sire.name }}</strong><span>{{ sire.naabCode || 'No NAAB code' }}</span><p>{{ sire.concerns.join(' · ') }}</p></article></details>
-        </div>
+        <template v-else>
+          <div v-if="herdDataRecords.length === 0" class="timeline-card"><strong>No imported milk or genomic records yet.</strong></div>
+          <div v-else class="data-history-grid">
+            <article v-for="record in visibleHerdDataRecords" :key="record.animalDataRecordId" class="data-history-card">
+              <strong>{{ record.source === 1 ? 'PC-DART milk test' : 'Zoetis genomic evaluation' }}</strong>
+              <small>{{ record.reportDate }}<template v-if="record.source === 1 && record.sourceAnimalName"> · PC-DART name: {{ record.sourceAnimalName }}</template></small>
+              <div v-if="record.source === 1"><span>Milk {{ record.milk ?? '—' }}</span><span>DIM {{ record.daysInMilk ?? '—' }}</span><span>Fat {{ record.fatPercent ?? '—' }}%</span><span>Protein {{ record.proteinPercent ?? '—' }}%</span></div>
+              <div v-else><span>TPI {{ record.tpi ?? '—' }}</span><span>NM$ {{ record.netMerit ?? '—' }}</span><span>Milk PTA {{ record.milkPta ?? '—' }}</span><span>DPR {{ record.daughterPregnancyRate ?? '—' }}</span><span>Type {{ record.typeScore ?? '—' }}</span><span>UDC {{ record.udderComposite ?? '—' }}</span><span>FLC {{ record.feetLegsComposite ?? '—' }}</span></div>
+              <details v-if="importedFields(record)['Report Type']" class="imported-full-record"><summary>{{ importedFields(record)['Report Type'] }}</summary><div class="imported-field-grid"><template v-for="(value, key) in importedFields(record)" :key="key"><span v-if="key !== 'Full Cow Record' && value"><small>{{ key }}</small><strong>{{ value }}</strong></span></template></div><pre v-if="importedFields(record)['Full Cow Record']">{{ importedFields(record)['Full Cow Record'] }}</pre></details>
+            </article>
+          </div>
+          <div v-if="herdDataRecords.length > latestHerdDataRecords.length" class="history-toggle-row">
+            <button class="mini-btn" type="button" @click="showAllHerdDataRecords = !showAllHerdDataRecords">
+              {{ showAllHerdDataRecords ? 'Show less' : `Show more (${hiddenHerdDataRecordCount})` }}
+            </button>
+          </div>
+          <div v-if="genomicHighlights.length" class="genomic-highlight-grid">
+            <article v-for="field in genomicHighlights" :key="field.csv" class="genomic-highlight-card">
+              <small>{{ field.csv }}</small>
+              <strong>{{ field.value }}</strong>
+              <span>{{ field.label }}</span>
+            </article>
+          </div>
+          <div v-if="matingData" class="mating-review">
+            <h3>Linear &amp; Mating Suggestions</h3>
+            <p class="upload-hint">Suggestions prioritize sires that improve this animal’s weaker genomic composites. Always review pedigree, recessives, inbreeding, calving ease, and your mating goals before breeding.</p>
+            <div class="cow-proof-row"><span>TPI {{ matingData.cow.tpi ?? '—' }}</span><span>Milk {{ matingData.cow.milkPta ?? '—' }}</span><span>DPR {{ matingData.cow.daughterPregnancyRate ?? '—' }}</span><span>PL {{ matingData.cow.productiveLife ?? '—' }}</span><span>Type {{ matingData.cow.typeScore ?? '—' }}</span><span>UDC {{ matingData.cow.udderComposite ?? '—' }}</span><span>FLC {{ matingData.cow.feetLegsComposite ?? '—' }}</span></div>
+            <details v-for="sire in matingData.suggestions" :key="sire.sireReferenceId" class="sire-suggestion">
+              <summary><strong>{{ sire.name }}</strong><span>{{ sire.naabCode || 'No NAAB code' }} · match {{ Number(sire.score).toFixed(1) }}</span></summary>
+              <div class="cow-proof-row"><span>NM$ {{ sire.netMerit ?? '—' }}</span><span>Milk {{ sire.ptaMilk ?? '—' }}</span><span>DPR {{ sire.daughterPregnancyRate ?? '—' }}</span><span>PL {{ sire.productiveLife ?? '—' }}</span><span>Type {{ sire.ptaType ?? '—' }}</span><span>UDC {{ sire.udderComposite ?? '—' }}</span><span>FLC {{ sire.feetLegsComposite ?? '—' }}</span></div>
+              <p>{{ sire.reasons.join(' · ') || 'Balanced candidate; review full proof.' }}</p>
+            </details>
+            <details v-if="matingData.avoid?.length" class="avoid-sires"><summary>Sires to avoid for this specific cow ({{ matingData.avoid.length }})</summary><p class="upload-hint">These bulls are not universally bad. They are flagged because their current proof may fail to improve this cow's particular weaknesses.</p><article v-for="sire in matingData.avoid" :key="`avoid-${sire.sireReferenceId}`"><strong>{{ sire.name }}</strong><span>{{ sire.naabCode || 'No NAAB code' }}</span><p>{{ sire.concerns.join(' · ') }}</p></article></details>
+          </div>
+        </template>
       </section>
 
       <section class="panel">
@@ -2065,7 +2091,14 @@ const scoreLabel = computed(() => {
   border-radius: 8px;
   background: linear-gradient(180deg, #f8fafc, #f1f5f9);
 }
+.linear-quick-panel{padding:14px;border-color:#cfe0d2;background:linear-gradient(180deg,#fbfffc,#f2f8f3)}
+.linear-chip-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.linear-chip{display:grid;gap:3px;padding:9px;border:1px solid #d9e3dc;border-radius:8px;background:#fff}
+.linear-chip small{font-size:.66rem;font-weight:900;letter-spacing:.08em;color:#31572c}
+.linear-chip strong{font-size:1.08rem;color:#173422}
+.linear-chip span{font-size:.74rem;color:#64748b}
 .private-data-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.private-data-heading h2{margin:0}.data-history-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.data-history-card{display:grid;gap:7px;padding:13px;border:1px solid #d9e3dc;border-left:4px solid #31572c;border-radius:8px;background:#f8fbf8}.data-history-card>div{display:flex;flex-wrap:wrap;gap:7px}.data-history-card span{padding:4px 7px;border-radius:5px;background:#fff;font-size:.82rem;font-weight:700}.data-history-card small{color:#64748b}
+.history-toggle-row{margin-top:10px;display:flex;justify-content:center}
 .genomic-highlight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px}.genomic-highlight-card{display:grid;gap:3px;padding:10px 11px;border:1px solid #d9e3dc;border-radius:8px;background:#fff}.genomic-highlight-card small{font-size:.68rem;font-weight:900;letter-spacing:.08em;color:#31572c}.genomic-highlight-card strong{font-size:1.15rem;color:#173422}.genomic-highlight-card span{font-size:.76rem;color:#64748b}
 .animal-linear{margin-top:14px;padding:13px;border:1px solid #d9e3dc;border-radius:10px;background:#fbfdfb}.animal-linear h3{margin:0}.animal-linear-row{display:grid;grid-template-columns:100px 1fr 48px;gap:8px;align-items:center;margin-top:9px;font-size:.82rem}.animal-linear-row>div{height:12px;background:#e4ebe5;border-radius:10px;overflow:hidden}.animal-linear-row i{display:block;height:100%;border-radius:10px;background:#4f772d}.animal-linear-row strong{text-align:right}
 .imported-full-record{margin-top:5px;border-top:1px solid #d9e3dc;padding-top:7px}.imported-full-record summary{cursor:pointer;font-weight:850;color:#31572c}.imported-field-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px!important;margin-top:8px}.imported-field-grid span{display:grid!important}.imported-field-grid small{font-size:.68rem;text-transform:uppercase;color:#64748b}.imported-full-record pre{max-height:360px;margin:8px 0 0;padding:10px;overflow:auto;white-space:pre-wrap;background:#f4f7f4;border-radius:7px;font:12px/1.45 monospace}
@@ -2174,10 +2207,86 @@ const scoreLabel = computed(() => {
 .latest-milk-strip>button{min-width:120px;border:0;border-radius:6px;background:#1769c2;color:#fff;font-weight:850}
 
 @media (max-width: 700px) {
+  .page {
+    padding: 14px;
+  }
+
+  .animal-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .quick-actions-panel {
+    order: 4;
+  }
+
+  .linear-quick-panel {
+    order: 3;
+  }
+
+  .latest-milk-strip {
+    order: 5;
+  }
+
+  .pedigree-panel {
+    order: 6;
+  }
+
+  .milk-genomic-panel {
+    order: 7;
+  }
+
+  .hero {
+    margin-bottom: 12px;
+    gap: 12px;
+  }
+
   .hero{align-items:flex-start;flex-wrap:wrap}
   .edit-animal-button{width:100%;margin-left:0}
   .latest-milk-strip{grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
   .milk-strip-title,.latest-milk-strip>button{grid-column:1/-1}
+
+  .panel,
+  .info-card {
+    padding: 14px;
+  }
+
+  .panel {
+    margin-bottom: 14px;
+  }
+
+  .info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0;
+  }
+
+  .info-grid .info-card:nth-child(6) {
+    grid-column: 1 / -1;
+  }
+
+  .info-grid .info-card strong {
+    font-size: 1rem;
+  }
+
+  .actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .actions button {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .animal-linear {
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .animal-linear-row {
+    grid-template-columns: 88px 1fr 42px;
+  }
 
   .info-grid,
   .pedigree,

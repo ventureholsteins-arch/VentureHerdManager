@@ -216,11 +216,11 @@ const embryoKey = 'venture-herd-embryos-v2'
 const achievementsKey = 'venture-herd-achievements-v1'
 
 const defaultLists: AnimalGroupList[] = [
-  { key: 'show-string', title: 'Show String', animalIds: [], notes: '', searchQuery: '' },
+  { key: 'show-string', title: 'Show String 3', animalIds: [], notes: '', searchQuery: '' },
+  { key: 'sale-animals', title: 'Sale Animals', animalIds: [], notes: '', searchQuery: '' },
+  { key: 'recipients', title: 'Recipients', animalIds: [], notes: '', searchQuery: '' },
   { key: 'flush-candidates', title: 'Flush Candidates', animalIds: [], notes: '', searchQuery: '' },
   { key: 'donor-cows', title: 'Donor Cows', animalIds: [], notes: '', searchQuery: '' },
-  { key: 'recipients', title: 'Recipients', animalIds: [], notes: '', searchQuery: '' },
-  { key: 'sale-animals', title: 'Sale Animals', animalIds: [], notes: '', searchQuery: '' },
   { key: 'vet-check', title: 'Vet Check', animalIds: [], notes: '', searchQuery: '' },
 ]
 
@@ -243,6 +243,8 @@ const nextRowId = ref(1)
 const nextBaggingRowId = ref(1)
 const nextEmbryoId = ref(1)
 const nextAchievementId = ref(1)
+
+const herdListOrder = defaultLists.map(list => list.key)
 
 const quarterTemplates: Omit<ShowBaggingQuarter, 'hoursBeforeRing'>[] = [
   { key: 'frontLeft', label: 'Front Left' },
@@ -352,8 +354,21 @@ function parseStored<T>(k: string, fallback: T): T {
   }
 }
 
+function normalizeGroupLists(stored: AnimalGroupList[]): AnimalGroupList[] {
+  const existingByKey = new Map(stored.map(list => [list.key, list]))
+  return defaultLists.map(list => {
+    const existing = existingByKey.get(list.key)
+    return {
+      ...list,
+      ...existing,
+      title: list.title,
+      searchQuery: existing?.searchQuery ?? ''
+    }
+  })
+}
+
 function loadData() {
-  groupLists.value = parseStored<AnimalGroupList[]>(listKey, defaultLists.map(l => ({ ...l }))).map(l => ({ ...l, searchQuery: '' }))
+  groupLists.value = normalizeGroupLists(parseStored<AnimalGroupList[]>(listKey, defaultLists.map(l => ({ ...l })))).map(l => ({ ...l, searchQuery: l.searchQuery ?? '' }))
   showStringRows.value = parseStored<ShowStringRow[]>(showStringKey, []).map(r => ({ ...r, feedRation: '' }))
   showBaggingRows.value = parseStored<ShowBaggingRow[]>(showBaggingKey, []).map(r => normalizeBaggingRow(r))
   const baggingMeta = parseStored<{ showName: string; showDate: string; showStartTime: string; phoneNumbers?: string }>(showBaggingMetaKey, {
@@ -490,6 +505,11 @@ function saveData() {
 }
 
 watch([groupLists, showStringRows, showBaggingRows, showBaggingShowName, showBaggingShowDate, showBaggingStartTime, showBaggingPhoneNumbers, checklistItems, embryoRecords, achievements], saveData, { deep: true })
+
+watch(activeTab, async tab => {
+  if (route.query.tab === tab) return
+  await router.replace({ query: { ...route.query, tab } })
+})
 
 const animalOptions = computed(() =>
   [...animals.value].sort((a, b) =>
@@ -702,6 +722,15 @@ const baggingHistoryMatches = computed(() => {
 const showBaggingStartHoursFromNow = computed(() => parseHoursDifference(toIsoFromInput(showBaggingStartTime.value) ?? ''))
 
 const showStringSorted = computed(() => [...showStringRows.value].sort((a, b) => a.lineupOrder - b.lineupOrder))
+const showStringTopThreeAnimalIds = computed(() =>
+  showStringSorted.value
+    .map(row => row.animalId)
+    .filter((animalId): animalId is number => animalId !== null)
+    .slice(0, 3)
+)
+const orderedGroupLists = computed(() =>
+  [...groupLists.value].sort((left, right) => herdListOrder.indexOf(left.key) - herdListOrder.indexOf(right.key))
+)
 
 // Split lineup into Cows (stage 3/4 or show class has "Cow") and Heifers/Youngstock
 const showStringCows = computed(() =>
@@ -792,6 +821,43 @@ function getAnimalLabel(animalId: number | null): string {
   return `${a.barnName || a.registeredName || `#${a.animalId}`} · ${formatCurrentAge(a.birthDate)} · ${getShowClassLabel(a.birthDate, a.animalStage)}`
 }
 
+function getAnimalById(animalId: number | null): Animal | undefined {
+  if (!animalId) return undefined
+  return animals.value.find(animal => animal.animalId === animalId)
+}
+
+function getCurrentWorkingPen(animalId: number | null): string {
+  const animal = getAnimalById(animalId)
+  if (!animal) return 'Unknown'
+  return animal.herdLocation === 1 ? "At Mueller's" : 'Home herd'
+}
+
+function getShowStringPosition(animalId: number | null): number | null {
+  if (!animalId) return null
+  const index = showStringSorted.value.findIndex(row => row.animalId === animalId)
+  return index >= 0 ? index + 1 : null
+}
+
+function getListAnimalIds(list: AnimalGroupList): number[] {
+  if (list.key === 'show-string') {
+    return showStringTopThreeAnimalIds.value
+  }
+
+  return list.animalIds
+}
+
+function isReadOnlyList(list: AnimalGroupList): boolean {
+  return list.key === 'show-string'
+}
+
+function openAnimalFromReports(animalId: number) {
+  router.push({
+    name: 'animal',
+    params: { animalId },
+    query: { returnTo: route.fullPath }
+  })
+}
+
 function getScoreLabel(score: number | null | undefined): string {
   if (!score) return ''
   if (score >= 90) return `EX ${Math.round(score)}`
@@ -813,6 +879,7 @@ function barPct(value: number, allValues: number[]): number {
 }
 
 function filteredListAnimals(list: AnimalGroupList): Animal[] {
+  if (isReadOnlyList(list)) return []
   const q = (list.searchQuery || '').trim().toLowerCase()
   if (q.length < 2) return []
   return animalOptions.value
@@ -1135,6 +1202,7 @@ function removeShowStringRow(id: number) { showStringRows.value = showStringRows
 function toggleAnimalInList(key: string, animalId: number) {
   const list = groupLists.value.find(l => l.key === key)
   if (!list) return
+  if (list.key === 'show-string') return
   if (list.animalIds.includes(animalId)) list.animalIds = list.animalIds.filter(id => id !== animalId)
   else list.animalIds.push(animalId)
 }
@@ -2252,21 +2320,28 @@ onMounted(async () => {
       <div class="rp-ph"><h2>Herd Lists</h2></div>
       <p class="rp-hint">Search by barn name, tap animals to toggle them into a list. Each list is independent.</p>
 
-      <div v-for="list in groupLists" :key="list.key" class="rp-group">
+      <div v-for="list in orderedGroupLists" :key="list.key" class="rp-group">
         <div class="rp-group-hd">
           <h3>{{ list.title }}</h3>
-          <span class="rp-group-ct">{{ list.animalIds.length }}</span>
+          <span class="rp-group-ct">{{ getListAnimalIds(list).length }}</span>
         </div>
-        <input v-model="list.searchQuery" type="search" class="rp-list-search" :placeholder="`Search ${list.title}…`" />
-        <p v-if="(list.searchQuery || '').trim().length < 2" class="rp-hint">Type at least 2 letters. The entire herd will not be shown as buttons.</p>
-        <div class="rp-chips">
-          <button v-for="a in filteredListAnimals(list)" :key="`${list.key}-${a.animalId}`" type="button" class="rp-chip" :class="{ 'rp-chip-sel': list.animalIds.includes(a.animalId) }" @click="toggleAnimalInList(list.key, a.animalId)">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</button>
+        <p v-if="isReadOnlyList(list)" class="rp-hint">Pulled automatically from the first 3 animals in Show String.</p>
+        <template v-else>
+          <input v-model="list.searchQuery" type="search" class="rp-list-search" :placeholder="`Search ${list.title}…`" />
+          <p v-if="(list.searchQuery || '').trim().length < 2" class="rp-hint">Type at least 2 letters. The entire herd will not be shown as buttons.</p>
+        </template>
+        <div v-if="!isReadOnlyList(list)" class="rp-chips">
+          <button v-for="a in filteredListAnimals(list)" :key="`${list.key}-${a.animalId}`" type="button" class="rp-chip" :class="{ 'rp-chip-sel': getListAnimalIds(list).includes(a.animalId) }" @click="toggleAnimalInList(list.key, a.animalId)">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</button>
         </div>
-        <div v-if="list.animalIds.length > 0" class="rp-list-members">
+        <div v-if="getListAnimalIds(list).length > 0" class="rp-list-members">
           <div class="rp-lm-hd">In this list</div>
-          <div v-for="id in list.animalIds" :key="`in-${id}`" class="rp-lm-row">
-            <span>{{ getAnimalLabel(id) }}</span>
-            <button type="button" class="rp-lm-rm" @click="toggleAnimalInList(list.key, id)">✕</button>
+          <div v-for="id in getListAnimalIds(list)" :key="`${list.key}-in-${id}`" class="rp-lm-row">
+            <button type="button" class="rp-lm-open" @click="openAnimalFromReports(id)">
+              <strong>{{ getAnimalLabel(id) }}</strong>
+              <small>Current working pen: {{ getCurrentWorkingPen(id) }}</small>
+              <small v-if="getShowStringPosition(id)">Show String #{{ getShowStringPosition(id) }}</small>
+            </button>
+            <button v-if="!isReadOnlyList(list)" type="button" class="rp-lm-rm" @click="toggleAnimalInList(list.key, id)">✕</button>
           </div>
         </div>
         <label class="lbl-notes">Notes<textarea v-model="list.notes" rows="2" placeholder="Instructions, sorting priority, vet orders" class="rp-textarea" /></label>
@@ -2759,6 +2834,9 @@ textarea { min-height: 72px; resize: vertical; }
 .rp-list-members { margin-top: 12px; border: 1px solid #e0e8e1; border-radius: 8px; overflow: hidden; }
 .rp-lm-hd { padding: 6px 12px; background: #f4f7f4; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #5d6f63; letter-spacing: 0.06em; }
 .rp-lm-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid #e0e8e1; font-size: 0.9rem; color: #0f1f16; }
+.rp-lm-open { display: grid; gap: 3px; flex: 1; min-width: 0; border: none; background: transparent; padding: 0; text-align: left; color: inherit; cursor: pointer; }
+.rp-lm-open strong { overflow-wrap: anywhere; }
+.rp-lm-open small { color: #5d6f63; font-size: 0.76rem; }
 .rp-lm-rm { border: none; background: transparent; color: #dc2626; font-size: 0.85rem; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
 .rp-lm-rm:hover { background: #fee2e2; }
 .lbl-notes { display: grid; gap: 6px; margin-top: 10px; color: #5d6f63; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; }

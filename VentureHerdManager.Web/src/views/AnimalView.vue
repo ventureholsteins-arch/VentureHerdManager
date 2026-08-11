@@ -226,8 +226,18 @@ const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
 }
 
 function goBack() {
+  const returnTo =
+    typeof route.query.returnTo === 'string'
+      ? route.query.returnTo
+      : null
+
   if (window.history.length > 1) {
     router.back()
+    return
+  }
+
+  if (returnTo) {
+    router.push(returnTo)
     return
   }
 

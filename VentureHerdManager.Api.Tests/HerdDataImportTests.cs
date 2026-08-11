@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
+using VentureHerdManager.Api.Controllers;
 using VentureHerdManager.Api.Data;
 using VentureHerdManager.Api.DTOs;
 using VentureHerdManager.Api.Models;
@@ -11,6 +15,11 @@ namespace VentureHerdManager.Api.Tests;
 
 public sealed class HerdDataImportTests
 {
+    private static readonly JsonSerializerOptions WebJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     [Fact]
     public async Task PcdartCsvStoresProductionValuesAndRememberedIdentity()
     {
@@ -53,6 +62,122 @@ public sealed class HerdDataImportTests
         var record = Assert.Single(batch.Records);
         Assert.Equal(2125, record.Tpi); Assert.Equal(-344, record.NetMerit); Assert.Equal(-0.31m, record.UdderComposite);
         Assert.Contains("Official ID", record.RawDataJson);
+    }
+
+    [Fact]
+    public async Task ZoetisAnalyticsIncludesRearUdderAndStrengthTraitsFromRawHeaders()
+    {
+        await using var context = CreateContext();
+        var animal = new Animal { RegisteredName = "VENTURE ALLEYOOP PAYTON", RegistrationNumber = "840003293928967" };
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+
+        var service = new HerdDataImportService(context);
+        var request = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Zoetis,
+            FileName = "core.csv",
+            ReportDate = new DateOnly(2026, 8, 10),
+            CsvText = "Animal ID,Official ID,Animal Name,Sex,Birth Date,Breed,TPI,NM$,RUH,RUW,SG,ST\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,F,2024-03-01,HO,2125,-344,1.8,1.2,0.7,2.1"
+        };
+
+        await service.ApplyAsync(request);
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["HerdDataImport:AdminKey"] = "test-key"
+            })
+            .Build();
+        var controller = new HerdDataController(
+            service,
+            context,
+            new HerdDataAdminAccess(configuration),
+            NullLogger<HerdDataController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+        controller.ControllerContext.HttpContext.Request.Headers["X-Herd-Admin-Key"] = "test-key";
+
+        var result = await controller.Analytics(CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value, WebJson));
+        var genomic = document.RootElement.GetProperty("genomic");
+        var row = Assert.Single(genomic.EnumerateArray());
+
+        Assert.Equal(1.8m, row.GetProperty("rearUdderHeight").GetDecimal());
+        Assert.Equal(1.2m, row.GetProperty("rearUdderWidth").GetDecimal());
+        Assert.Equal(0.7m, row.GetProperty("strength").GetDecimal());
+        Assert.Equal(2.1m, row.GetProperty("stature").GetDecimal());
+    }
+
+    [Fact]
+    public async Task ZoetisCsvAcceptsAlternateOfficialIdHeaders()
+    {
+        await using var context = CreateContext();
+        var animal = new Animal { RegisteredName = "VENTURE ALLEYOOP PAYTON", RegistrationNumber = "840003293928967" };
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+
+        var service = new HerdDataImportService(context);
+        var request = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Zoetis,
+            FileName = "core.csv",
+            ReportDate = new DateOnly(2026, 8, 10),
+            CsvText = "Animal ID,CDCB #,Animal Name,TPI,NM$\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,2125,-344"
+        };
+
+        var previewRow = Assert.Single((await service.PreviewAsync(request)).Rows);
+        Assert.Equal(animal.AnimalId, previewRow.AnimalId);
+
+        var batch = await service.ApplyAsync(request);
+        var record = Assert.Single(batch.Records);
+        Assert.Equal("HO840003293928967", record.OfficialId);
+    }
+
+    [Fact]
+    public async Task ZoetisDuplicateReplaceKeepsSingleStoredImport()
+    {
+        await using var context = CreateContext();
+        var animal = new Animal { RegisteredName = "VENTURE ALLEYOOP PAYTON", RegistrationNumber = "840003293928967" };
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var first = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Zoetis,
+            FileName = "core-a.csv",
+            ReportDate = new DateOnly(2026, 8, 10),
+            CsvText = "Animal ID,Official ID,Animal Name,TPI,NM$,SG\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,2125,-344,0.7"
+        };
+        await service.ApplyAsync(first);
+
+        var repeated = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Zoetis,
+            FileName = "core-b.csv",
+            ReportDate = first.ReportDate,
+            CsvText = "Animal ID,Official ID,Animal Name,TPI,NM$,SG\n37,HO840003293928967,VENTURE ALLEYOOP PAYTON,2140,-300,0.9"
+        };
+
+        var preview = await service.PreviewAsync(repeated);
+        Assert.True(preview.DuplicateImport);
+        Assert.False(preview.ExactDuplicateFile);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ApplyAsync(repeated));
+        Assert.Contains("already stored", error.Message);
+
+        repeated.ConfirmDuplicateReplace = true;
+        await service.ApplyAsync(repeated);
+
+        Assert.Single(context.HerdDataImports);
+        var stored = Assert.Single(context.AnimalDataRecords);
+        Assert.Equal(2140, stored.Tpi);
+        Assert.Equal(-300, stored.NetMerit);
     }
 
     [Fact]

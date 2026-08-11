@@ -95,13 +95,15 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
     {
         var denied = Guard(); if (denied != null) return denied;
         var records = await context.AnimalDataRecords.AsNoTracking().Include(r => r.Animal).ToListAsync(ct);
+        static string NormalizeTraitKey(string value) => new(value.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
         static decimal? RawTrait(AnimalDataRecord record, params string[] aliases)
         {
             try
             {
+                var normalizedAliases = aliases.Select(NormalizeTraitKey).ToHashSet(StringComparer.Ordinal);
                 using var document = JsonDocument.Parse(record.RawDataJson);
                 foreach (var property in document.RootElement.EnumerateObject())
-                    if (aliases.Any(alias => string.Equals(property.Name.Trim(), alias, StringComparison.OrdinalIgnoreCase))
+                    if (normalizedAliases.Contains(NormalizeTraitKey(property.Name))
                         && decimal.TryParse(property.Value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var value)) return value;
             }
             catch (JsonException) { }
@@ -123,7 +125,20 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         }).ToList();
         var sireMilk = milk.Where(r => !string.IsNullOrWhiteSpace(r.SireName)).GroupBy(r => r.SireName!.Trim(), StringComparer.OrdinalIgnoreCase).Select(group => new { sireName = group.Key, daughters = group.Select(r => r.AnimalId).Distinct().Count(), averageMilk = group.Where(r => r.Milk.HasValue).Select(r => r.Milk).Average(), averageFatPercent = group.Where(r => r.FatPercent.HasValue).Select(r => r.FatPercent).Average(), averageProteinPercent = group.Where(r => r.ProteinPercent.HasValue).Select(r => r.ProteinPercent).Average(), averageFatPounds = group.Where(r => r.FatPounds.HasValue).Select(r => r.FatPounds).Average(), averageProteinPounds = group.Where(r => r.ProteinPounds.HasValue).Select(r => r.ProteinPounds).Average() }).OrderByDescending(r => r.averageMilk).ToList();
         var milkHistory = records.Where(r => r.Source == HerdDataSource.Pcdart).GroupBy(r => r.ReportDate).OrderBy(group => group.Key).Select(group => new { reportDate = group.Key, cows = group.Select(r => r.AnimalId).Distinct().Count(), averageMilk = group.Where(r => r.Milk.HasValue).Select(r => r.Milk).Average(), averageFatPercent = group.Where(r => r.FatPercent.HasValue).Select(r => r.FatPercent).Average(), averageProteinPercent = group.Where(r => r.ProteinPercent.HasValue).Select(r => r.ProteinPercent).Average() }).ToList();
-        var genomicAll = records.Where(r => r.Source == HerdDataSource.Zoetis && r.ReportDate == genomicDate).OrderByDescending(r => r.Tpi).Select(r => new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.AnimalStage, r.ReportDate, r.Tpi, r.NetMerit, r.MilkPta, r.DaughterPregnancyRate, r.ProductiveLife, r.TypeScore, r.UdderComposite, r.FeetLegsComposite, RearUdderHeight = RawTrait(r, "RUH", "REAR UDDER HEIGHT", "REAR UDDER HT", "REARUDHEIGHT", "REARUDDERHEIGHT"), RearUdderWidth = RawTrait(r, "RUW", "REAR UDDER WIDTH", "REARUDWIDTH", "REARUDDERWIDTH"), Strength = RawTrait(r, "STR", "STRENGTH", "BODY STRENGTH", "BODY STRENGTH COMPOSITE") }).ToList();
+        var genomicAll = records.Where(r => r.Source == HerdDataSource.Zoetis && r.ReportDate == genomicDate).OrderByDescending(r => r.Tpi).Select(r => new
+        {
+            r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.AnimalStage, r.ReportDate,
+            r.Tpi, r.NetMerit, r.MilkPta, r.FatPta, r.ProteinPta, r.SomaticCellScore,
+            r.DaughterPregnancyRate, r.ProductiveLife, r.TypeScore, r.UdderComposite, r.FeetLegsComposite,
+            BodyComposite = RawTrait(r, "BDC"), DairyWellnessProfit = RawTrait(r, "DWP$"), CalfWellness = RawTrait(r, "CA$"),
+            FeedEfficiency = RawTrait(r, "FE"), ResidualFeedIntake = RawTrait(r, "RFI"), MilkingSpeed = RawTrait(r, "MSPD"),
+            FatPercentPta = RawTrait(r, "FAT %"), ProteinPercentPta = RawTrait(r, "PROT%"),
+            Stature = RawTrait(r, "ST"), Strength = RawTrait(r, "SG", "STRENGTH", "BODY STRENGTH"), BodyDepth = RawTrait(r, "BD"), DairyForm = RawTrait(r, "DF"),
+            RumpAngle = RawTrait(r, "RA"), RumpWidth = RawTrait(r, "RW"), RearLegsSide = RawTrait(r, "LS"), RearLegsRear = RawTrait(r, "LR"),
+            FootAngle = RawTrait(r, "FA"), FeetLegsScore = RawTrait(r, "FLS"), ForeUdderAttachment = RawTrait(r, "FU"),
+            RearUdderHeight = RawTrait(r, "UH", "RUH"), RearUdderWidth = RawTrait(r, "UW", "RUW"), UdderCleft = RawTrait(r, "UC"),
+            UdderDepth = RawTrait(r, "UD"), FrontTeatPlacement = RawTrait(r, "FT"), RearTeatPlacement = RawTrait(r, "RT"), TeatLength = RawTrait(r, "TL")
+        }).ToList();
         var genomic = genomicAll.Where(r => r.AnimalStage != AnimalStage.Bull).ToList();
         var bulls = genomicAll.Where(r => r.AnimalStage == AnimalStage.Bull).ToList();
         var genomicHistory = records.Where(r => r.Source == HerdDataSource.Zoetis && r.Animal.AnimalStage != AnimalStage.Bull)

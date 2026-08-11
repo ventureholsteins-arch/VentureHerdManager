@@ -59,9 +59,15 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         }
         var milkDate = records.Where(r => r.Source == HerdDataSource.Pcdart).Max(r => (DateOnly?)r.ReportDate);
         var genomicDate = records.Where(r => r.Source == HerdDataSource.Zoetis).Max(r => (DateOnly?)r.ReportDate);
+        var latestComponentsByAnimal = records
+            .Where(record => record.Source == HerdDataSource.Pcdart && (record.FatPercent.HasValue || record.ProteinPercent.HasValue))
+            .GroupBy(record => record.AnimalId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(record => record.ReportDate).First());
         var milk = records.Where(r => r.Source == HerdDataSource.Pcdart && r.ReportDate == milkDate).OrderByDescending(r => r.Milk).Select(r =>
         {
-            var component = records.Where(candidate => candidate.Source == HerdDataSource.Pcdart && candidate.AnimalId == r.AnimalId && (candidate.FatPercent.HasValue || candidate.ProteinPercent.HasValue) && candidate.ReportDate <= r.ReportDate).OrderByDescending(candidate => candidate.ReportDate).FirstOrDefault();
+            latestComponentsByAnimal.TryGetValue(r.AnimalId, out var component);
             var fat = r.FatPercent ?? component?.FatPercent; var protein = r.ProteinPercent ?? component?.ProteinPercent;
             return new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.SireName, r.Animal.CurrentLactation, r.ReportDate, ComponentReportDate = component?.ReportDate, r.DaysInMilk, r.Milk, FatPercent = fat, ProteinPercent = protein, FatPounds = r.Milk.HasValue && fat.HasValue ? Math.Round(r.Milk.Value * fat.Value / 100m, 2) : (decimal?)null, ProteinPounds = r.Milk.HasValue && protein.HasValue ? Math.Round(r.Milk.Value * protein.Value / 100m, 2) : (decimal?)null };
         }).ToList();

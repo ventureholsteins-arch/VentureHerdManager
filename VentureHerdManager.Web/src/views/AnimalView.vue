@@ -899,12 +899,6 @@ const ageLabel = computed(() => {
   return formatCurrentAge(animal.value.birthDate)
 })
 
-const breedLabel = computed(() => {
-  const breed = animal.value?.breed?.trim()
-  if (!breed) return 'Unknown'
-  return /^holstein$/i.test(breed) ? 'HO' : breed
-})
-
 const showClassLabel = computed(() => {
   if (!animal.value) return 'Class TBD'
   return getShowClassLabel(animal.value.birthDate, animal.value.animalStage)
@@ -967,8 +961,8 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
         </div>
 
         <div class="info-card breed-card">
-          <span>Breed</span>
-          <strong>{{ breedLabel }}</strong>
+          <span>Age</span>
+          <strong>{{ ageLabel }}</strong>
         </div>
 
         <div class="info-card lactation-card">
@@ -993,10 +987,6 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
           <strong>{{ scoreLabel }}</strong>
         </div>
 
-        <div class="info-card age-card">
-          <span>Age</span>
-          <strong>{{ ageLabel }}</strong>
-        </div>
       </section>
       <section v-if="animal.animalStatus === 1" class="sold-banner"><div><strong>SOLD - ARCHIVED</strong><span>{{ animal.soldDate ? new Date(animal.soldDate).toLocaleDateString() : 'Sold animal' }} · All records are retained</span><p v-if="animal.soldNotes">{{ animal.soldNotes }}</p></div><button @click="undoSold">Restore to active herd</button></section>
       <section v-if="animal.animalStatus === 0 && animal.herdLocation === 1" class="sold-banner muellers-banner"><div><strong>ACTIVE AT MUELLER'S</strong><span>Still part of the active herd · All records and reminders continue</span></div><button @click="changeHerdLocation(0)">Return to Home Herd</button></section>
@@ -2212,25 +2202,11 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
     flex-direction: column;
   }
 
-  .quick-actions-panel {
-    order: 4;
-  }
-
-  .linear-quick-panel {
-    order: 3;
-  }
-
-  .latest-milk-strip {
-    order: 5;
-  }
-
-  .pedigree-panel {
-    order: 6;
-  }
-
-  .milk-genomic-panel {
-    order: 7;
-  }
+  .pedigree-panel { order: 3; }
+  .linear-quick-panel { order: 4; }
+  .quick-actions-panel { order: 5; }
+  .latest-milk-strip { order: 6; }
+  .milk-genomic-panel { order: 7; }
 
   .hero {
     margin-bottom: 12px;
@@ -2255,10 +2231,6 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin: 14px 0;
-  }
-
-  .info-grid .age-card {
-    grid-column: 1 / -1;
   }
 
   .info-grid .info-card strong {

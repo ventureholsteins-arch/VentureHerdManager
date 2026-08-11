@@ -961,41 +961,41 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
       </section>
 
       <section class="info-grid">
-        <div class="info-card">
+        <div class="info-card stage-card">
           <span>Stage</span>
           <strong>{{ stageLabel }}</strong>
         </div>
 
-        <div class="info-card">
+        <div class="info-card breed-card">
           <span>Breed</span>
           <strong>{{ breedLabel }}</strong>
         </div>
 
-        <div class="info-card">
+        <div class="info-card lactation-card">
           <span>Current Lactation</span>
           <strong>
             {{ animal.currentLactation ?? 'Not set' }}
           </strong>
         </div>
 
-        <div class="info-card">
+        <div class="info-card birthdate-card">
           <span>Birth Date</span>
           <strong>{{ animal.birthDate || 'Unknown' }}</strong>
         </div>
 
-        <div class="info-card">
-          <span>Age</span>
-          <strong>{{ ageLabel }}</strong>
-        </div>
-
-        <div class="info-card">
+        <div class="info-card class-card">
           <span>Show Class</span>
           <strong>{{ showClassLabel }}</strong>
         </div>
 
-        <div class="info-card">
+        <div class="info-card score-card">
           <span>Score</span>
           <strong>{{ scoreLabel }}</strong>
+        </div>
+
+        <div class="info-card age-card">
+          <span>Age</span>
+          <strong>{{ ageLabel }}</strong>
         </div>
       </section>
       <section v-if="animal.animalStatus === 1" class="sold-banner"><div><strong>SOLD - ARCHIVED</strong><span>{{ animal.soldDate ? new Date(animal.soldDate).toLocaleDateString() : 'Sold animal' }} · All records are retained</span><p v-if="animal.soldNotes">{{ animal.soldNotes }}</p></div><button @click="undoSold">Restore to active herd</button></section>
@@ -1003,15 +1003,15 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
 
       <section v-if="getAdminKey() && linearQuickGlance.length" class="panel linear-quick-panel">
         <div class="private-data-heading">
-          <h2>Linear Quick Glance</h2>
+          <h2>Linear Graph Quick Glance</h2>
           <button class="mini-btn" type="button" @click="router.push('/reports/herd-data?view=linear')">Open full linear</button>
         </div>
-        <div class="linear-chip-grid">
-          <article v-for="trait in linearQuickGlance" :key="`quick-${trait.csv}`" class="linear-chip">
-            <small>{{ trait.csv }}</small>
+        <div class="animal-linear quick-linear-top">
+          <div v-for="trait in linearQuickGlance" :key="`quick-${trait.csv}`" class="animal-linear-row">
+            <span><b>{{ trait.csv }}</b> {{ trait.label }}</span>
+            <div><i :style="{ width: animalLinearWidth(trait.value) }"></i></div>
             <strong>{{ trait.value ?? '—' }}</strong>
-            <span>{{ trait.label }}</span>
-          </article>
+          </div>
         </div>
       </section>
 
@@ -2092,11 +2092,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
   background: linear-gradient(180deg, #f8fafc, #f1f5f9);
 }
 .linear-quick-panel{padding:14px;border-color:#cfe0d2;background:linear-gradient(180deg,#fbfffc,#f2f8f3)}
-.linear-chip-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
-.linear-chip{display:grid;gap:3px;padding:9px;border:1px solid #d9e3dc;border-radius:8px;background:#fff}
-.linear-chip small{font-size:.66rem;font-weight:900;letter-spacing:.08em;color:#31572c}
-.linear-chip strong{font-size:1.08rem;color:#173422}
-.linear-chip span{font-size:.74rem;color:#64748b}
+.quick-linear-top{margin-top:8px;background:#fff;border-color:#d8e5da}
 .private-data-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.private-data-heading h2{margin:0}.data-history-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}.data-history-card{display:grid;gap:7px;padding:13px;border:1px solid #d9e3dc;border-left:4px solid #31572c;border-radius:8px;background:#f8fbf8}.data-history-card>div{display:flex;flex-wrap:wrap;gap:7px}.data-history-card span{padding:4px 7px;border-radius:5px;background:#fff;font-size:.82rem;font-weight:700}.data-history-card small{color:#64748b}
 .history-toggle-row{margin-top:10px;display:flex;justify-content:center}
 .genomic-highlight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px}.genomic-highlight-card{display:grid;gap:3px;padding:10px 11px;border:1px solid #d9e3dc;border-radius:8px;background:#fff}.genomic-highlight-card small{font-size:.68rem;font-weight:900;letter-spacing:.08em;color:#31572c}.genomic-highlight-card strong{font-size:1.15rem;color:#173422}.genomic-highlight-card span{font-size:.76rem;color:#64748b}
@@ -2261,7 +2257,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
     margin: 14px 0;
   }
 
-  .info-grid .info-card:nth-child(6) {
+  .info-grid .age-card {
     grid-column: 1 / -1;
   }
 
@@ -2288,9 +2284,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
     grid-template-columns: 88px 1fr 42px;
   }
 
-  .info-grid,
   .pedigree,
-  .actions,
   .checkbox-grid {
     grid-template-columns: 1fr;
   }

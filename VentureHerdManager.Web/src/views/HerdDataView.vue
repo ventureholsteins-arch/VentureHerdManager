@@ -91,13 +91,13 @@ function cowPageCsv(lines: string[]) {
   const testDate = flat.match(/Date of Test\s+(\d{2}\/\d{2}\/\d{4})/i)?.[1] ?? ''
   const status = lines.find(line => /^\d{2}\/\d{2}\/\d{4}\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+\d{4,}/.test(line))?.split(/\s+/) ?? []
   if (!name) throw new Error('The cow name was not found. Choose a PC-DART DHI-203 Cow Page PDF.')
-  cowPageDraft.value = { name, dhiId: dhiId || name, birthDate: normalizePdfDate(birth), milk: status[1] ?? '', fat: status[2] ?? '', protein: status[3] ?? '', lastCalving: status[0] ? normalizePdfDate(status[0]) : '', testDate: normalizePdfDate(testDate), fullRecord: text }
+  cowPageDraft.value = { name, dhiId: dhiId || name, birthDate: normalizePdfDate(birth), milk: status[1] ?? '', fat: status[2] ?? '', protein: status[3] ?? '', lifetimeMilk: status[4] ?? '', lifetimeFat: status[5] ?? '', lifetimeProtein: status[6] ?? '', lastCalving: status[0] ? normalizePdfDate(status[0]) : '', testDate: normalizePdfDate(testDate), fullRecord: text }
   return buildCowPageCsv()
 }
 function buildCowPageCsv() {
   const draft = cowPageDraft.value
-  const headers = ['BarnName', 'DHIID', 'BirthDate', 'Milk', 'Fat%', 'Pro%', 'LastCalv', 'Report Type', 'Test Date', 'Full Cow Record']
-  const row = [draft.name, draft.dhiId, draft.birthDate, draft.milk, draft.fat, draft.protein, draft.lastCalving, 'PC-DART DHI-203 Individual Cow PDF', draft.testDate, draft.fullRecord]
+  const headers = ['BarnName', 'DHIID', 'BirthDate', 'Milk', 'Fat%', 'Pro%', 'Lifetime Milk', 'Lifetime Fat', 'Lifetime Protein', 'LastCalv', 'Report Type', 'Test Date', 'Full Cow Record']
+  const row = [draft.name, draft.dhiId, draft.birthDate, draft.milk, draft.fat, draft.protein, draft.lifetimeMilk, draft.lifetimeFat, draft.lifetimeProtein, draft.lastCalving, 'PC-DART DHI-203 Individual Cow PDF', draft.testDate, draft.fullRecord]
   return [headers, row].map(values => values.map(csvCell).join(',')).join('\n')
 }
 async function applyCowPageCorrections() {

@@ -112,6 +112,8 @@ public class Animal
 
     public ICollection<AnimalDataRecord> DataRecords { get; set; } = [];
 
+    public ICollection<LifetimeProductionSnapshot> LifetimeProductionSnapshots { get; set; } = [];
+
     public ICollection<AnimalIdentityMapping> IdentityMappings { get; set; } = [];
 
     [NotMapped]

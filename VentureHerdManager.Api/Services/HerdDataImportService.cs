@@ -70,6 +70,16 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             var match = preview.Rows[index];
             var record = row.ToRecord(match.AnimalId!.Value, request.ReportDate, request.Source);
             batch.Records.Add(record);
+            var lifetimeMilk = Dec(row.Values.GetValueOrDefault("Lifetime Milk"));
+            var lifetimeFat = Dec(row.Values.GetValueOrDefault("Lifetime Fat"));
+            var lifetimeProtein = Dec(row.Values.GetValueOrDefault("Lifetime Protein"));
+            if (lifetimeMilk.HasValue || lifetimeFat.HasValue || lifetimeProtein.HasValue)
+                batch.LifetimeProductionSnapshots.Add(new LifetimeProductionSnapshot
+                {
+                    AnimalId = match.AnimalId.Value, ReportDate = request.ReportDate,
+                    LifetimeMilk = lifetimeMilk, LifetimeFat = lifetimeFat, LifetimeProtein = lifetimeProtein,
+                    Lactations = Int(row.Values.GetValueOrDefault("Lifetime Lactations")), SourceFileName = request.FileName
+                });
             var animal = await context.Animals.FindAsync([match.AnimalId.Value], ct);
             if (animal != null) EnrichConfirmedAnimal(animal, row, request.Source);
             var mapping = await context.AnimalIdentityMappings.SingleOrDefaultAsync(m => m.Source == request.Source && m.SourceKey == row.SourceKey, ct);

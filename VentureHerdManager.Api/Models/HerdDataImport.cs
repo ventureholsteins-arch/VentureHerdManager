@@ -12,6 +12,7 @@ public sealed class HerdDataImport
     public int RowsImported { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     public ICollection<AnimalDataRecord> Records { get; set; } = [];
+    public ICollection<LifetimeProductionSnapshot> LifetimeProductionSnapshots { get; set; } = [];
 }
 
 public sealed class AnimalDataRecord

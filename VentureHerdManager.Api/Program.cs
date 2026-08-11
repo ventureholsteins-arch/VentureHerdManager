@@ -1141,6 +1141,20 @@ static async Task EnsureHerdDataAnalyticsSchemaAsync(ApplicationDbContext contex
           );
         END;
 
+        IF OBJECT_ID(N'dbo.LifetimeProductionSnapshots', N'U') IS NULL
+        BEGIN
+          CREATE TABLE [dbo].[LifetimeProductionSnapshots](
+            [LifetimeProductionSnapshotId] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_LifetimeProductionSnapshots] PRIMARY KEY,
+            [AnimalId] INT NOT NULL, [HerdDataImportId] INT NOT NULL, [ReportDate] DATE NOT NULL,
+            [LifetimeMilk] DECIMAL(18,2) NULL, [LifetimeFat] DECIMAL(18,2) NULL, [LifetimeProtein] DECIMAL(18,2) NULL,
+            [Lactations] INT NULL, [SourceFileName] NVARCHAR(260) NOT NULL, [CreatedAt] DATETIME2 NOT NULL CONSTRAINT [DF_LifetimeProductionSnapshots_CreatedAt] DEFAULT SYSUTCDATETIME(),
+            CONSTRAINT [FK_LifetimeProductionSnapshots_Animals_AnimalId] FOREIGN KEY ([AnimalId]) REFERENCES [dbo].[Animals]([AnimalId]) ON DELETE CASCADE,
+            CONSTRAINT [FK_LifetimeProductionSnapshots_HerdDataImports_HerdDataImportId] FOREIGN KEY ([HerdDataImportId]) REFERENCES [dbo].[HerdDataImports]([HerdDataImportId]) ON DELETE CASCADE
+          );
+          CREATE UNIQUE INDEX [IX_LifetimeProductionSnapshots_AnimalId_ReportDate] ON [dbo].[LifetimeProductionSnapshots]([AnimalId],[ReportDate]);
+          CREATE INDEX [IX_LifetimeProductionSnapshots_HerdDataImportId] ON [dbo].[LifetimeProductionSnapshots]([HerdDataImportId]);
+        END;
+
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name]=N'IX_HerdDataImports_FileHash' AND [object_id]=OBJECT_ID(N'dbo.HerdDataImports'))
           CREATE UNIQUE INDEX [IX_HerdDataImports_FileHash] ON [dbo].[HerdDataImports]([FileHash]);
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name]=N'IX_HerdDataImports_Source_ReportDate' AND [object_id]=OBJECT_ID(N'dbo.HerdDataImports'))

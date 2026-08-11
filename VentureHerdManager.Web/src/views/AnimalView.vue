@@ -226,6 +226,11 @@ const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
 }
 
 function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
+
   router.push('/')
 }
 
@@ -853,7 +858,7 @@ const scoreLabel = computed(() => {
 <template>
   <div class="page">
     <button class="back" @click="goBack">
-      ← Herd
+      ← Back
     </button>
     <EditAnimalModal ref="editAnimalModalRef" :animal="animal" @saved="onAnimalEdited" />
 

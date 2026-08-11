@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using VentureHerdManager.Api.Controllers;
 using VentureHerdManager.Api.Data;
 using VentureHerdManager.Api.Models;
@@ -29,7 +30,9 @@ public sealed class PregnancyCheckTests
         };
         context.BreedingEvents.Add(breeding);
         await context.SaveChangesAsync();
-        var controller = new BreedingEventsController(context);
+        var controller = new BreedingEventsController(
+            context,
+            NullLogger<BreedingEventsController>.Instance);
 
         var result = await controller.UpdatePregnancyStatus(
             breeding.BreedingEventId,
@@ -73,7 +76,9 @@ public sealed class PregnancyCheckTests
         };
         context.EmbryoRecords.Add(embryo);
         await context.SaveChangesAsync();
-        var controller = new BreedingEventsController(context);
+        var controller = new BreedingEventsController(
+            context,
+            NullLogger<BreedingEventsController>.Instance);
 
         await controller.UpdatePregnancyStatus(
             breeding.BreedingEventId,
@@ -115,7 +120,9 @@ public sealed class PregnancyCheckTests
         };
         context.EmbryoRecords.Add(embryo);
         await context.SaveChangesAsync();
-        var controller = new BreedingEventsController(context);
+        var controller = new BreedingEventsController(
+            context,
+            NullLogger<BreedingEventsController>.Instance);
 
         await controller.Update(
             breeding.BreedingEventId,

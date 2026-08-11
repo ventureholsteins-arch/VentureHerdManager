@@ -101,16 +101,27 @@ public class BreedingEventsController : ControllerBase
         // Commit the actual check result first. Production databases can lag
         // newer optional scheduling/embryo fields; those must never roll back
         // the pregnancy status the user just recorded.
-        var updated = await _context.BreedingEvents
-            .Where(b => b.BreedingEventId == breedingEventId)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(b => b.PregnancyStatus, status)
-                .SetProperty(b => b.PregnancyCheckDate, checkedAt)
-                .SetProperty(b => b.UpdatedAt, checkedAt));
-
-        if (updated == 0)
+        try
         {
-            return NotFound();
+            var updated = await _context.BreedingEvents
+                .Where(b => b.BreedingEventId == breedingEventId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(b => b.PregnancyStatus, status)
+                    .SetProperty(b => b.PregnancyCheckDate, checkedAt)
+                    .SetProperty(b => b.UpdatedAt, checkedAt));
+
+            if (updated == 0)
+            {
+                return NotFound();
+            }
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message.Contains("ExecuteUpdate", StringComparison.Ordinal))
+        {
+            breeding.PregnancyStatus = status;
+            breeding.PregnancyCheckDate = checkedAt;
+            breeding.UpdatedAt = checkedAt;
+            await _context.SaveChangesAsync();
         }
 
         ReproductiveEventRules.ApplyPregnancyStatus(
@@ -118,10 +129,6 @@ public class BreedingEventsController : ControllerBase
             status,
             isEmbryoTransfer,
             checkedAt);
-
-        // The core values were written directly above, so do not make EF try
-        // to write them a second time with the optional synchronization.
-        _context.Entry(breeding).State = EntityState.Unchanged;
 
         if (linkedEmbryo != null)
         {

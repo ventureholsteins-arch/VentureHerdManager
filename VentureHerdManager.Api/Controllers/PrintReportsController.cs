@@ -14,6 +14,7 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
     public async Task<IActionResult> Get()
     {
         var today = DateTime.UtcNow.Date;
+        var todayDateOnly = DateOnly.FromDateTime(today);
         var monthAgo = today.AddMonths(-1);
         var eightMonths = today.AddMonths(8);
         var sevenMonthsAgo = DateOnly.FromDateTime(today.AddMonths(-7));
@@ -186,6 +187,36 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
             .OrderByDescending(row => row.Score)
             .ThenBy(row => row.BarnName)
             .ToList();
+
+        var saleAnimals = animals
+            .Select(animal =>
+            {
+                var breeding = currentBreedings.FirstOrDefault(b => b.AnimalId == animal.AnimalId);
+                var monthsOld = animal.BirthDate.HasValue
+                    ? Math.Max(0,
+                        (todayDateOnly.Year - animal.BirthDate.Value.Year) * 12
+                        + todayDateOnly.Month - animal.BirthDate.Value.Month
+                        - (todayDateOnly.Day < animal.BirthDate.Value.Day ? 1 : 0))
+                    : (int?)null;
+
+                return new
+                {
+                    animal.AnimalId,
+                    animal.BarnName,
+                    animal.RegisteredName,
+                    animal.RegistrationNumber,
+                    animal.BirthDate,
+                    animal.SireName,
+                    animal.DamName,
+                    OpenStatus = breeding?.PregnancyStatus.ToString() ?? "Not bred",
+                    MonthsOld = monthsOld,
+                    TimesBred = breedings.Count(b => b.AnimalId == animal.AnimalId)
+                };
+            })
+            .OrderBy(row => row.BarnName)
+            .ThenBy(row => row.RegisteredName)
+            .ToList();
+
         var missingAnimalIdentification = animals.Where(a =>
             string.IsNullOrWhiteSpace(a.BarnName)
             || string.IsNullOrWhiteSpace(a.RegistrationNumber));
@@ -245,12 +276,15 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
             MissingAnimalIdentification = missingAnimalIdentification,
             OldEnoughNotBred = oldEnoughNotBred,
             MilkingNotBred = milkingNotBred,
+            SaleAnimals = saleAnimals,
             SuggestedSell = suggestedSell,
             PregnancyChecksDue = pregnancyChecksDue,
             DueWithinEightMonths = currentBreedings.Where(b =>
                 b.PregnancyStatus == PregnancyStatus.Pregnant
                 && b.ExpectedDueDate >= today
-                && b.ExpectedDueDate <= eightMonths),
+                && b.ExpectedDueDate <= eightMonths)
+                .OrderBy(b => b.ExpectedDueDate)
+                .ThenBy(b => b.AnimalName),
             LastMonthHeats = heats,
             Breedings = breedings,
             SiresUsed = siresUsed,

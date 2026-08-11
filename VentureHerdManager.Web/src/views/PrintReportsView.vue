@@ -43,7 +43,7 @@ const rows = computed(() => {
       const lists = JSON.parse(localStorage.getItem('venture-herd-lists-v2') || '[]') as Array<{ key: string; animalIds: number[] }>
       ids = lists.find(list => list.key === 'sale-animals')?.animalIds ?? []
     } catch { ids = [] }
-    return data.value.animals.filter((animal: any) => ids.includes(animal.animalId))
+    return (data.value.saleAnimals ?? []).filter((animal: any) => ids.includes(animal.animalId))
   }
   if (report.value === 'suggestedSell') return data.value.suggestedSell ?? []
   if (report.value === 'calves') return data.value.animals.filter((a: any) => a.animalStage === 1)
@@ -58,7 +58,6 @@ const isAnimalReport = computed(() => [
   'missingAnimalIdentification',
   'oldEnoughNotBred',
   'milkingNotBred',
-  'sellAnimals',
   'animals',
   'calves',
   'heifers',
@@ -94,6 +93,7 @@ onMounted(async () => {
       <p v-if="report === 'suggestedSell'" class="decision-note">Decision aid only: review the reasons and keep-strengths before making a sale decision. The score becomes more useful after both PC-DART and Zoetis imports are matched.</p>
       <table>
         <thead><tr v-if="report === 'suggestedSell'"><th>Rank</th><th>Cow</th><th>Milk / DIM</th><th>Reproduction</th><th>Genomics</th><th>Why review</th><th>Reasons to keep</th></tr>
+        <tr v-else-if="report === 'sellAnimals'"><th>Animal</th><th>Open status</th><th>Months old</th><th>Times bred</th><th>Registration #</th><th>Sire</th><th>Dam</th></tr>
         <tr v-else-if="isAnimalReport"><th>Animal</th><th>Registered name</th><th>Registration #</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
         <tr v-else-if="isSireReport"><th>Sire</th><th>Animals</th><th>Breedings</th><th>Pregnant</th><th>Open</th><th>To check</th><th>Last used</th></tr>
         <tr v-else-if="report === 'lastMonthHeats'"><th>Animal</th><th>Heat date</th><th>Notes</th></tr>
@@ -102,6 +102,7 @@ onMounted(async () => {
         <tbody>
           <tr v-for="row in rows" :key="row.animalId ?? row.heatEventId ?? row.breedingEventId ?? row.embryoRecordId ?? row.sire">
             <template v-if="report === 'suggestedSell'"><td><strong>{{ row.score }}</strong><br><small>{{ row.reviewLevel }}</small></td><td>{{ row.barnName || row.registeredName || `Animal #${row.animalId}` }}</td><td>{{ row.milk ?? 'Missing' }}<br><small>DIM {{ row.daysInMilk ?? '—' }}</small></td><td>{{ row.reproStatus }}</td><td>NM$ {{ row.netMerit ?? '—' }}<br><small>TPI {{ row.tpi ?? '—' }}</small></td><td>{{ row.concerns.join(' · ') || 'No major concerns' }}</td><td>{{ row.strengths.join(' · ') || 'No recorded strengths yet' }}</td></template>
+            <template v-else-if="report === 'sellAnimals'"><td>{{ row.barnName || row.registeredName || [row.damName, row.sireName].filter(Boolean).join(' × ') || `Animal #${row.animalId}` }}</td><td>{{ row.openStatus }}</td><td>{{ row.monthsOld ?? '—' }}</td><td>{{ row.timesBred }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
             <template v-else-if="isAnimalReport"><td>{{ row.barnName || row.registeredName || [row.damName, row.sireName].filter(Boolean).join(' × ') || `Animal #${row.animalId}` }}</td><td>{{ row.registeredName || '—' }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
             <template v-else-if="isSireReport"><td>{{ row.sire }}</td><td>{{ row.animals }}</td><td>{{ row.breedings }}</td><td>{{ row.pregnant }}</td><td>{{ row.open }}</td><td>{{ row.toCheck }}</td><td>{{ fmt(row.lastUsed) }}</td></template>
             <template v-else-if="report === 'lastMonthHeats'"><td>{{ row.animalName }}</td><td>{{ fmt(row.heatDateTime) }}</td><td>{{ row.notes || '—' }}</td></template>

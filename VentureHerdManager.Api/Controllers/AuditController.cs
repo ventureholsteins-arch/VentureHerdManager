@@ -114,7 +114,7 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             .OrderBy(value => value.Record.Animal.DisplayName)
             .Select(value => new { value.Record.AnimalId, AnimalName = value.Record.Animal.DisplayName, AppCalvingDate = value.AppCalving == null ? (DateOnly?)null : DateOnly.FromDateTime(value.AppCalving.Date), PcdartCalvingDate = value.Record.LastCalvingDate, value.Record.ReportDate, value.Record.SourceAnimalName })
             .ToList();
-        return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings, missingSireFindings, birthDateFindings, registrationFindings, calvingDateFindings });
+        return Ok(new { generatedAt = DateTime.UtcNow, mergeVersion = "atomic-archive-v2", animalFindings, eventFindings, missingSireFindings, birthDateFindings, registrationFindings, calvingDateFindings });
     }
 
     [HttpPost("merge")]

@@ -58,6 +58,7 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var sameDateImport = sameDateImports.SingleOrDefault(i => ImportBucket(i.FileName) == ImportBucket(request.FileName));
         if (sameDateImport != null && !request.ConfirmDuplicateReplace)
             throw new InvalidOperationException($"A {request.Source} report for {request.ReportDate:yyyy-MM-dd} is already stored. Review the duplicate warning and explicitly accept replacement or decline it.");
+        var priorRecords = sameDateImport?.Records.ToDictionary(record => record.AnimalId) ?? [];
         if (sameDateImport != null) context.HerdDataImports.Remove(sameDateImport);
         var parsed = Parse(request);
         var preview = await PreviewAsync(request, ct);
@@ -69,6 +70,7 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             var row = parsed[index];
             var match = preview.Rows[index];
             var record = row.ToRecord(match.AnimalId!.Value, request.ReportDate, request.Source);
+            if (priorRecords.TryGetValue(match.AnimalId.Value, out var priorRecord)) MergePriorValues(record, priorRecord);
             batch.Records.Add(record);
             var lifetimeMilk = Dec(row.Values.GetValueOrDefault("Lifetime Milk"));
             var lifetimeFat = Dec(row.Values.GetValueOrDefault("Lifetime Fat"));
@@ -96,6 +98,34 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             throw new InvalidOperationException($"The confirmed import could not be stored: {exception.GetBaseException().Message}", exception);
         }
         return batch;
+    }
+
+    private static void MergePriorValues(AnimalDataRecord current, AnimalDataRecord prior)
+    {
+        current.SourceAnimalId = string.IsNullOrWhiteSpace(current.SourceAnimalId) ? prior.SourceAnimalId : current.SourceAnimalId;
+        current.SourceAnimalName = string.IsNullOrWhiteSpace(current.SourceAnimalName) ? prior.SourceAnimalName : current.SourceAnimalName;
+        current.OfficialId = string.IsNullOrWhiteSpace(current.OfficialId) ? prior.OfficialId : current.OfficialId;
+        current.DaysInMilk ??= prior.DaysInMilk; current.Milk ??= prior.Milk; current.FatPercent ??= prior.FatPercent;
+        current.ProteinPercent ??= prior.ProteinPercent; current.LastCalvingDate ??= prior.LastCalvingDate;
+        current.Tpi ??= prior.Tpi; current.NetMerit ??= prior.NetMerit; current.MilkPta ??= prior.MilkPta;
+        current.FatPta ??= prior.FatPta; current.ProteinPta ??= prior.ProteinPta; current.SomaticCellScore ??= prior.SomaticCellScore;
+        current.DaughterPregnancyRate ??= prior.DaughterPregnancyRate; current.ProductiveLife ??= prior.ProductiveLife;
+        current.TypeScore ??= prior.TypeScore; current.UdderComposite ??= prior.UdderComposite;
+        current.FeetLegsComposite ??= prior.FeetLegsComposite;
+
+        var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var item in JsonSerializer.Deserialize<Dictionary<string, string>>(prior.RawDataJson) ?? []) merged[item.Key] = item.Value;
+        }
+        catch (JsonException) { }
+        try
+        {
+            foreach (var item in JsonSerializer.Deserialize<Dictionary<string, string>>(current.RawDataJson) ?? [])
+                if (!string.IsNullOrWhiteSpace(item.Value)) merged[item.Key] = item.Value;
+        }
+        catch (JsonException) { }
+        current.RawDataJson = JsonSerializer.Serialize(merged);
     }
 
     private static void EnrichConfirmedAnimal(Animal animal, ParsedRow row, HerdDataSource source)

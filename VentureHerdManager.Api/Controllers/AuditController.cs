@@ -65,7 +65,8 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
             .ToList();
         var birthDateFindings = new List<object>();
         var birthFindingKeys = new HashSet<string>();
-        foreach (var record in await context.AnimalDataRecords.AsNoTracking().Include(record => record.Animal).ToListAsync(ct))
+        var importedRecords = await context.AnimalDataRecords.AsNoTracking().Include(record => record.Animal).ToListAsync(ct);
+        foreach (var record in importedRecords)
         {
             DateOnly? importedBirthDate = null;
             string? importedAge = null;
@@ -89,7 +90,26 @@ public sealed class AuditController(ApplicationDbContext context, HerdDataAdminA
                     birthDateFindings.Add(new { record.AnimalId, AnimalName = record.Animal.DisplayName, CurrentBirthDate = record.Animal.BirthDate, ImportedBirthDate = (DateOnly?)null, ImportedAge = importedAge, CurrentAgeAtReport = $"{currentMonths / 12:00}-{currentMonths % 12:00}", Source = record.Source.ToString(), record.ReportDate, record.SourceAnimalName });
             }
         }
-        return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings, missingSireFindings, birthDateFindings });
+        var registrationFindings = importedRecords
+            .Where(record => record.Source == HerdDataSource.Pcdart && Normal(record.OfficialId).Length >= 6 && Normal(record.OfficialId) != Normal(record.SourceAnimalName))
+            .GroupBy(record => record.AnimalId)
+            .Select(group => group.OrderByDescending(record => record.ReportDate).First())
+            .Where(record => Normal(record.Animal.RegistrationNumber) != Normal(record.OfficialId))
+            .OrderBy(record => record.Animal.DisplayName)
+            .Select(record => new { record.AnimalId, AnimalName = record.Animal.DisplayName, CardRegistrationId = record.Animal.RegistrationNumber, PcdartRegistrationId = record.OfficialId, record.ReportDate, record.SourceAnimalName })
+            .ToList();
+        var latestCalvings = await context.CalvingEvents.AsNoTracking().GroupBy(value => value.AnimalId)
+            .Select(group => new { AnimalId = group.Key, Date = group.Max(value => value.CalvingDate) }).ToDictionaryAsync(value => value.AnimalId, ct);
+        var calvingDateFindings = importedRecords
+            .Where(record => record.Source == HerdDataSource.Pcdart && record.LastCalvingDate.HasValue)
+            .GroupBy(record => record.AnimalId)
+            .Select(group => group.OrderByDescending(record => record.ReportDate).First())
+            .Select(record => new { Record = record, AppCalving = latestCalvings.GetValueOrDefault(record.AnimalId) })
+            .Where(value => value.AppCalving == null || DateOnly.FromDateTime(value.AppCalving.Date) != value.Record.LastCalvingDate)
+            .OrderBy(value => value.Record.Animal.DisplayName)
+            .Select(value => new { value.Record.AnimalId, AnimalName = value.Record.Animal.DisplayName, AppCalvingDate = value.AppCalving == null ? (DateOnly?)null : DateOnly.FromDateTime(value.AppCalving.Date), PcdartCalvingDate = value.Record.LastCalvingDate, value.Record.ReportDate, value.Record.SourceAnimalName })
+            .ToList();
+        return Ok(new { generatedAt = DateTime.UtcNow, animalFindings, eventFindings, missingSireFindings, birthDateFindings, registrationFindings, calvingDateFindings });
     }
 
     [HttpPost("merge")]

@@ -85,4 +85,9 @@ jobs:
           app-name: 'Demo-API-123'
           slot-name: 'Production'
           package: .
+
+      - name: Restart API on the new package
+        uses: azure/cli@v2
+        with:
+          inlineScript: az webapp restart --resource-group VentureHerdMananger --name Demo-API-123
           

@@ -85,4 +85,9 @@ jobs:
           app-name: 'ventureherdmanager-api'
           slot-name: 'Production'
           package: .
+
+      - name: Restart API on the new package
+        uses: azure/cli@v2
+        with:
+          inlineScript: az webapp restart --resource-group VentureHerdMananger --name ventureherdmanager-api
           

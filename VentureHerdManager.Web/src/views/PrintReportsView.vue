@@ -11,6 +11,7 @@ const data = ref<any>(null)
 const loading = ref(true)
 const error = ref('')
 const report = ref('missingRegistration')
+const phoneFit = ref(false)
 
 const options = [
   ['missingRegistration', 'Missing registration numbers'],
@@ -64,8 +65,30 @@ const isAnimalReport = computed(() => [
   'cows'
 ].includes(report.value))
 const isSireReport = computed(() => report.value === 'siresUsed')
+const isTimelineReport = computed(() => ['breedings', 'pregnancyChecksDue', 'heiferPregChecks', 'cowPregChecks'].includes(report.value))
+const isDueWithinEightMonthsReport = computed(() => report.value === 'dueWithinEightMonths')
 const fmt = (value: string | null) => value ? new Date(value).toLocaleDateString() : '—'
 const printReport = () => window.print()
+
+async function shareReportView() {
+  const payload = {
+    title: `Venture Herd Manager - ${title.value}`,
+    text: `Report view: ${title.value}`,
+    url: window.location.href
+  }
+
+  try {
+    if (navigator.share) {
+      await navigator.share(payload)
+      return
+    }
+  } catch {
+    // Ignore and fall back to clipboard.
+  }
+
+  await navigator.clipboard.writeText(window.location.href)
+  alert('Report link copied to clipboard.')
+}
 
 onMounted(async () => {
   try { data.value = await getPrintReports() }
@@ -75,11 +98,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="print-page">
+  <main class="print-page" :class="{ 'phone-fit': phoneFit }">
     <header class="report-toolbar no-print">
       <button @click="router.push('/reports')">← Reports</button>
       <label>Report<select v-model="report"><option v-for="item in options" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select></label>
       <a class="export-link" :href="easyIdPreparationUrl" download>Registration prep CSV</a>
+      <button class="print-button" @click="phoneFit = !phoneFit">{{ phoneFit ? 'Desktop fit' : 'Phone fit' }}</button>
+      <button class="print-button" @click="shareReportView">Share view</button>
       <button class="print-button" @click="printReport"><RetroIcon name="reports" :size="24" /> Print Report</button>
     </header>
     <HerdLoadingScene v-if="loading" message="Preparing printable reports..." />
@@ -97,7 +122,8 @@ onMounted(async () => {
         <tr v-else-if="isAnimalReport"><th>Animal</th><th>Registered name</th><th>Registration #</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
         <tr v-else-if="isSireReport"><th>Sire</th><th>Animals</th><th>Breedings</th><th>Pregnant</th><th>Open</th><th>To check</th><th>Last used</th></tr>
         <tr v-else-if="report === 'lastMonthHeats'"><th>Animal</th><th>Heat date</th><th>Notes</th></tr>
-        <tr v-else-if="['dueWithinEightMonths','breedings','pregnancyChecksDue','heiferPregChecks','cowPregChecks'].includes(report)"><th>Animal</th><th>Bred</th><th>Sire</th><th>Due / Check</th><th>Status</th><th>Working notes</th></tr>
+        <tr v-else-if="isDueWithinEightMonthsReport"><th>Animal</th><th>Sire</th><th>Due</th><th>Working notes</th></tr>
+        <tr v-else-if="isTimelineReport"><th>Animal</th><th>Bred</th><th>Sire</th><th>Due / Check</th><th>Status</th><th>Working notes</th></tr>
         <tr v-else><th>Code</th><th>Donor × Sire</th><th>Grade</th><th>Recipient</th><th>Implant date</th><th>Status</th></tr></thead>
         <tbody>
           <tr v-for="row in rows" :key="row.animalId ?? row.heatEventId ?? row.breedingEventId ?? row.embryoRecordId ?? row.sire">
@@ -106,7 +132,8 @@ onMounted(async () => {
             <template v-else-if="isAnimalReport"><td>{{ row.barnName || row.registeredName || [row.damName, row.sireName].filter(Boolean).join(' × ') || `Animal #${row.animalId}` }}</td><td>{{ row.registeredName || '—' }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
             <template v-else-if="isSireReport"><td>{{ row.sire }}</td><td>{{ row.animals }}</td><td>{{ row.breedings }}</td><td>{{ row.pregnant }}</td><td>{{ row.open }}</td><td>{{ row.toCheck }}</td><td>{{ fmt(row.lastUsed) }}</td></template>
             <template v-else-if="report === 'lastMonthHeats'"><td>{{ row.animalName }}</td><td>{{ fmt(row.heatDateTime) }}</td><td>{{ row.notes || '—' }}</td></template>
-            <template v-else-if="['dueWithinEightMonths','breedings','pregnancyChecksDue','heiferPregChecks','cowPregChecks'].includes(report)"><td>{{ row.animalName }}</td><td>{{ fmt(row.breedingDate) }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td>{{ row.pregnancyStatus }}</td><td class="write-field"></td></template>
+            <template v-else-if="isDueWithinEightMonthsReport"><td>{{ row.animalName }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td class="write-field"></td></template>
+            <template v-else-if="isTimelineReport"><td>{{ row.animalName }}</td><td>{{ fmt(row.breedingDate) }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td>{{ row.pregnancyStatus }}</td><td class="write-field"></td></template>
             <template v-else><td>{{ row.code || `#${row.embryoRecordId}` }}</td><td>{{ row.donor || '—' }} × {{ row.sire || '—' }}</td><td>{{ row.grade || '—' }}</td><td>{{ row.recipientName || '—' }}</td><td>{{ fmt(row.implantDate) }}</td><td>{{ row.status }}</td></template>
           </tr>
           <tr v-if="rows.length === 0"><td colspan="6">No records in this report.</td></tr>
@@ -119,6 +146,9 @@ onMounted(async () => {
 <style scoped>
 .print-page{max-width:1100px;margin:auto;padding:18px}.report-toolbar{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:18px}.report-toolbar label{display:grid;gap:5px;flex:1;min-width:220px}.report-toolbar select,.report-toolbar button,.export-link{min-height:44px;padding:8px 12px}.export-link{display:flex;align-items:center;border:1px solid #31572c;border-radius:3px;color:#31572c;text-decoration:none}.print-button{display:flex;align-items:center;gap:8px}.paper{background:#fff;color:#111;padding:28px;border:1px solid #ccd5ce}.paper header{border-bottom:3px solid #31572c;margin-bottom:18px}.paper h1{margin:0 0 4px}.stats{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px}.stats span{border:1px solid #bbb;padding:8px 12px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:8px;border-bottom:1px solid #ccc;vertical-align:top}th{background:#eef4ef}.write-field{min-width:140px;height:34px}
 .decision-note{border:1px solid #d2a829;background:#fff9df;padding:10px 12px;font-weight:700}
-@media(max-width:600px){.print-page{padding:8px}.paper{padding:14px;overflow-x:auto}.report-toolbar>*{width:100%}table{min-width:720px}}
+.phone-fit .paper{padding:12px}
+.phone-fit table{font-size:12px}
+.phone-fit .write-field{min-width:100px}
+@media(max-width:600px){.print-page{padding:8px}.paper{padding:14px;overflow-x:auto}.report-toolbar>*{width:100%}table{min-width:720px}.phone-fit table{min-width:560px}.phone-fit th,.phone-fit td{padding:6px}}
 @media print{.no-print{display:none!important}.print-page{max-width:none;padding:0}.paper{border:0;padding:0}table{font-size:10pt}tr{break-inside:avoid}@page{size:letter portrait;margin:.5in}}
 </style>

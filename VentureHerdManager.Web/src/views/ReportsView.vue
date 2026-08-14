@@ -8,6 +8,7 @@ import { createAchievement, deleteAchievement, getAllAchievements, updateAchieve
 import {
   getAllEmbryos,
   createEmbryo,
+  createEmbryoBatch,
   updateEmbryo,
   deleteEmbryo,
   implantEmbryo,
@@ -186,7 +187,9 @@ const showBaggingPhoneNumbers = ref('')
 const showBaggingRows = ref<ShowBaggingRow[]>([])
 const achievementSearch = ref('')
 const baggingHistorySearch = ref('')
+const baggingHistoryGroupFilter = ref('')
 const baggingHistoryGroupOnly = ref(false)
+const baggingSimpleMode = ref(true)
 const baggingShareStatus = ref('')
 const achievementsShareStatus = ref('')
 const pcdartRawText = ref('')
@@ -680,7 +683,7 @@ const baggingRowGroups = computed(() => {
 
 const baggingHistoryMatches = computed(() => {
   const search = baggingHistorySearch.value.trim().toLowerCase()
-  const currentGroup = showBaggingShowName.value.trim().toLowerCase()
+  const selectedHistoryGroup = baggingHistoryGroupFilter.value.trim().toLowerCase()
 
   return achievements.value
     .filter(record => {
@@ -707,8 +710,8 @@ const baggingHistoryMatches = computed(() => {
       const matchesSearch = !search || haystack.includes(search)
       const matchesGroup =
         !baggingHistoryGroupOnly.value
-        || !currentGroup
-        || recordGroup.toLowerCase().includes(currentGroup)
+        || !selectedHistoryGroup
+        || recordGroup.toLowerCase().includes(selectedHistoryGroup)
 
       return matchesSearch && matchesGroup
     })
@@ -776,7 +779,7 @@ function compareEmbryos(left: EmbryoRecord, right: EmbryoRecord): number {
 
 const embryosActive = computed(() =>
   embryoRecords.value
-    .filter(e => e.status !== 'Failed')
+    .filter(e => e.status === 'In Storage' || e.status === 'Assigned')
     .sort(compareEmbryos)
 )
 
@@ -1189,7 +1192,9 @@ function openBaggingHistoryForGroup(groupName: string) {
     return
   }
 
+  baggingSimpleMode.value = false
   baggingHistorySearch.value = trimmed
+  baggingHistoryGroupFilter.value = trimmed
   baggingHistoryGroupOnly.value = true
 }
 
@@ -1209,14 +1214,32 @@ function toggleAnimalInList(key: string, animalId: number) {
 
 function addChecklistItem() { checklistItems.value.push({ id: Date.now(), text: 'New item', done: false }) }
 
-function addEmbryoRecord() {
-  embryoRecords.value.push({
+async function addEmbryoRecord() {
+  const requestedGroup = window.prompt('Embryo group name (for example: Carissa x Braxton)', '')
+  if (requestedGroup === null) return
+
+  const groupName = requestedGroup.trim()
+  if (!groupName) {
+    alert('Group name is required to create embryos in a batch.')
+    return
+  }
+
+  const requestedQuantity = window.prompt(`How many embryos should be created for "${groupName}"?`, '1')
+  if (requestedQuantity === null) return
+
+  const quantity = Number.parseInt(requestedQuantity, 10)
+  if (!Number.isFinite(quantity) || quantity < 1 || quantity > 100) {
+    alert('Quantity must be a whole number between 1 and 100.')
+    return
+  }
+
+  const draft: EmbryoRecord = {
     id: nextEmbryoId.value++,
     code: '',
     sire: '',
     donor: '',
-    mating: '',
-    groupName: '',
+    mating: groupName,
+    groupName,
     grade: '',
     status: 'In Storage',
     recipientAnimalId: null,
@@ -1226,7 +1249,18 @@ function addEmbryoRecord() {
     notes: '',
     collectionLocation: '',
     storageLocation: ''
-  })
+  }
+
+  try {
+    const created = await createEmbryoBatch(embryoToApi(draft), quantity)
+    embryoRecords.value = [
+      ...created.map(item => embryoFromApi(item)),
+      ...embryoRecords.value
+    ]
+  } catch (error) {
+    console.error('Failed to create embryo batch:', error)
+    alert('Failed to create embryo batch.')
+  }
 }
 
 async function saveEmbryoRecord(rec: EmbryoRecord) {
@@ -2055,6 +2089,7 @@ onMounted(async () => {
       <div class="rp-ph">
         <h2>Show Bagging</h2>
         <div class="rp-ph-actions">
+          <button type="button" class="rp-add-btn" @click="baggingSimpleMode = !baggingSimpleMode">{{ baggingSimpleMode ? 'Show Advanced' : 'Simple Mode' }}</button>
           <button type="button" class="rp-add-btn bagging-primary-save" :disabled="baggingSaving" @click="saveWholeBaggingPlan">{{ baggingSaving ? 'Saving…' : 'Save Whole Show' }}</button>
           <button type="button" class="rp-add-btn" @click="shareBaggingLink">Share Link</button>
           <button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button>
@@ -2062,6 +2097,7 @@ onMounted(async () => {
         </div>
       </div>
       <p v-if="baggingShareStatus" class="rp-hint">{{ baggingShareStatus }}</p>
+      <p v-if="baggingSimpleMode" class="rp-hint">Simple mode is on: add cows, set times, and save. Use Show Advanced for group setup and history tools.</p>
 
       <section class="bagging-show-anchor">
         <label>
@@ -2079,7 +2115,7 @@ onMounted(async () => {
         No cows are loaded in this environment yet. Bagging add/search needs herd animals. Try Reload Data.
       </div>
 
-      <details class="bagging-section-details">
+      <details v-if="!baggingSimpleMode" class="bagging-section-details">
         <summary>Show setup &amp; text contacts</summary>
       <div class="bagging-top-grid">
         <label>
@@ -2129,7 +2165,7 @@ onMounted(async () => {
       </div>
       </details>
 
-      <details class="bagging-section-details">
+      <details v-if="!baggingSimpleMode" class="bagging-section-details">
         <summary>Past bagging history</summary>
       <div class="bagging-history-panel">
         <div class="browse-label">Bagging History Search</div>
@@ -2140,7 +2176,7 @@ onMounted(async () => {
             class="rp-sel"
             placeholder="Search by cow, group, notes, or date..."
           />
-          <select v-model="showBaggingShowName" class="rp-sel">
+          <select v-model="baggingHistoryGroupFilter" class="rp-sel">
             <option value="">All Groups</option>
             <option v-for="group in baggingGroupOptions" :key="`bag-group-${group}`" :value="group">{{ group }}</option>
           </select>

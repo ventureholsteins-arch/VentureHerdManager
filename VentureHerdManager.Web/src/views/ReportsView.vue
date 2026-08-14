@@ -779,7 +779,16 @@ function compareEmbryos(left: EmbryoRecord, right: EmbryoRecord): number {
 
 const embryosActive = computed(() =>
   embryoRecords.value
-    .filter(e => e.status === 'In Storage' || e.status === 'Assigned')
+    .filter(record => {
+      const hasImplantHistory = Boolean(record.implantDate)
+        || Boolean(record.breedingEventId)
+        || record.status === 'Implanted'
+        || record.status === 'Failed'
+        || record.status === 'Confirmed Pregnant'
+
+      return (record.status === 'In Storage' || record.status === 'Assigned')
+        && !hasImplantHistory
+    })
     .sort(compareEmbryos)
 )
 
@@ -812,7 +821,12 @@ const embryosFailed = computed(() =>
 )
 const embryosWithImplants = computed(() =>
   embryoRecords.value
-    .filter(record => Boolean(record.implantDate))
+    .filter(record =>
+      Boolean(record.implantDate)
+      || Boolean(record.breedingEventId)
+      || record.status === 'Implanted'
+      || record.status === 'Failed'
+      || record.status === 'Confirmed Pregnant')
     .sort((left, right) => (right.implantDate || '').localeCompare(left.implantDate || ''))
 )
 const hasNoAnimals = computed(() => animals.value.length === 0)

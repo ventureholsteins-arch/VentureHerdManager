@@ -406,19 +406,25 @@ async function openReportSection(section: ReportSection) {
       </section>
 
       <section
-        v-if="(dashboard.lutTracking?.length ?? 0) > 0"
         class="dashboard-panel"
         ref="lutTrackingSectionRef"
       >
         <div class="panel-heading">
           <div>
             <p class="eyebrow">NEEDS ATTENTION</p>
-            <h3>LUT tracking</h3>
+            <h3>LUT injections to track</h3>
           </div>
 
           <span class="count-badge">
             {{ dashboard.lutTrackingCount }}
           </span>
+        </div>
+
+        <div
+          v-if="(dashboard.lutTracking?.length ?? 0) === 0"
+          class="empty-event-state"
+        >
+          No recent LUT injections in the active tracking window.
         </div>
 
         <button

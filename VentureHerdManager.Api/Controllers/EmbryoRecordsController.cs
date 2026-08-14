@@ -12,10 +12,14 @@ namespace VentureHerdManager.Api.Controllers;
 public class EmbryoRecordsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<EmbryoRecordsController> _logger;
 
-    public EmbryoRecordsController(ApplicationDbContext context)
+    public EmbryoRecordsController(
+        ApplicationDbContext context,
+        ILogger<EmbryoRecordsController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -181,10 +185,7 @@ public class EmbryoRecordsController : ControllerBase
             existing.RecipientAnimalId = correctedRecipientId;
             existing.ImplantDate = correctedImplantDate;
 
-            var breeding = existing.BreedingEventId.HasValue
-                ? await _context.BreedingEvents.FindAsync(
-                    existing.BreedingEventId.Value)
-                : null;
+            var breeding = await ResolveLinkedBreedingAsync(existing);
             if (breeding == null)
             {
                 breeding = new BreedingEvent
@@ -293,10 +294,12 @@ public class EmbryoRecordsController : ControllerBase
             return NotFound();
         }
 
+        var linkedBreeding = await ResolveLinkedBreedingAsync(record);
+
         if (record.Status is EmbryoStatus.Implanted
             or EmbryoStatus.Successful
             or EmbryoStatus.Failed
-            || record.BreedingEventId.HasValue)
+            || linkedBreeding != null)
         {
             return BadRequest("This embryo is no longer available.");
         }
@@ -372,25 +375,25 @@ public class EmbryoRecordsController : ControllerBase
         var record = await _context.EmbryoRecords.FindAsync(id);
         if (record == null) return NotFound();
 
-        if (record.BreedingEventId.HasValue)
+        var breeding = await ResolveLinkedBreedingAsync(record);
+
+        if (breeding != null)
         {
-            var breeding = await _context.BreedingEvents.FindAsync(record.BreedingEventId.Value);
-            if (breeding != null)
-            {
-                ReproductiveEventRules.ApplyPregnancyStatus(
-                    breeding,
-                    PregnancyStatus.Open,
-                    true,
-                    DateTime.UtcNow);
-                breeding.PregnancyCheckDueDate = null;
-                breeding.Notes = ReproductiveEventRules.AppendNote(
-                    breeding.Notes,
-                    $"Implant entry was corrected on {DateTime.UtcNow:d}; the embryo was returned to inventory.");
-                breeding.UpdatedBy = "Embryo correction workflow";
-            }
+            ReproductiveEventRules.ApplyPregnancyStatus(
+                breeding,
+                PregnancyStatus.Open,
+                true,
+                DateTime.UtcNow);
+            breeding.PregnancyCheckDueDate = null;
+            breeding.Notes = ReproductiveEventRules.AppendNote(
+                breeding.Notes,
+                $"Implant entry was corrected on {DateTime.UtcNow:d}; the embryo was returned to inventory.");
+            breeding.UpdatedBy = "Embryo correction workflow";
         }
-        else if (record.RecipientAnimalId.HasValue
-                 && record.ImplantDate.HasValue)
+
+        if (breeding == null
+            && record.RecipientAnimalId.HasValue
+            && record.ImplantDate.HasValue)
         {
             var preservedBreeding = new BreedingEvent
             {
@@ -456,9 +459,7 @@ public class EmbryoRecordsController : ControllerBase
             ? PregnancyStatus.Pregnant
             : PregnancyStatus.Open;
 
-        var breeding = record.BreedingEventId.HasValue
-            ? await _context.BreedingEvents.FindAsync(record.BreedingEventId.Value)
-            : null;
+        var breeding = await ResolveLinkedBreedingAsync(record);
 
         if (breeding == null)
         {
@@ -554,6 +555,36 @@ public class EmbryoRecordsController : ControllerBase
             breeding.PregnancyStatus,
             true,
             breeding.PregnancyCheckDate);
+    }
+
+    private async Task<BreedingEvent?> ResolveLinkedBreedingAsync(
+        EmbryoRecord record)
+    {
+        if (!record.BreedingEventId.HasValue)
+        {
+            return null;
+        }
+
+        var breeding = await _context.BreedingEvents.FindAsync(
+            record.BreedingEventId.Value);
+        if (breeding != null)
+        {
+            return breeding;
+        }
+
+        _logger.LogWarning(
+            "Embryo record {EmbryoRecordId} referenced missing breeding event {BreedingEventId}. Clearing stale link.",
+            record.EmbryoRecordId,
+            record.BreedingEventId.Value);
+
+        record.BreedingEventId = null;
+        record.BreedingEvent = null;
+        record.LinkedBreedingNote = ReproductiveEventRules.AppendNote(
+            record.LinkedBreedingNote,
+            $"Cleared missing breeding link {DateTime.UtcNow:d}; a replacement breeding event will be created if needed.");
+        record.UpdatedAt = DateTime.UtcNow;
+
+        return null;
     }
 }
 

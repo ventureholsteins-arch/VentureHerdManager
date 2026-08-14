@@ -29,7 +29,7 @@ public class DashboardService
         var today = DateTime.Today;
         var pregnancyCheckCutoff = today.AddDays(30);
         var dueSoonCutoff = today.AddDays(Math.Clamp(dueDays, 30, 60));
-        var lutTrackingDays = 4;
+        var lutTrackingDays = 14;
         var embryoTrackingDays = 7;
 
         var animals = await _context.Animals

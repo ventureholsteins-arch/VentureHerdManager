@@ -516,7 +516,7 @@ onMounted(() => {
                 Milking
               </span>
 
-              <small>Cows</small>
+              <small>Active stage 3 cows</small>
             </div>
 
             <div class="hero-stat">

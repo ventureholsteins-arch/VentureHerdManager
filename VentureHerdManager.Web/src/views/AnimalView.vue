@@ -1467,50 +1467,6 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
       </section>
 
       <section class="panel">
-        <h2>Unified Timeline</h2>
-
-        <div
-          v-if="timelineEntries.length === 0"
-          class="timeline-card"
-        >
-          <strong>No timeline activity yet</strong>
-
-          <small>
-            Use the quick actions above to begin tracking the animal.
-          </small>
-        </div>
-
-        <div
-          v-for="entry in timelineEntries"
-          :key="`${entry.eventType}-${entry.eventId}`"
-          class="timeline-card"
-        >
-          <strong>
-            {{ entry.title }}
-          </strong>
-
-          <small>
-            {{ new Date(entry.eventDate).toLocaleString() }}
-          </small>
-
-          <p>
-            {{ entry.summary }}
-          </p>
-
-          <p v-if="entry.notes">
-            {{ entry.notes }}
-          </p>
-
-          <img
-            v-if="entry.photoUrl"
-            :src="entry.photoUrl"
-            class="timeline-photo"
-            alt="Timeline photo"
-          >
-        </div>
-      </section>
-
-      <section class="panel">
         <h2>Show Achievements</h2>
 
         <div
@@ -1839,6 +1795,50 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
             :src="heat.pictureUrl"
             class="timeline-photo"
             alt="Heat event photo"
+          >
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Unified Timeline</h2>
+
+        <div
+          v-if="timelineEntries.length === 0"
+          class="timeline-card"
+        >
+          <strong>No timeline activity yet</strong>
+
+          <small>
+            Use the quick actions above to begin tracking the animal.
+          </small>
+        </div>
+
+        <div
+          v-for="entry in timelineEntries"
+          :key="`${entry.eventType}-${entry.eventId}`"
+          class="timeline-card"
+        >
+          <strong>
+            {{ entry.title }}
+          </strong>
+
+          <small>
+            {{ new Date(entry.eventDate).toLocaleString() }}
+          </small>
+
+          <p>
+            {{ entry.summary }}
+          </p>
+
+          <p v-if="entry.notes">
+            {{ entry.notes }}
+          </p>
+
+          <img
+            v-if="entry.photoUrl"
+            :src="entry.photoUrl"
+            class="timeline-photo"
+            alt="Timeline photo"
           >
         </div>
       </section>

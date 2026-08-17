@@ -209,6 +209,9 @@ const baggingActionStatus = ref('')
 const baggingScheduleId = ref<number | undefined>()
 const baggingSaving = ref(false)
 const reportsLoadError = ref('')
+const analyticsLoaded = ref(false)
+const embryoImplantsLoaded = ref(false)
+const baggingPlanLoaded = ref(false)
 
 const listKey = 'venture-herd-lists-v2'
 const showStringKey = 'venture-herd-show-string-v2'
@@ -507,12 +510,43 @@ function saveData() {
   localStorage.setItem(achievementsKey, JSON.stringify(achievements.value))
 }
 
-watch([groupLists, showStringRows, showBaggingRows, showBaggingShowName, showBaggingShowDate, showBaggingStartTime, showBaggingPhoneNumbers, checklistItems, embryoRecords, achievements], saveData, { deep: true })
+let saveDataTimer: number | null = null
+function scheduleSaveData() {
+  if (saveDataTimer !== null) {
+    window.clearTimeout(saveDataTimer)
+  }
+
+  saveDataTimer = window.setTimeout(() => {
+    saveData()
+    saveDataTimer = null
+  }, 200)
+}
+
+watch([groupLists, showStringRows, showBaggingRows, showBaggingShowName, showBaggingShowDate, showBaggingStartTime, showBaggingPhoneNumbers, checklistItems, embryoRecords, achievements], scheduleSaveData, { deep: true })
 
 watch(activeTab, async tab => {
   if (route.query.tab === tab) return
   await router.replace({ query: { ...route.query, tab } })
 })
+
+async function ensureTabData(tab: HubTab) {
+  if (tab === 'analytics' && !analyticsLoaded.value) {
+    await loadAnalytics()
+    analyticsLoaded.value = true
+    return
+  }
+
+  if (tab === 'embryoImplants' && !embryoImplantsLoaded.value) {
+    await loadEmbryoImplants()
+    embryoImplantsLoaded.value = true
+    return
+  }
+
+  if (tab === 'showBagging' && !baggingPlanLoaded.value) {
+    await loadSavedBaggingPlan()
+    baggingPlanLoaded.value = true
+  }
+}
 
 const animalOptions = computed(() =>
   [...animals.value].sort((a, b) =>
@@ -1320,6 +1354,13 @@ async function markEmbryoImplanted(rec: EmbryoRecord) {
     )
 
     applyEmbryoFromApi(rec, implanted)
+    await Promise.all([
+      loadRemoteEmbryos(),
+      loadEmbryoImplants()
+    ])
+    embryoImplantsLoaded.value = true
+    activeTab.value = 'embryoImplants'
+    activeCategory.value = 'embryos'
   } catch (error) {
     console.error('Failed to implant embryo:', error)
     alert('Failed to mark embryo as implanted.')
@@ -1491,12 +1532,13 @@ async function reloadReportsData() {
   }
 
   const results = await Promise.allSettled([
-    loadSavedBaggingPlan(),
     loadRemoteEmbryos(),
-    loadRemoteAchievements(),
-    loadEmbryoImplants(),
-    loadAnalytics()
+    loadRemoteAchievements()
   ])
+
+  analyticsLoaded.value = false
+  embryoImplantsLoaded.value = false
+  baggingPlanLoaded.value = false
 
   const failed = results
     .filter((result): result is PromiseRejectedResult =>
@@ -1615,6 +1657,11 @@ onMounted(async () => {
     }
   }
   await reloadReportsData()
+  await ensureTabData(activeTab.value)
+})
+
+watch(activeTab, tab => {
+  void ensureTabData(tab)
 })
 </script>
 
@@ -1901,10 +1948,10 @@ onMounted(async () => {
         <div class="rp-error">{{ embryoImplantsError }} <button type="button" @click="loadEmbryoImplants">Try Again</button></div>
       </template>
 
-      <template v-else-if="embryoImplantsData && !embryoImplantsLoading">
+      <template v-else-if="!embryoImplantsLoading">
         <details class="emb-group-details">
           <summary class="emb-group-title">Implant totals, chart &amp; records ({{ embryosWithImplants.length }})</summary>
-        <div class="as-row">
+        <div v-if="embryoImplantsData" class="as-row">
           <div class="as-stat">
             <span class="as-label">Total Implanted</span>
             <span class="as-val">{{ embryoImplantsData.totals.totalImplanted }}</span>
@@ -1923,7 +1970,9 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="bc-group">
+        <p v-else class="rp-hint">Implant summary chart is unavailable right now, but implant records below are still shown.</p>
+
+        <div v-if="embryoImplantsData" class="bc-group">
           <div class="bc-title">Implanted vs Failed (Monthly)</div>
           <div class="bar-chart">
             <div class="bar-legend">

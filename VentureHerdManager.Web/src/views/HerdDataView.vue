@@ -300,11 +300,11 @@ function herdAverage(key: string) { const values = linearRows.value.map((row: an
     <header><button @click="router.push('/reports')">← Reports</button><h1>Herd Analytics</h1><p>Milk, genomics, whole-farm linear comparisons, and combined decisions.</p></header>
     <nav class="analytics-tabs" aria-label="Analytics sections">
       <button :class="{ active: activeView === 'attention' }" @click="selectView('attention')">Attention Lists</button>
+      <button :class="{ active: activeView === 'linear' }" @click="selectView('linear')">Farm Linear</button>
       <button :class="{ active: activeView === 'milk' }" @click="selectView('milk')">Milk</button>
       <button :class="{ active: activeView === 'classification' }" @click="selectView('classification')">Classification</button>
       <button :class="{ active: activeView === 'genomics' }" @click="selectView('genomics')">Genomics</button>
       <button :class="{ active: activeView === 'bulls' }" @click="selectView('bulls')">Bulls</button>
-      <button :class="{ active: activeView === 'linear' }" @click="selectView('linear')">Farm Linear</button>
       <button :class="{ active: activeView === 'combined' }" @click="selectView('combined')">Combined</button>
       <button :class="{ active: activeView === 'imports' }" @click="selectView('imports')">Imports</button>
     </nav>

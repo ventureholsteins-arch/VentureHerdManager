@@ -95,9 +95,6 @@ public class DemoController : ControllerBase
         // inside a visitor's reset request; that made fresh demo sessions fail
         // whenever EF detected unrelated pending model work.
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync(cancellationToken);
-
         async Task SafeDbStep(string stepName, Func<Task> action)
         {
             try
@@ -746,8 +743,6 @@ public class DemoController : ControllerBase
                 await _context.SaveChangesAsync(cancellationToken);
             }
         }
-        await transaction.CommitAsync(cancellationToken);
-
         return Ok(new DemoSeedResult
         {
             Message = "Demo data reset and seeded.",

@@ -315,7 +315,17 @@ public class DemoController : ControllerBase
             });
 
         _context.Animals.AddRange(demoCows);
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            return StatusCode(500, new DemoSeedResult
+            {
+                Message = $"Demo animals could not be saved: {ex.InnerException?.Message ?? ex.Message}"
+            });
+        }
 
         var aurora = demoCows[0];
         var nova = demoCows[1];
@@ -348,7 +358,17 @@ public class DemoController : ControllerBase
         };
 
         _context.Animals.Add(demoCalf);
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            return StatusCode(500, new DemoSeedResult
+            {
+                Message = $"Demo calf could not be saved: {ex.InnerException?.Message ?? ex.Message}"
+            });
+        }
 
         _context.HeatEvents.AddRange(
             new HeatEvent

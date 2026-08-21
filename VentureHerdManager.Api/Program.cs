@@ -96,6 +96,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+if (isDemoMode)
+{
+    // Demo contains no private herd data; detailed failures make the public
+    // showcase recoverable without exposing production diagnostics.
+    app.UseDeveloperExceptionPage();
+}
+
 app.UseHttpsRedirection();
 
 app.UseCors(CorsPolicyName);

@@ -666,6 +666,7 @@ onMounted(() => {
         <button @click="router.push('/embryos')" class="quick-btn embryo-btn"><RetroIcon name="embryo" :size="28" /><span>Embryo Hatchery</span></button>
         <button @click="router.push('/shows')" class="quick-btn show-btn"><RetroIcon name="calf" :size="28" /><span>Show Command Center</span></button>
         <button @click="openReports" class="quick-btn report-btn"><RetroIcon name="reports" :size="28" /><span>Reports &amp; Analytics</span></button>
+        <button @click="router.push('/settings')" class="quick-btn settings-btn"><span class="settings-symbol" aria-hidden="true">⚙</span><span>Customize App</span></button>
       </section>
 
       <DashboardSummary :key="dashboardRefreshKey" :animals="animals" />
@@ -1611,7 +1612,7 @@ onMounted(() => {
 /* Quick Actions Bar */
 .quick-actions-bar {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   margin: 7px 3px 12px 0;
   padding: 0;
   overflow: hidden;
@@ -1656,6 +1657,12 @@ onMounted(() => {
   text-align: left;
 }
 
+.settings-symbol {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
 
 .add-animal-inline {
   border: 1px solid #c8d4cb;
@@ -1696,11 +1703,7 @@ onMounted(() => {
   }
 
   .quick-btn:nth-child(even) { border-right: 0; }
-  .quick-btn:last-child {
-    grid-column: 1 / -1;
-    border-right: 0;
-    border-bottom: 0;
-  }
+  .quick-btn:nth-child(n + 5) { border-bottom: 0; }
 
 }
 

@@ -117,7 +117,10 @@ async function unlockApp() {
     </div>
 
     <footer v-if="appUnlocked" class="app-footer">
-      <span>Powered by <strong>Venture Ag Marketing</strong></span>
+      <span class="footer-brand">
+        <span>Powered by</span>
+        <i class="footer-venture-logo" aria-label="Venture Ag Marketing" />
+      </span>
       <span class="footer-sep">·</span>
       <span>Custom Application Solutions</span>
       <span class="footer-sep">·</span>
@@ -246,6 +249,25 @@ async function unlockApp() {
   font-weight: 900;
 }
 
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-venture-logo {
+  display: inline-block;
+  width: 130px;
+  height: 38px;
+  background-color: rgba(255, 255, 255, 0.92);
+  background-image: url('/venture-ag-marketing-logo.jpg');
+  background-repeat: no-repeat;
+  background-position: center 47%;
+  background-size: 118% auto;
+  border-radius: 2px;
+  opacity: 0.72;
+}
+
 .footer-sep {
   color: rgba(255,255,255,0.2);
 }
@@ -263,6 +285,10 @@ async function unlockApp() {
 
   .app-footer > span:not(.footer-sep) {
     flex: 1 1 100%;
+  }
+
+  .footer-brand {
+    justify-content: center;
   }
 }
 </style>

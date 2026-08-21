@@ -227,11 +227,11 @@ static async Task InitializeDatabaseInBackgroundAsync(
         {
             app.Logger.LogError(
                 exception,
-                "Database initialization failed. The API remains live but not ready; retrying in 30 seconds.");
+                "Database initialization failed. The API remains live but not ready; retrying in 5 seconds.");
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), stopping);
+                await Task.Delay(TimeSpan.FromSeconds(5), stopping);
             }
             catch (OperationCanceledException) when (stopping.IsCancellationRequested)
             {

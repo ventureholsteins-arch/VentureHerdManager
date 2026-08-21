@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { getAnimals } from '../api/animals'
+import { getAnimalsBasic, loadLatestClassifications } from '../api/animals'
 import { getAppearance, type AppearanceSetting } from '../api/appearance'
 import { recordHeat } from '../api/heat'
 import { getLatestPregnancyStatuses, recordBreeding } from '../api/breeding'
@@ -213,36 +213,47 @@ async function loadAnimals() {
   warningMessage.value = ''
 
   try {
-    // The animal list is the required dashboard request. Appearance and
-    // pregnancy status are enhancements and should not make live herd data
-    // appear stale when either optional request is temporarily unavailable.
-    const animalsResponse = await getAnimals()
+    // Start optional requests immediately, but never hold the herd cards
+    // behind them. The animal list is the only request required for first
+    // paint; classifications, appearance and pregnancy status hydrate later.
+    const appearancePromise = getAppearance().catch((error) => {
+      console.warn('Appearance settings are temporarily unavailable:', error)
+      return undefined
+    })
+    const pregnancyPromise = getLatestPregnancyStatuses().catch((error) => {
+      console.warn('Pregnancy statuses are temporarily unavailable:', error)
+      return {}
+    })
+
+    const animalsResponse = await getAnimalsBasic()
     animals.value = Array.isArray(animalsResponse) ? animalsResponse : []
-    lastUpdatedAt.value = new Date().toISOString()
+    const loadedAt = new Date().toISOString()
+    lastUpdatedAt.value = loadedAt
+    loading.value = false
 
-    const [appearanceResponse, latestStatuses] = await Promise.all([
-      getAppearance().catch((error) => {
-        console.warn('Appearance settings are temporarily unavailable:', error)
-        return undefined
-      }),
-      getLatestPregnancyStatuses().catch((error) => {
-        console.warn('Pregnancy statuses are temporarily unavailable:', error)
-        return {}
-      })
-    ])
+    const saveCache = () => dashboardStorage.setItem(
+      DASHBOARD_CACHE_KEY,
+      JSON.stringify({
+        savedAt: loadedAt,
+        animals: animals.value,
+        latestPregnancyStatuses: latestPregnancyStatuses.value
+      } satisfies DashboardCachePayload)
+    )
+    saveCache()
 
-    if (appearanceResponse) {
-      appearance.value = appearanceResponse
-    }
-    latestPregnancyStatuses.value = latestStatuses
+    void Promise.all([
+      appearancePromise,
+      pregnancyPromise,
+      loadLatestClassifications(animals.value)
+    ]).then(([appearanceResponse, latestStatuses]) => {
+      if (appearanceResponse) appearance.value = appearanceResponse
+      latestPregnancyStatuses.value = latestStatuses
+      // Replace the array so Vue updates classification labels populated in
+      // place by the background request.
+      animals.value = [...animals.value]
+      saveCache()
+    })
 
-    const payload: DashboardCachePayload = {
-      savedAt: lastUpdatedAt.value,
-      animals: animals.value,
-      latestPregnancyStatuses: latestPregnancyStatuses.value
-    }
-
-    dashboardStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(payload))
   } catch (error) {
     console.error('Failed to load dashboard information:', error)
 

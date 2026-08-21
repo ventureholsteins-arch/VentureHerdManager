@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { getAppearance, type AppearanceSetting } from './api/appearance'
 import { resetDemo } from './api/demo'
 import { clearAdminKey, getAdminKey, setAdminKey, validateAdminKey } from './api/herdData'
+import HerdLoadingScene from './components/HerdLoadingScene.vue'
 
 const appearance = ref<AppearanceSetting | null>(null)
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
@@ -12,8 +13,15 @@ const appUnlocked = ref(isDemoOnly || Boolean(getAdminKey()))
 const unlockKey = ref('')
 const unlockBusy = ref(false)
 const unlockError = ref('')
+const startupVisible = ref(appUnlocked.value)
 
 onMounted(async () => {
+  if (startupVisible.value) {
+    window.setTimeout(() => {
+      startupVisible.value = false
+    }, 3000)
+  }
+
   if (isDemoOnly) {
     appUnlocked.value = true
     return
@@ -101,6 +109,13 @@ async function unlockApp() {
       <RouterView />
     </div>
 
+    <div v-if="startupVisible" class="startup-screen">
+      <HerdLoadingScene
+        message="Opening your herd..."
+        :delay-ms="0"
+      />
+    </div>
+
     <footer v-if="appUnlocked" class="app-footer">
       <span>Powered by <strong>Venture Ag Marketing</strong></span>
       <span class="footer-sep">·</span>
@@ -134,6 +149,23 @@ async function unlockApp() {
 .app-content {
   position: relative;
   z-index: 1;
+}
+
+.startup-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+  background: #e8e2cd;
+}
+
+.startup-screen :deep(.retro-loader) {
+  width: min(760px, 100%);
+  min-height: min(360px, calc(100vh - 40px));
+  box-sizing: border-box;
 }
 
 .unlock-screen { position:relative;z-index:3;min-height:100vh;display:grid;place-items:center;padding:20px;box-sizing:border-box; }

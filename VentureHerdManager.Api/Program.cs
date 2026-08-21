@@ -96,11 +96,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-if (isDemoMode)
-{
-    app.UseDeveloperExceptionPage();
-}
-
 app.UseHttpsRedirection();
 
 app.UseCors(CorsPolicyName);

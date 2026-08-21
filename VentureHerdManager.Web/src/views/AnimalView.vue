@@ -2,12 +2,15 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
-import { getAnimal, markAnimalSold, restoreAnimal, setAnimalLocation } from '../api/animals'
+import { getAnimal, getAnimalsBasic, markAnimalSold, restoreAnimal, setAnimalLocation } from '../api/animals'
 import { getAnimalSnapshot } from '../api/animalsSnapshot'
 import type { Animal } from '../models/Animal'
 import type { AnimalSnapshot, AnimalTimelineEntry } from '../models/AnimalSnapshot'
 import RetroIcon from '../components/RetroIcon.vue'
 import EditAnimalModal from '../components/EditAnimalModal.vue'
+import RecordLUTModal from '../components/RecordLUTModal.vue'
+import RecordBreedingModal from '../components/RecordBreedingModal.vue'
+import { implantEmbryo } from '../api/embryoRecords'
 import { getAnimalHerdData, getAdminKey, getMatingSuggestions } from '../api/herdData'
 
 import {
@@ -46,6 +49,7 @@ import {
 import {
   deleteLutEvent,
   getLutEvents,
+  recordLUT,
   updateLutEvent,
   type LutalyseEvent
 } from '../api/lut'
@@ -74,6 +78,11 @@ const router = useRouter()
 
 const animal = ref<Animal | null>(null)
 const editAnimalModalRef = ref<InstanceType<typeof EditAnimalModal>>()
+const lutModalRef = ref<InstanceType<typeof RecordLUTModal>>()
+const breedingModalRef = ref<InstanceType<typeof RecordBreedingModal>>()
+const animalSearch = ref('')
+const animalSearchLoaded = ref(false)
+const animalSearchOptions = ref<Animal[]>([])
 const snapshot = ref<AnimalSnapshot | null>(null)
 
 const heatEvents = ref<HeatEvent[]>([])
@@ -83,6 +92,31 @@ const dryOffEvents = ref<DryOffEvent[]>([])
 const lutEvents = ref<LutalyseEvent[]>([])
 const animalNotes = ref<AnimalNote[]>([])
 const timelineEntries = ref<AnimalTimelineEntry[]>([])
+const animalSearchResults = computed(() => {
+  const query = animalSearch.value.trim().toLowerCase()
+  if (!query) return []
+  return animalSearchOptions.value
+    .filter(option => option.animalId !== animal.value?.animalId)
+    .filter(option => [option.barnName, option.registeredName, option.registrationNumber, option.sireName, option.damName]
+      .some(value => value?.toLowerCase().includes(query)))
+    .slice(0, 6)
+})
+
+async function loadAnimalSearch() {
+  if (animalSearchLoaded.value) return
+  animalSearchLoaded.value = true
+  try {
+    animalSearchOptions.value = await getAnimalsBasic()
+  } catch (error) {
+    animalSearchLoaded.value = false
+    console.warn('Animal search could not be loaded:', error)
+  }
+}
+
+function openAnimalFromSearch(id: number) {
+  animalSearch.value = ''
+  router.push(`/animals/${id}`)
+}
 const herdDataRecords = ref<any[]>([])
 const matingData = ref<any>(null)
 function latestRecordForSource(source: number) {
@@ -182,6 +216,49 @@ async function onAnimalEdited(updated: Animal) {
   await reloadAnimalData()
 }
 
+async function onRecordLUT(data: any) {
+  try {
+    await recordLUT(data)
+    data.complete?.(true)
+  } catch (error) {
+    data.complete?.(false, error instanceof Error ? error.message : 'The LUT injection could not be saved.')
+    return
+  }
+  try {
+    lutEvents.value = await getLutEvents(animalId.value)
+    snapshot.value = await getAnimalSnapshot(animalId.value)
+    timelineEntries.value = snapshot.value.timeline
+  } catch (error) {
+    console.warn('LUT saved, but the animal card refresh failed:', error)
+  }
+}
+
+async function onRecordBreeding(data: any) {
+  try {
+    if (data.breedingType === 2 && data.embryoRecordId) {
+      await implantEmbryo(data.embryoRecordId, data.animalId, data.breedingDate)
+    } else {
+      await recordBreeding({
+        animalId: data.animalId,
+        breedingDate: data.breedingDate,
+        sireUsed: data.sireUsed,
+        breedingType: data.breedingType,
+        pregnancyStatus: data.pregnancyStatus,
+        notes: data.notes
+      })
+    }
+    data.complete?.(true)
+  } catch (error) {
+    data.complete?.(false, error instanceof Error ? error.message : 'The breeding could not be saved.')
+    return
+  }
+  try {
+    await reloadAnimalData()
+  } catch (error) {
+    console.warn('Breeding saved, but the animal card refresh failed:', error)
+  }
+}
+
 async function reloadAnimalData() {
   const animalSnapshot = await getAnimalSnapshot(animalId.value)
 
@@ -252,13 +329,13 @@ function goBack() {
       ? route.query.returnTo
       : null
 
-  if (window.history.length > 1) {
-    router.back()
+  if (returnTo) {
+    router.push(returnTo)
     return
   }
 
-  if (returnTo) {
-    router.push(returnTo)
+  if (window.history.length > 1) {
+    router.back()
     return
   }
 
@@ -282,9 +359,12 @@ function openHeatForm() {
   showHeatForm.value = true
 }
 
-function openBreedingForm() {
+async function openBreedingForm() {
   closeAllForms()
-  showBreedingForm.value = true
+  if (!animal.value) return
+  await breedingModalRef.value?.openModal(
+    animal.value.animalId,
+    animal.value.barnName || animal.value.registeredName || `Animal #${animal.value.animalId}`)
 }
 
 async function openPregCheckForm(preferredBreedingId?: number) {
@@ -923,6 +1003,8 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
       ← Back
     </button>
     <EditAnimalModal ref="editAnimalModalRef" :animal="animal" @saved="onAnimalEdited" />
+    <RecordLUTModal ref="lutModalRef" @record-lut="onRecordLUT" />
+    <RecordBreedingModal ref="breedingModalRef" @record-breeding="onRecordBreeding" />
 
     <p v-if="loading">
       Loading...
@@ -1042,6 +1124,28 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
       <section class="panel quick-actions-panel">
         <h2>Quick Actions</h2>
 
+        <div class="card-animal-search">
+          <input
+            v-model="animalSearch"
+            type="search"
+            inputmode="search"
+            placeholder="Search another animal"
+            aria-label="Search another animal"
+            @focus="loadAnimalSearch"
+          >
+          <div v-if="animalSearchResults.length" class="card-animal-results">
+            <button
+              v-for="option in animalSearchResults"
+              :key="option.animalId"
+              type="button"
+              @click="openAnimalFromSearch(option.animalId)"
+            >
+              <strong>{{ option.barnName || option.registeredName || `${option.damName || 'Unknown dam'} × ${option.sireName || 'Unknown sire'}` }}</strong>
+              <small>{{ option.registrationNumber || option.registeredName || 'Open animal card' }}</small>
+            </button>
+          </div>
+        </div>
+
         <div class="actions">
           <button @click="openHeatForm">
             <RetroIcon name="heat" :size="30" />
@@ -1053,7 +1157,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
             <span>Breed</span>
           </button>
 
-          <button @click="openPregCheckForm">
+          <button @click="() => openPregCheckForm()">
             <RetroIcon name="pregCheck" :size="30" />
             <span>Preg Check</span>
           </button>
@@ -1066,6 +1170,11 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
           <button @click="openDryOffForm">
             <RetroIcon name="dryOff" :size="30" />
             <span>Dry Off</span>
+          </button>
+
+          <button @click="lutModalRef?.openModal(animalId, animal?.barnName || animal?.registeredName || undefined)">
+            <RetroIcon name="lut" :size="30" />
+            <span>LUT Injection</span>
           </button>
 
           <button @click="openNoteForm">
@@ -1971,6 +2080,13 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
   gap: 20px;
 }
 
+.card-animal-search { position: relative; margin-bottom: 10px; }
+.card-animal-search > input { width: 100%; min-height: 40px; padding: 8px 11px; border: 1px solid #b9c8bc; border-radius: 8px; background: #fff; font: inherit; }
+.card-animal-results { position: absolute; z-index: 20; inset: calc(100% + 4px) 0 auto; display: grid; padding: 5px; border: 1px solid #b9c8bc; border-radius: 9px; background: #fff; box-shadow: 0 8px 24px rgba(27,50,31,.18); }
+.card-animal-results button { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 7px 9px; border: 0; border-bottom: 1px solid #edf1ee; background: transparent; color: #24472a; text-align: left; }
+.card-animal-results button:last-child { border-bottom: 0; }
+.card-animal-results small { color: #68786b; text-align: right; }
+
 .actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2202,11 +2318,11 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
     flex-direction: column;
   }
 
-  .pedigree-panel { order: 3; }
+  .quick-actions-panel { order: 3; }
   .linear-quick-panel { order: 4; }
-  .quick-actions-panel { order: 5; }
-  .latest-milk-strip { order: 6; }
-  .milk-genomic-panel { order: 7; }
+  .latest-milk-strip { order: 5; }
+  .milk-genomic-panel { order: 6; }
+  .pedigree-panel { order: 7; }
 
   .hero {
     margin-bottom: 12px;

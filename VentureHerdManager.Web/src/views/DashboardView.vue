@@ -74,7 +74,7 @@ interface DashboardCachePayload {
 }
 
 const searchQuery = ref('')
-const stageFilter = ref<number | null>(null)
+const stageFilter = ref<number | null>(3)
 const statusFilter = ref<number | null>(0)
 const locationFilter = ref<number | null>(0)
 const pregnancyFilter = ref<number | null>(null)
@@ -367,12 +367,18 @@ const onRecordBreeding = async (data: any) => {
         notes: data.notes
       })
     }
-    
-    await refreshDashboard()
-    alert('Breeding event recorded successfully!')
   } catch (error) {
+    data.complete?.(false, error instanceof Error ? error.message : 'Unknown error')
     alert(`Error recording breeding: ${error instanceof Error ? error.message : 'Unknown error'}`)
     console.error('Failed to record breeding:', error)
+    return
+  }
+  data.complete?.(true)
+  alert('Breeding event recorded successfully!')
+  try {
+    await refreshDashboard()
+  } catch (error) {
+    console.warn('Breeding saved, but the dashboard refresh failed:', error)
   }
 }
 
@@ -438,12 +444,18 @@ const onRecordLUT = async (data: any) => {
       expectedHeatWatchEnd: data.expectedHeatWatchEnd,
       notes: data.notes
     })
-    
-    await refreshDashboard()
-    alert('LUT injection recorded! Animal will be monitored for heat.')
   } catch (error) {
+    data.complete?.(false, error instanceof Error ? error.message : 'Unknown error')
     alert(`Error recording LUT: ${error instanceof Error ? error.message : 'Unknown error'}`)
     console.error('Failed to record LUT:', error)
+    return
+  }
+  data.complete?.(true)
+  alert('LUT injection recorded! Animal will be monitored for heat.')
+  try {
+    await refreshDashboard()
+  } catch (error) {
+    console.warn('LUT saved, but the dashboard refresh failed:', error)
   }
 }
 
@@ -629,7 +641,7 @@ onMounted(() => {
       </section>
 
       <section class="quick-actions-bar">
-        <button @click="openHeatModal" class="quick-btn heat-btn"><RetroIcon name="heat" :size="28" /><span>Record Heat</span></button>
+        <button @click="() => openHeatModal()" class="quick-btn heat-btn"><RetroIcon name="heat" :size="28" /><span>Record Heat</span></button>
         <button @click="openLUTModal()" class="quick-btn lut-btn"><RetroIcon name="lut" :size="28" /><span>LUT Injection</span></button>
         <button @click="router.push('/embryos')" class="quick-btn embryo-btn"><RetroIcon name="embryo" :size="28" /><span>Embryo Hatchery</span></button>
         <button @click="router.push('/shows')" class="quick-btn show-btn"><RetroIcon name="calf" :size="28" /><span>Show Command Center</span></button>

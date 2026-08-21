@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VentureHerdManager.Api.Data;
 using VentureHerdManager.Api.Models;
+using VentureHerdManager.Api.Services;
 
 namespace VentureHerdManager.Api.Controllers;
 
@@ -62,6 +63,11 @@ public class HeatEventsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<HeatEvent>> Create(HeatEvent heatEvent)
     {
+        await ReproductiveEventRules.ClosePriorServiceAsync(
+            _context,
+            heatEvent.AnimalId,
+            heatEvent.HeatDateTime,
+            "a new heat");
         _context.HeatEvents.Add(heatEvent);
         await _context.SaveChangesAsync();
 

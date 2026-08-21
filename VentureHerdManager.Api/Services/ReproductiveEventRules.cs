@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using VentureHerdManager.Api.Models;
 
 namespace VentureHerdManager.Api.Services;
@@ -91,6 +92,51 @@ public static class ReproductiveEventRules
             $"Pregnancy completed by calving on {calvingDate:d}.");
         breeding.UpdatedBy = "Calving workflow";
         breeding.UpdatedAt = DateTime.UtcNow;
+    }
+
+    public static async Task ClosePriorServiceAsync(
+        Data.ApplicationDbContext context,
+        int animalId,
+        DateTime newEventDate,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        var prior = await context.BreedingEvents
+            .Where(breeding =>
+                breeding.AnimalId == animalId
+                && breeding.BreedingDate < newEventDate
+                && breeding.PregnancyStatus != PregnancyStatus.Open
+                && breeding.PregnancyStatus != PregnancyStatus.Aborted)
+            .OrderByDescending(breeding => breeding.BreedingDate)
+            .ThenByDescending(breeding => breeding.BreedingEventId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (prior == null)
+        {
+            return;
+        }
+
+        ApplyPregnancyStatus(
+            prior,
+            PregnancyStatus.Open,
+            prior.BreedingType == BreedingType.EmbryoTransfer,
+            newEventDate);
+        prior.PregnancyCheckDueDate = null;
+        prior.Notes = AppendNote(
+            prior.Notes,
+            $"Closed as open when {reason} was recorded on {newEventDate:d}.");
+        prior.UpdatedBy = "Reproductive workflow";
+
+        var linkedEmbryo = await context.EmbryoRecords
+            .FirstOrDefaultAsync(
+                embryo => embryo.BreedingEventId == prior.BreedingEventId,
+                cancellationToken);
+        if (linkedEmbryo != null)
+        {
+            SynchronizeEmbryoOutcome(
+                linkedEmbryo,
+                PregnancyStatus.Open,
+                $"Did not establish a pregnancy; a later {reason} was recorded on {newEventDate:d}.");
+        }
     }
 
     public static string AppendNote(string? notes, string note)

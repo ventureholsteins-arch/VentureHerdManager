@@ -27,7 +27,9 @@ public sealed class ReproductiveIntegrityTests
         };
         context.AddRange(recipient, embryo);
         await context.SaveChangesAsync();
-        var controller = new EmbryoRecordsController(context);
+        var controller = new EmbryoRecordsController(
+            context,
+            NullLogger<EmbryoRecordsController>.Instance);
         var implantDate = new DateOnly(2026, 7, 15);
 
         var implantResult = await controller.Implant(
@@ -93,7 +95,9 @@ public sealed class ReproductiveIntegrityTests
         };
         context.EmbryoRecords.Add(embryo);
         await context.SaveChangesAsync();
-        var controller = new EmbryoRecordsController(context);
+        var controller = new EmbryoRecordsController(
+            context,
+            NullLogger<EmbryoRecordsController>.Instance);
 
         var result = await controller.UndoImplant(
             embryo.EmbryoRecordId);
@@ -166,7 +170,9 @@ public sealed class ReproductiveIntegrityTests
         };
         context.EmbryoRecords.Add(embryo);
         await context.SaveChangesAsync();
-        var controller = new EmbryoRecordsController(context);
+        var controller = new EmbryoRecordsController(
+            context,
+            NullLogger<EmbryoRecordsController>.Instance);
 
         var result = await controller.Update(
             embryo.EmbryoRecordId,
@@ -275,6 +281,79 @@ public sealed class ReproductiveIntegrityTests
         Assert.Empty(await context.BreedingEvents
             .CurrentReproductiveEvents(context)
             .ToListAsync());
+    }
+
+    [Fact]
+    public async Task NewBreedingClosesPriorServiceAndFailedEmbryo()
+    {
+        await using var context = CreateContext();
+        var animal = new Animal { BarnName = "Bandi" };
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+        var prior = new BreedingEvent
+        {
+            AnimalId = animal.AnimalId,
+            BreedingDate = new DateTime(2026, 7, 15),
+            SireUsed = "Polly x Goldwyn",
+            BreedingType = BreedingType.EmbryoTransfer,
+            PregnancyStatus = PregnancyStatus.Unconfirmed
+        };
+        context.BreedingEvents.Add(prior);
+        await context.SaveChangesAsync();
+        var embryo = new EmbryoRecord
+        {
+            Donor = "Polly",
+            Sire = "Goldwyn",
+            RecipientAnimalId = animal.AnimalId,
+            ImplantDate = new DateOnly(2026, 7, 15),
+            BreedingEventId = prior.BreedingEventId,
+            Status = EmbryoStatus.Implanted
+        };
+        context.EmbryoRecords.Add(embryo);
+        await context.SaveChangesAsync();
+        var controller = new BreedingEventsController(
+            context,
+            NullLogger<BreedingEventsController>.Instance);
+
+        await controller.Create(new BreedingEvent
+        {
+            AnimalId = animal.AnimalId,
+            BreedingDate = new DateTime(2026, 8, 9),
+            SireUsed = "Carissa x Braxton",
+            BreedingType = BreedingType.EmbryoTransfer
+        });
+
+        Assert.Equal(PregnancyStatus.Open, prior.PregnancyStatus);
+        Assert.Equal(EmbryoStatus.Failed, embryo.Status);
+        Assert.Equal(2, await context.BreedingEvents.CountAsync());
+    }
+
+    [Fact]
+    public async Task NewHeatClosesPriorBreeding()
+    {
+        await using var context = CreateContext();
+        var animal = new Animal { BarnName = "Shine" };
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+        var prior = new BreedingEvent
+        {
+            AnimalId = animal.AnimalId,
+            BreedingDate = new DateTime(2026, 7, 1),
+            SireUsed = "Prior service",
+            PregnancyStatus = PregnancyStatus.Recheck
+        };
+        context.BreedingEvents.Add(prior);
+        await context.SaveChangesAsync();
+        var controller = new HeatEventsController(context);
+
+        await controller.Create(new HeatEvent
+        {
+            AnimalId = animal.AnimalId,
+            HeatDateTime = new DateTime(2026, 8, 1)
+        });
+
+        Assert.Equal(PregnancyStatus.Open, prior.PregnancyStatus);
+        Assert.Null(prior.PregnancyCheckDueDate);
     }
 
     private static ApplicationDbContext CreateContext()

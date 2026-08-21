@@ -98,7 +98,6 @@ async function unlockApp() {
         <span class="unlock-mark">VH</span>
         <h1>Venture Herd Manager</h1>
         <p>Enter your private access key. This device will remain unlocked for 24 hours.</p>
-        <p class="temporary-key">Temporary access key: <strong>ventureripp</strong></p>
         <label for="app-key">Access key</label>
         <input id="app-key" v-model="unlockKey" type="password" autocomplete="current-password" autofocus>
         <button type="submit" :disabled="unlockBusy || !unlockKey.trim()">{{ unlockBusy ? 'Opening…' : 'Open herd manager' }}</button>
@@ -173,7 +172,6 @@ async function unlockApp() {
 .unlock-card { width:min(420px,100%);display:grid;gap:12px;padding:28px;border:1px solid rgba(49,87,44,.22);border-radius:16px;background:rgba(255,255,255,.96);box-shadow:0 18px 55px rgba(13,26,16,.18); }
 .unlock-mark { width:52px;height:52px;display:grid;place-items:center;border-radius:12px;background:#31572c;color:#fff;font-weight:950;font-size:1.15rem; }
 .unlock-card h1,.unlock-card p { margin:0; }
-.unlock-card .temporary-key { padding:10px 12px;border:1px solid #d7dfd2;border-radius:8px;background:#f3f7f1;color:#31572c; }
 .unlock-card label { font-weight:850; }
 .unlock-card input,.unlock-card button { min-height:48px;border-radius:8px;font:inherit;box-sizing:border-box; }
 .unlock-card input { width:100%;padding:10px 12px;border:1px solid #aebdaf; }

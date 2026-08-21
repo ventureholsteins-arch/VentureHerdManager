@@ -63,6 +63,44 @@ export async function getAnimals(): Promise<Animal[]> {
   return animals
 }
 
+export async function loadLatestClassifications(
+  animals: Animal[]
+): Promise<void> {
+  if (animals.length === 0) return
+
+  try {
+    const classificationsResponse = await fetch(
+      `${API_BASE}/ClassificationRecords/latest-for-animals`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(animals.map(animal => animal.animalId))
+      }
+    )
+
+    if (!classificationsResponse.ok) return
+
+    const classifications: LatestClassificationResponse[] =
+      await classificationsResponse.json()
+    const classificationMap = new Map(
+      classifications.map(classification => [
+        classification.animalId,
+        classification
+      ])
+    )
+
+    animals.forEach(animal => {
+      const classification = classificationMap.get(animal.animalId)
+      if (classification) {
+        animal.latestScore = classification.score
+        animal.latestBaa = classification.baa
+      }
+    })
+  } catch (error) {
+    console.warn('Failed to load classifications:', error)
+  }
+}
+
 export async function getAnimalsBasic(): Promise<Animal[]> {
   const response = await fetch(`${API_BASE}/Animals`)
   if (!response.ok) throw new Error('Failed to load animals')

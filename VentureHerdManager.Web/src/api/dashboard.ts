@@ -131,7 +131,9 @@ function normalizeDashboardSummary(value: unknown): DashboardSummary {
   }
 }
 
-const DASHBOARD_CACHE_MS = 120_000
+// Keep the last successful summary available long enough that normal app
+// navigation never waits on a sleeping Azure database.
+const DASHBOARD_CACHE_MS = 15 * 60_000
 const DASHBOARD_TIMEOUT_MS = 30_000
 const DASHBOARD_STORAGE_KEY = 'venture-herd-summary-cache-v1'
 let cachedDashboard: DashboardSummary | null = null

@@ -90,9 +90,10 @@ public class DemoController : ControllerBase
             return guardResult;
         }
 
-        // Demo databases can drift if they are long-lived. Ensure schema is current
-        // before destructive reset/seed operations.
-        await _context.Database.MigrateAsync(cancellationToken);
+        // Database initialization and migrations finish before API traffic is
+        // admitted (Program.cs readiness middleware). Do not rerun migrations
+        // inside a visitor's reset request; that made fresh demo sessions fail
+        // whenever EF detected unrelated pending model work.
 
         await using var transaction =
             await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -767,8 +768,6 @@ public class DemoController : ControllerBase
         {
             return guardResult;
         }
-
-        await _context.Database.MigrateAsync(cancellationToken);
 
         var sessionId = _demoSessionContext.SessionId;
         if (sessionId != null)

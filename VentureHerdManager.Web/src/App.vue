@@ -272,13 +272,11 @@ async function unlockApp() {
   display: inline-block;
   width: 130px;
   height: 38px;
-  background-color: rgba(255, 255, 255, 0.92);
-  background-image: url('/venture-ag-marketing-logo.jpg');
+  background-image: url('/venture-ag-marketing-logo.png');
   background-repeat: no-repeat;
-  background-position: center 47%;
-  background-size: 118% auto;
-  border-radius: 2px;
-  opacity: 0.72;
+  background-position: center;
+  background-size: contain;
+  opacity: 0.82;
 }
 
 .footer-sep {

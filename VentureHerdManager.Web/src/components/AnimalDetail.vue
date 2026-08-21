@@ -18,6 +18,7 @@ const heatNotes = ref('')
 const heatSaving = ref(false)
 
 async function recordHeat() {
+  if (heatSaving.value) return
   heatSaving.value = true
 
   try {

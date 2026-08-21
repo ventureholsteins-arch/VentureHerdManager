@@ -225,6 +225,8 @@ const saveButtonText = computed(() => {
 })
 
 const submitHeat = async (openBreedingAfterSave = false) => {
+  if (saving.value) return
+
   if (!selectedAnimalId.value) {
     alert('Please select an animal')
     return

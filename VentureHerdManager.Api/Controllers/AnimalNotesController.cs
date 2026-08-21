@@ -36,6 +36,22 @@ public class AnimalNotesController : ControllerBase
             return NotFound($"Animal {note.AnimalId} was not found.");
         }
 
+        var duplicateWindowStart = note.NoteDate.AddMinutes(-2);
+        var duplicateWindowEnd = note.NoteDate.AddMinutes(2);
+        var existing = await _context.AnimalNotes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(candidate =>
+                candidate.AnimalId == note.AnimalId
+                && candidate.NoteDate >= duplicateWindowStart
+                && candidate.NoteDate <= duplicateWindowEnd
+                && candidate.NoteType == note.NoteType
+                && candidate.NoteText == note.NoteText);
+        if (existing != null)
+        {
+            Response.Headers["X-Duplicate-Prevented"] = "true";
+            return Ok(existing);
+        }
+
         _context.AnimalNotes.Add(note);
 
         await _context.SaveChangesAsync();

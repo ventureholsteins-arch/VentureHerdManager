@@ -183,6 +183,8 @@ const saveButtonText = computed(() => {
 })
 
 const recordCalving = async () => {
+  if (saving.value) return
+
   if (!animalId.value || !calvingDate.value) {
     alert('Please fill in required fields')
     return

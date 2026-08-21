@@ -1,4 +1,5 @@
 import type { HeatEvent } from '../models/HeatEvent'
+import { saveRequest } from './saveRequest'
 
 const API_BASE = import.meta.env.VITE_API_URL
 
@@ -12,7 +13,7 @@ export async function recordHeat(heatData: {
   hasEmbryoTransfer?: boolean
   embryoImplantDate?: string
 }): Promise<HeatEvent> {
-  const response = await fetch(`${API_BASE}/HeatEvents`, {
+  const response = await saveRequest(`${API_BASE}/HeatEvents`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

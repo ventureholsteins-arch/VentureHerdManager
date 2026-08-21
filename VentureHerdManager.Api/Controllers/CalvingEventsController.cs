@@ -30,6 +30,22 @@ public class CalvingEventsController : ControllerBase
     public async Task<ActionResult<CalvingEvent>> Create(
         [FromBody] CreateCalvingEventRequest request)
     {
+        var existingCalving = await _context.CalvingEvents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(candidate =>
+                candidate.AnimalId == request.AnimalId
+                && candidate.CalvingDate == request.CalvingDate);
+        if (existingCalving != null)
+        {
+            Response.Headers["X-Duplicate-Prevented"] = "true";
+            return Ok(new
+            {
+                existingCalving.CalvingEventId,
+                existingCalving.AnimalId,
+                existingCalving.CalfAnimalId
+            });
+        }
+
         var calving = new CalvingEvent
         {
             AnimalId = request.AnimalId,

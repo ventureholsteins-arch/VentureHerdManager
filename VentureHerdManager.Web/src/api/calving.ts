@@ -1,3 +1,5 @@
+import { saveRequest } from './saveRequest'
+
 const API_BASE = import.meta.env.VITE_API_URL
 
 export interface CalvingEvent {
@@ -26,7 +28,7 @@ export async function recordCalving(calvingData: {
   stillborn: boolean
   notes?: string
 }): Promise<{ calvingEventId: number; calfAnimalId?: number }> {
-  const response = await fetch(`${API_BASE}/CalvingEvents`, {
+  const response = await saveRequest(`${API_BASE}/CalvingEvents`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

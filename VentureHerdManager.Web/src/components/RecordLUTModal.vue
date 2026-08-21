@@ -176,6 +176,8 @@ const closeModal = () => {
 }
 
 const recordLUT = () => {
+  if (saving.value) return
+
   const resolvedAnimalId = selectedAnimalId.value
     ? parseInt(selectedAnimalId.value, 10)
     : animalId.value

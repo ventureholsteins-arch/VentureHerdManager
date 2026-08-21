@@ -1,3 +1,5 @@
+import { saveRequest } from './saveRequest'
+
 const API_BASE = import.meta.env.VITE_API_URL
 
 export interface EmbryoRecord {
@@ -58,7 +60,7 @@ export async function getEmbryosForRecipient(animalId: number): Promise<EmbryoRe
 }
 
 export async function createEmbryo(data: Omit<EmbryoRecord, 'embryoRecordId' | 'createdAt' | 'updatedAt'>): Promise<EmbryoRecord> {
-  const response = await fetch(`${API_BASE}/EmbryoRecords`, {
+  const response = await saveRequest(`${API_BASE}/EmbryoRecords`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -71,7 +73,7 @@ export async function createEmbryoBatch(
   data: Omit<EmbryoRecord, 'embryoRecordId' | 'createdAt' | 'updatedAt'>,
   quantity: number
 ): Promise<EmbryoRecord[]> {
-  const response = await fetch(`${API_BASE}/EmbryoRecords/batch`, {
+  const response = await saveRequest(`${API_BASE}/EmbryoRecords/batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ quantity, embryo: data }),
@@ -83,7 +85,7 @@ export async function createEmbryoBatch(
 }
 
 export async function updateEmbryo(id: number, data: Partial<EmbryoRecord>): Promise<void> {
-  const response = await fetch(`${API_BASE}/EmbryoRecords/${id}`, {
+  const response = await saveRequest(`${API_BASE}/EmbryoRecords/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...data, embryoRecordId: id }),
@@ -95,7 +97,7 @@ export async function groupEmbryos(
   embryoRecordIds: number[],
   groupName: string | null
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/EmbryoRecords/group`, {
+  const response = await saveRequest(`${API_BASE}/EmbryoRecords/group`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ embryoRecordIds, groupName }),
@@ -104,7 +106,7 @@ export async function groupEmbryos(
 }
 
 export async function deleteEmbryo(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE}/EmbryoRecords/${id}`, {
+  const response = await saveRequest(`${API_BASE}/EmbryoRecords/${id}`, {
     method: 'DELETE',
   })
   if (!response.ok) throw new Error('Failed to delete embryo record')
@@ -130,7 +132,7 @@ export async function implantEmbryo(
   recipientAnimalId: number,
   implantDate?: string
 ): Promise<EmbryoRecord> {
-  const response = await fetch(
+  const response = await saveRequest(
     `${API_BASE}/EmbryoRecords/${embryoRecordId}/implant`,
     {
       method: 'POST',
@@ -143,7 +145,7 @@ export async function implantEmbryo(
 }
 
 export async function undoEmbryoImplant(id: number): Promise<EmbryoRecord> {
-  const response = await fetch(`${API_BASE}/EmbryoRecords/${id}/undo-implant`, {
+  const response = await saveRequest(`${API_BASE}/EmbryoRecords/${id}/undo-implant`, {
     method: 'POST'
   })
   if (!response.ok) throw new Error(await response.text() || 'Failed to undo implant')
@@ -154,7 +156,7 @@ export async function assignEmbryo(
   embryoRecordId: number,
   recipientAnimalId: number
 ): Promise<EmbryoRecord> {
-  const response = await fetch(
+  const response = await saveRequest(
     `${API_BASE}/EmbryoRecords/${embryoRecordId}/assign`,
     {
       method: 'POST',
@@ -171,7 +173,7 @@ export async function recordEmbryoOutcome(
   successful: boolean,
   notes = ''
 ): Promise<EmbryoRecord> {
-  const response = await fetch(
+  const response = await saveRequest(
     `${API_BASE}/EmbryoRecords/${embryoRecordId}/outcome`,
     {
       method: 'POST',

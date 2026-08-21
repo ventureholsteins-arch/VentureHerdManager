@@ -12,6 +12,12 @@ const saving = ref(false)
 const message = ref('')
 const messageType = ref<'success' | 'error'>('success')
 const settings = ref<AppearanceSetting | null>(null)
+const backgroundChoices = [
+  { url: '/backgrounds/show-cow-udder.jpg', label: 'Cow in the ring', position: 'center 54%' },
+  { url: '/backgrounds/show-heifer-profile.jpg', label: 'Profile at the show', position: 'center 48%' },
+  { url: '/backgrounds/show-ring-heifer.jpg', label: 'In the show ring', position: 'center 45%' },
+  { url: '/backgrounds/show-string.jpg', label: 'The show string', position: 'center 48%' }
+]
 
 onMounted(async () => {
   try {
@@ -31,6 +37,13 @@ const previewStyle = computed(() => ({
   backgroundPosition: 'center',
   opacity: settings.value?.backgroundOpacity ?? 0.15
 }))
+
+function chooseBackground(url: string) {
+  if (!settings.value) return
+  settings.value.backgroundImageUrl = url
+  message.value = 'Background selected. Save branding to apply it across the app.'
+  messageType.value = 'success'
+}
 
 async function saveSettings() {
   if (!settings.value) {
@@ -68,7 +81,7 @@ function goBack() {
       <p class="eyebrow">BRANDING</p>
       <h1>Farm Look & Feel</h1>
       <p class="subtext">
-        Drop in a logo, set the app background, and tune the feel so the dashboard looks premium.
+        Choose a farm photo, add your logo, and make the app feel like your operation.
       </p>
     </header>
 
@@ -78,6 +91,25 @@ function goBack() {
 
     <section v-else-if="settings" class="settings-grid">
       <article class="card form-card">
+        <fieldset class="background-picker">
+          <legend>Choose an app background</legend>
+          <p>Pick one of the built-in farm photos or paste your own image below.</p>
+          <div class="background-options">
+            <button
+              v-for="choice in backgroundChoices"
+              :key="choice.url"
+              type="button"
+              class="background-choice"
+              :class="{ selected: settings.backgroundImageUrl === choice.url }"
+              :aria-pressed="settings.backgroundImageUrl === choice.url"
+              @click="chooseBackground(choice.url)"
+            >
+              <img :src="choice.url" :alt="choice.label" :style="{ objectPosition: choice.position }">
+              <span>{{ choice.label }}</span>
+            </button>
+          </div>
+        </fieldset>
+
         <div class="field-grid">
           <label>
             <span>Farm Name</span>
@@ -218,6 +250,78 @@ function goBack() {
   padding: 20px;
 }
 
+.background-picker {
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+}
+
+.background-picker legend {
+  color: #29241c;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.background-picker > p {
+  margin: 5px 0 12px;
+  color: #657167;
+  font-size: 0.82rem;
+}
+
+.background-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 2px solid #29241c;
+  border-radius: 3px;
+  box-shadow: 4px 4px 0 rgba(49, 87, 44, 0.7);
+}
+
+.background-choice {
+  position: relative;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-right: 1px solid rgba(41, 36, 28, 0.45);
+  border-bottom: 1px solid rgba(41, 36, 28, 0.45);
+  background: #efe9d3;
+  color: #29241c;
+  cursor: pointer;
+  text-align: left;
+}
+
+.background-choice:nth-child(even) { border-right: 0; }
+.background-choice:nth-child(n + 3) { border-bottom: 0; }
+
+.background-choice img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 8;
+  object-fit: cover;
+  filter: saturate(0.84);
+}
+
+.background-choice span {
+  display: block;
+  padding: 7px 9px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.background-choice.selected {
+  background: #31572c;
+  color: #fff;
+  box-shadow: inset 0 0 0 3px #d3aa67;
+}
+
+.background-choice.selected img {
+  filter: saturate(1);
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -339,5 +443,18 @@ input {
   .field-grid {
     grid-template-columns: 1fr;
   }
+
+  .background-options {
+    grid-template-columns: 1fr;
+  }
+
+  .background-choice,
+  .background-choice:nth-child(even),
+  .background-choice:nth-child(n + 3) {
+    border-right: 0;
+    border-bottom: 1px solid rgba(41, 36, 28, 0.45);
+  }
+
+  .background-choice:last-child { border-bottom: 0; }
 }
 </style>

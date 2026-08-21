@@ -3,12 +3,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { getAppearance, updateAppearance } from '../api/appearance'
+import { uploadPhoto } from '../api/photos'
 import type { AppearanceSetting } from '../models/AppearanceSetting'
 
 const router = useRouter()
 
 const loading = ref(true)
 const saving = ref(false)
+const uploadingLogo = ref(false)
 const message = ref('')
 const messageType = ref<'success' | 'error'>('success')
 const settings = ref<AppearanceSetting | null>(null)
@@ -45,6 +47,25 @@ function chooseBackground(url: string) {
   messageType.value = 'success'
 }
 
+async function chooseLogo(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file || !settings.value) return
+
+  uploadingLogo.value = true
+  message.value = ''
+  try {
+    settings.value.logoUrl = await uploadPhoto(file, 'branding')
+    message.value = 'Logo uploaded. Save branding to put it on the dashboard.'
+    messageType.value = 'success'
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : 'Logo could not be uploaded.'
+    messageType.value = 'error'
+  } finally {
+    uploadingLogo.value = false
+    ;(event.target as HTMLInputElement).value = ''
+  }
+}
+
 async function saveSettings() {
   if (!settings.value) {
     return
@@ -55,6 +76,7 @@ async function saveSettings() {
 
   try {
     settings.value = await updateAppearance(settings.value)
+    window.dispatchEvent(new Event('appearance-updated'))
     message.value = 'Branding updated.'
     messageType.value = 'success'
   } catch (error) {
@@ -112,13 +134,19 @@ function goBack() {
 
         <div class="field-grid">
           <label>
-            <span>Farm Name</span>
+            <span>App / Farm Name</span>
             <input v-model="settings.farmName" placeholder="Venture Holsteins">
           </label>
 
+          <label class="logo-upload-field">
+            <span>Farm Logo</span>
+            <input type="file" accept="image/*" :disabled="uploadingLogo" @change="chooseLogo">
+            <small>{{ uploadingLogo ? 'Uploading logo…' : 'Choose from your phone or computer' }}</small>
+          </label>
+
           <label>
-            <span>Logo URL</span>
-            <input v-model="settings.logoUrl" placeholder="https://.../logo.png">
+            <span>Logo URL (optional)</span>
+            <input v-model="settings.logoUrl" placeholder="Or paste https://.../logo.png">
           </label>
 
           <label>
@@ -337,6 +365,17 @@ label span {
   color: #31572c;
   font-size: 13px;
   font-weight: 800;
+}
+
+label small {
+  color: #667369;
+  font-size: 0.7rem;
+}
+
+.logo-upload-field input[type='file'] {
+  padding: 8px;
+  background: #f6f3e8;
+  cursor: pointer;
 }
 
 input {

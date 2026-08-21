@@ -6,7 +6,10 @@ namespace VentureHerdManager.Api.Services;
 
 public sealed class DemoSessionMaintenanceService
 {
-    private static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(2);
+    // A visitor keeps one private showcase herd for a full day. LastSeenAt is
+    // still useful operationally, but it must not keep abandoned demo data
+    // alive forever when a browser is left open at a fair or kiosk.
+    public static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(24);
     private static readonly TimeSpan TouchInterval = TimeSpan.FromMinutes(5);
 
     private readonly ApplicationDbContext _context;
@@ -67,7 +70,7 @@ public sealed class DemoSessionMaintenanceService
     {
         var cutoff = now - SessionLifetime;
         var expiredIds = await _context.DemoSessions
-            .Where(session => session.LastSeenAt < cutoff)
+            .Where(session => session.CreatedAt < cutoff)
             .Select(session => session.DemoSessionId)
             .Take(100)
             .ToListAsync(cancellationToken);

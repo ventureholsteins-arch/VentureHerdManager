@@ -91,13 +91,13 @@ async function unlockApp() {
     <div class="app-background" />
 
     <div v-if="appUnlocked && isDemoOnly" class="demo-banner">
-      <span>{{ demoResetEnabled ? 'DEMO MODE · SAMPLE HERD DATA' : 'DEMO MODE' }}</span>
+      <span>{{ demoResetEnabled ? 'DEMO MODE · PRIVATE 24-HOUR SAMPLE HERD' : 'DEMO MODE' }}</span>
       <div class="demo-actions">
         <button type="button" class="secondary" :disabled="demoResetting" @click="openDemoFast">
           Enter Demo
         </button>
         <button type="button" :disabled="demoResetting || !demoResetEnabled" @click="handleDemoReset">
-          {{ demoResetting ? 'Resetting...' : 'Reset Sample Data' }}
+          {{ demoResetting ? 'Refreshing...' : 'Refresh Demo Data' }}
         </button>
       </div>
     </div>

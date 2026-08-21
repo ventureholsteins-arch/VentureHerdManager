@@ -124,6 +124,8 @@ async function unlockApp() {
       <span class="footer-sep">·</span>
       <span>Custom Application Solutions</span>
       <span class="footer-sep">·</span>
+      <RouterLink class="footer-customize" to="/settings">Customize App</RouterLink>
+      <span class="footer-sep">·</span>
       <span>&copy; {{ new Date().getFullYear() }} All Rights Reserved</span>
     </footer>
   </div>
@@ -272,6 +274,16 @@ async function unlockApp() {
   color: rgba(255,255,255,0.2);
 }
 
+.footer-customize {
+  color: rgba(255,255,255,0.72);
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-color: rgba(211,170,103,0.72);
+  text-underline-offset: 3px;
+}
+
+.footer-customize:hover { color: #fff; }
+
 @media (max-width: 640px) {
   .app-footer {
     gap: 4px 10px;
@@ -284,6 +296,10 @@ async function unlockApp() {
   }
 
   .app-footer > span:not(.footer-sep) {
+    flex: 1 1 100%;
+  }
+
+  .footer-customize {
     flex: 1 1 100%;
   }
 

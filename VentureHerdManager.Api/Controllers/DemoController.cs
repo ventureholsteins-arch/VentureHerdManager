@@ -701,7 +701,17 @@ public class DemoController : ControllerBase
                 CreatedBy = seedUser
             });
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            return StatusCode(500, new DemoSeedResult
+            {
+                Message = $"Demo seed could not be saved: {ex.InnerException?.Message ?? ex.Message}"
+            });
+        }
 
         // Resetting starts a new 24-hour showcase window for this browser.
         var sessionId = _demoSessionContext.SessionId;

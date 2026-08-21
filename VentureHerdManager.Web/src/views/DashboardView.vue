@@ -303,7 +303,7 @@ function openReports() {
 
 function useDefaultHeroLogo(event: Event) {
   const image = event.target as HTMLImageElement
-  if (!image.src.endsWith('/app-logo.png')) image.src = '/app-logo.png'
+  if (!image.src.endsWith('/venture-herd-manager-logo.png')) image.src = '/venture-herd-manager-logo.png'
 }
 
 async function refreshDashboard() {
@@ -514,11 +514,10 @@ onMounted(() => {
 
       <div class="hero-inner">
         <div class="hero-main">
-          <div class="hero-brand" :class="{ 'hero-brand-default': !appearance?.logoUrl }">
+          <div class="hero-brand">
             <img
-              :src="appearance?.logoUrl || '/app-logo.png'"
+              :src="appearance?.logoUrl || '/venture-herd-manager-logo.png'"
               class="hero-app-logo"
-              :class="{ 'hero-app-logo-default': !appearance?.logoUrl }"
               :alt="appearance?.farmName || 'Venture Herd Manager'"
               @error="useDefaultHeroLogo"
             >
@@ -919,15 +918,6 @@ onMounted(() => {
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.26));
 }
 
-.hero-brand-default {
-  height: 124px;
-  overflow: hidden;
-}
-
-.hero-app-logo-default {
-  align-self: flex-start;
-  transform: translateY(-31.5%);
-}
 
 .hero-ledger {
   margin-top: 10px;
@@ -1324,9 +1314,6 @@ onMounted(() => {
     width: min(380px, 98vw);
   }
 
-  .hero-brand-default {
-    height: min(108px, 28vw);
-  }
 }
 .herd-section {
   margin-top: 14px;

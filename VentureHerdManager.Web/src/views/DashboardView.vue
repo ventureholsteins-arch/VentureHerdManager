@@ -1114,13 +1114,11 @@ onMounted(() => {
   display: block;
   width: 170px;
   height: 50px;
-  background-color: rgba(255, 255, 255, 0.94);
-  background-image: url('/venture-ag-marketing-logo.jpg');
+  background-image: url('/venture-ag-marketing-logo.png');
   background-repeat: no-repeat;
-  background-position: center 47%;
-  background-size: 118% auto;
-  border-radius: 2px;
-  box-shadow: 2px 2px 0 rgba(15, 22, 16, 0.55);
+  background-position: center;
+  background-size: contain;
+  filter: drop-shadow(0 2px 3px rgba(8, 14, 9, 0.48));
 }
 
 .hero-maker small {

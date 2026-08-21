@@ -63,6 +63,23 @@ public class HeatEventsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<HeatEvent>> Create(HeatEvent heatEvent)
     {
+        var duplicateWindowStart = heatEvent.HeatDateTime.AddMinutes(-2);
+        var duplicateWindowEnd = heatEvent.HeatDateTime.AddMinutes(2);
+        var existing = await _context.HeatEvents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(h =>
+                h.AnimalId == heatEvent.AnimalId
+                && h.HeatDateTime >= duplicateWindowStart
+                && h.HeatDateTime <= duplicateWindowEnd
+                && h.HeatStrength == heatEvent.HeatStrength
+                && h.StandingHeat == heatEvent.StandingHeat
+                && h.Notes == heatEvent.Notes);
+        if (existing != null)
+        {
+            Response.Headers["X-Duplicate-Prevented"] = "true";
+            return Ok(existing);
+        }
+
         await ReproductiveEventRules.ClosePriorServiceAsync(
             _context,
             heatEvent.AnimalId,

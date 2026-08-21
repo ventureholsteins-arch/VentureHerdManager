@@ -137,6 +137,8 @@ const closeModal = () => {
 }
 
 const recordBreeding = async () => {
+  if (saving.value) return
+
   if (!animalId.value || !breedingDate.value) {
     alert('Please fill in all required fields')
     return

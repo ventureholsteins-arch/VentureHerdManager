@@ -1,3 +1,5 @@
+import { saveRequest } from './saveRequest'
+
 const API_BASE = import.meta.env.VITE_API_URL
 
 export interface LutalyseEvent {
@@ -28,7 +30,7 @@ export async function recordLUT(lutData: {
   expectedHeatWatchEnd: string
   notes?: string
 }): Promise<LutalyseEvent> {
-  const response = await fetch(`${API_BASE}/LutalyseEvents`, {
+  const response = await saveRequest(`${API_BASE}/LutalyseEvents`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

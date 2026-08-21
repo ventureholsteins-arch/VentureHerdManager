@@ -51,6 +51,19 @@ public class BreedingEventsController : ControllerBase
     public async Task<ActionResult<BreedingEvent>> Create(BreedingEvent breeding)
     {
         breeding.SireUsed = NormalizeSireName(breeding.SireUsed);
+        var existing = await _context.BreedingEvents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(candidate =>
+                candidate.AnimalId == breeding.AnimalId
+                && candidate.BreedingDate == breeding.BreedingDate
+                && candidate.BreedingType == breeding.BreedingType
+                && candidate.SireUsed == breeding.SireUsed);
+        if (existing != null)
+        {
+            Response.Headers["X-Duplicate-Prevented"] = "true";
+            return Ok(existing);
+        }
+
         await ReproductiveEventRules.ClosePriorServiceAsync(
             _context,
             breeding.AnimalId,

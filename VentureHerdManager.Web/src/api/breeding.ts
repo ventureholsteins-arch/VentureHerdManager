@@ -1,3 +1,5 @@
+import { saveRequest } from './saveRequest'
+
 const API_BASE = import.meta.env.VITE_API_URL
 
 export interface BreedingEvent {
@@ -36,7 +38,7 @@ export async function recordBreeding(breedingData: {
   pregnancyStatus: number
   notes?: string
 }): Promise<void> {
-  const response = await fetch(`${API_BASE}/BreedingEvents`, {
+  const response = await saveRequest(`${API_BASE}/BreedingEvents`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -61,7 +63,7 @@ export async function updatePregnancyStatus(
   breedingEventId: number,
   pregnancyStatus: number
 ): Promise<void> {
-  const response = await fetch(
+  const response = await saveRequest(
     `${API_BASE}/BreedingEvents/${breedingEventId}/pregnancy-status`,
     {
       method: 'PUT',

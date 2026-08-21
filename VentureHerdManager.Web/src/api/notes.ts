@@ -1,3 +1,5 @@
+import { saveRequest } from './saveRequest'
+
 const API_BASE = import.meta.env.VITE_API_URL
 
 export interface AnimalNote {
@@ -14,7 +16,7 @@ export async function addNote(noteData: {
   noteText: string
   noteType: number
 }): Promise<AnimalNote> {
-  const response = await fetch(`${API_BASE}/AnimalNotes`, {
+  const response = await saveRequest(`${API_BASE}/AnimalNotes`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

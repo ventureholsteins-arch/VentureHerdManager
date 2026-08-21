@@ -28,6 +28,18 @@ public class LutalyseEventsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<LutalyseEvent>> Create(LutalyseEvent lutalyseEvent)
     {
+        var existing = await _context.LutalyseEvents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(candidate =>
+                candidate.AnimalId == lutalyseEvent.AnimalId
+                && candidate.AdministrationDate
+                    == lutalyseEvent.AdministrationDate);
+        if (existing != null)
+        {
+            Response.Headers["X-Duplicate-Prevented"] = "true";
+            return Ok(existing);
+        }
+
         _context.LutalyseEvents.Add(lutalyseEvent);
         await _context.SaveChangesAsync();
 

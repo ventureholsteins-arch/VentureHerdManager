@@ -356,6 +356,79 @@ public sealed class ReproductiveIntegrityTests
         Assert.Null(prior.PregnancyCheckDueDate);
     }
 
+    [Fact]
+    public async Task RepeatedHeatTapReturnsExistingRecordWithoutDuplicate()
+    {
+        await using var context = CreateContext();
+        var animal = new Animal { BarnName = "Double Tap" };
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+        var controller = new HeatEventsController(context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+        var occurredAt = new DateTime(2026, 8, 21, 10, 30, 0);
+
+        await controller.Create(new HeatEvent
+        {
+            AnimalId = animal.AnimalId,
+            HeatDateTime = occurredAt,
+            HeatStrength = HeatStrength.Strong,
+            StandingHeat = true,
+            Notes = "Standing"
+        });
+        var retry = await controller.Create(new HeatEvent
+        {
+            AnimalId = animal.AnimalId,
+            HeatDateTime = occurredAt.AddSeconds(20),
+            HeatStrength = HeatStrength.Strong,
+            StandingHeat = true,
+            Notes = "Standing"
+        });
+
+        Assert.IsType<OkObjectResult>(retry.Result);
+        Assert.Single(await context.HeatEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task RepeatedEmbryoImplantReturnsExistingLinkedRecord()
+    {
+        await using var context = CreateContext();
+        var recipient = new Animal { BarnName = "Recipient" };
+        var embryo = new EmbryoRecord
+        {
+            Donor = "Donor",
+            Sire = "Sire",
+            Status = EmbryoStatus.InStorage
+        };
+        context.AddRange(recipient, embryo);
+        await context.SaveChangesAsync();
+        var controller = new EmbryoRecordsController(
+            context,
+            NullLogger<EmbryoRecordsController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
+        var request = new ImplantEmbryoRequest
+        {
+            RecipientAnimalId = recipient.AnimalId,
+            ImplantDate = new DateOnly(2026, 8, 21)
+        };
+
+        await controller.Implant(embryo.EmbryoRecordId, request);
+        var retry = await controller.Implant(embryo.EmbryoRecordId, request);
+
+        Assert.IsType<OkObjectResult>(retry);
+        Assert.Single(await context.BreedingEvents.ToListAsync());
+        Assert.Equal(EmbryoStatus.Implanted, embryo.Status);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var configuration = new ConfigurationBuilder()

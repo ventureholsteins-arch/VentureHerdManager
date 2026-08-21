@@ -295,6 +295,17 @@ public class EmbryoRecordsController : ControllerBase
         }
 
         var linkedBreeding = await ResolveLinkedBreedingAsync(record);
+        var implantDate = request.ImplantDate
+            ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        if (record.RecipientAnimalId == recipient.AnimalId
+            && record.ImplantDate == implantDate
+            && record.Status == EmbryoStatus.Implanted
+            && linkedBreeding != null)
+        {
+            Response.Headers["X-Duplicate-Prevented"] = "true";
+            return Ok(record);
+        }
 
         if (record.Status is EmbryoStatus.Implanted
             or EmbryoStatus.Successful
@@ -304,7 +315,6 @@ public class EmbryoRecordsController : ControllerBase
             return BadRequest("This embryo is no longer available.");
         }
 
-        var implantDate = request.ImplantDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
         await ReproductiveEventRules.ClosePriorServiceAsync(
             _context,
             recipient.AnimalId,
@@ -354,6 +364,13 @@ public class EmbryoRecordsController : ControllerBase
             or EmbryoStatus.Failed)
         {
             return BadRequest("This embryo is no longer available.");
+        }
+
+        if (record.Status == EmbryoStatus.Assigned
+            && record.RecipientAnimalId == recipient.AnimalId)
+        {
+            Response.Headers["X-Duplicate-Prevented"] = "true";
+            return Ok(record);
         }
 
         record.RecipientAnimalId = recipient.AnimalId;

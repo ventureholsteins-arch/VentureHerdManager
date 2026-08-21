@@ -301,6 +301,11 @@ function openReports() {
   router.push('/reports')
 }
 
+function useDefaultHeroLogo(event: Event) {
+  const image = event.target as HTMLImageElement
+  if (!image.src.endsWith('/app-logo.png')) image.src = '/app-logo.png'
+}
+
 async function refreshDashboard() {
   refreshing.value = true
   await loadAnimals()
@@ -511,9 +516,10 @@ onMounted(() => {
         <div class="hero-main">
           <div class="hero-brand">
             <img
-              src="/app-logo.png"
+              :src="appearance?.logoUrl || '/app-logo.png'"
               class="hero-app-logo"
-              alt="Venture Herd Manager"
+              :alt="appearance?.farmName || 'Venture Herd Manager'"
+              @error="useDefaultHeroLogo"
             >
           </div>
 

@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getAppearance, type AppearanceSetting } from './api/appearance'
 import { resetDemo } from './api/demo'
 import { clearAdminKey, getAdminKey, setAdminKey, validateAdminKey } from './api/herdData'
@@ -15,6 +15,10 @@ const unlockBusy = ref(false)
 const unlockError = ref('')
 const startupVisible = ref(appUnlocked.value)
 
+async function refreshAppearance() {
+  appearance.value = await getAppearance()
+}
+
 onMounted(async () => {
   if (startupVisible.value) {
     window.setTimeout(() => {
@@ -23,14 +27,20 @@ onMounted(async () => {
   }
 
   if (isDemoOnly) {
-    return
+    appUnlocked.value = true
   }
 
   try {
-    appearance.value = await getAppearance()
+    await refreshAppearance()
   } catch (error) {
     console.error('Failed to load app appearance:', error)
   }
+
+  window.addEventListener('appearance-updated', refreshAppearance)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('appearance-updated', refreshAppearance)
 })
 
 const appStyle = computed(() => ({

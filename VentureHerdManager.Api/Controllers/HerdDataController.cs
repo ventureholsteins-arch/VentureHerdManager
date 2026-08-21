@@ -170,8 +170,36 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         var droppingMilk = milkByAnimal.Where(pair => pair.Value.Count >= 2)
             .Select(pair => new { AnimalId = pair.Key, AnimalName = pair.Value[0].Animal.DisplayName, CurrentMilk = pair.Value[0].Milk, PreviousMilk = pair.Value[1].Milk, pair.Value[0].ReportDate, DropPercent = pair.Value[1].Milk > 0 ? Math.Round(((pair.Value[1].Milk!.Value - pair.Value[0].Milk!.Value) / pair.Value[1].Milk.Value) * 100m, 1) : 0m })
             .Where(row => row.DropPercent >= 10m).OrderByDescending(row => row.DropPercent).ToList();
-        var dryOffWatch = activeAnimals.Where(animal => animal.AnimalStage != AnimalStage.Dry && latestBreeding.TryGetValue(animal.AnimalId, out var breeding) && breeding.PregnancyStatus == PregnancyStatus.Pregnant && breeding.RecommendedDryOffDate.HasValue && breeding.RecommendedDryOffDate.Value.Date <= today.AddDays(60))
-            .Select(animal => { var breeding = latestBreeding[animal.AnimalId]; return new { animal.AnimalId, AnimalName = animal.DisplayName, breeding.RecommendedDryOffDate, breeding.ExpectedDueDate, DaysUntilDry = (breeding.RecommendedDryOffDate!.Value.Date - today).Days }; })
+        var latestMilkByAnimal = milk.ToDictionary(row => row.AnimalId);
+        var milkDropByAnimal = droppingMilk.ToDictionary(row => row.AnimalId);
+        var dryOffWatch = activeAnimals.Where(animal =>
+                animal.AnimalStage != AnimalStage.Dry
+                && latestBreeding.TryGetValue(animal.AnimalId, out var breeding)
+                && breeding.PregnancyStatus == PregnancyStatus.Pregnant
+                && breeding.RecommendedDryOffDate.HasValue
+                && breeding.RecommendedDryOffDate.Value.Date <= today.AddDays(60)
+                && (!latestMilkByAnimal.TryGetValue(animal.AnimalId, out var milkRow)
+                    || !milkRow.DaysInMilk.HasValue
+                    || milkRow.DaysInMilk.Value >= 200))
+            .Select(animal =>
+            {
+                var breeding = latestBreeding[animal.AnimalId];
+                latestMilkByAnimal.TryGetValue(animal.AnimalId, out var milkRow);
+                milkDropByAnimal.TryGetValue(animal.AnimalId, out var dropRow);
+                return new
+                {
+                    animal.AnimalId,
+                    AnimalName = animal.DisplayName,
+                    breeding.RecommendedDryOffDate,
+                    breeding.ExpectedDueDate,
+                    PregnancyStatus = breeding.PregnancyStatus.ToString(),
+                    DaysInMilk = milkRow?.DaysInMilk,
+                    Milk = milkRow?.Milk,
+                    PreviousMilk = dropRow?.PreviousMilk,
+                    MilkDropPercent = dropRow?.DropPercent,
+                    DaysUntilDry = (breeding.RecommendedDryOffDate!.Value.Date - today).Days
+                };
+            })
             .OrderBy(row => row.RecommendedDryOffDate).ToList();
         var classificationRecords = await context.ClassificationRecords.AsNoTracking().Include(record => record.Animal).Where(record => record.Animal != null).ToListAsync(ct);
         var latestClassifications = classificationRecords.GroupBy(record => record.AnimalId).Select(group => group.OrderByDescending(record => record.ClassificationDate ?? record.CreatedAt).First()).Select(record => new { record.AnimalId, AnimalName = record.Animal!.DisplayName, record.Animal.SireName, record.Animal.CurrentLactation, record.Score, record.Baa, record.AgeInMonthsAtScoring, record.ClassificationLabel, Date = record.ClassificationDate ?? record.CreatedAt }).OrderByDescending(record => record.Score).ToList();

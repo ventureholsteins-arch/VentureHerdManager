@@ -335,6 +335,71 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MatchesCinnabarPaperSpellingToConfirmedCinnabunAnimal()
+    {
+        _context.Animals.Add(new Animal { BarnName = "Cinnabar" });
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Cinnabun,,,,Owner-confirmed spelling,Yes"],
+            [],
+            []);
+
+        var report = await _service.ReconcileAsync(_sourceDirectory, true);
+
+        Assert.Equal(1, report.AnimalMatches);
+        Assert.Equal(0, report.AnimalsCreated);
+        Assert.Single(await _context.Animals.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ReusesMatchingInventoryEmbryoWhenCreatingImplant()
+    {
+        var bandi = new Animal { BarnName = "Bandi", AnimalStage = AnimalStage.Heifer };
+        _context.Animals.Add(bandi);
+        _context.EmbryoRecords.Add(new EmbryoRecord
+        {
+            Donor = "Polly",
+            Sire = "Goldwyn",
+            Mating = "Polly x Goldwyn",
+            Status = EmbryoStatus.InStorage,
+            Code = "PG-1"
+        });
+        await _context.SaveChangesAsync();
+        WriteSources(
+            ["Bandi,,,,Existing recipient,Yes"],
+            [],
+            ["Bandi,2026-07-15,Polly,Goldwyn,Polly x Goldwyn,Unconfirmed,Yes,Yes,Paper implant"]);
+
+        var report = await _service.ReconcileAsync(_sourceDirectory, true);
+
+        var embryo = await _context.EmbryoRecords.SingleAsync();
+        Assert.Equal(0, report.EmbryosAdded);
+        Assert.Equal(1, report.RecordsUpdated);
+        Assert.Equal("PG-1", embryo.Code);
+        Assert.Equal(bandi.AnimalId, embryo.RecipientAnimalId);
+        Assert.Equal(new DateOnly(2026, 7, 15), embryo.ImplantDate);
+        Assert.Equal(EmbryoStatus.Implanted, embryo.Status);
+        Assert.NotNull(embryo.BreedingEventId);
+    }
+
+    [Fact]
+    public async Task DidNotStickOutcomePreservesHistoryAndMarksEmbryoFailed()
+    {
+        WriteSources(
+            ["Carmella,,,,Existing recipient,Yes"],
+            [],
+            ["Carmella,2026-07-15,Seashell,Legend,Seashell x Legend,Did not stick,Yes,Yes,Paper implant"]);
+
+        await _service.ReconcileAsync(_sourceDirectory, true);
+
+        var embryo = await _context.EmbryoRecords.SingleAsync();
+        var breeding = await _context.BreedingEvents.SingleAsync();
+        Assert.Equal(EmbryoStatus.Failed, embryo.Status);
+        Assert.Equal(PregnancyStatus.Open, breeding.PregnancyStatus);
+        Assert.Equal(embryo.BreedingEventId, breeding.BreedingEventId);
+    }
+
+    [Fact]
     public async Task LinkingEmbryoDoesNotOverwriteExistingRecipientDetails()
     {
         var recipient = new Animal
@@ -374,15 +439,15 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
 
         var report = await _service.ReconcileAsync(source, true);
 
-        Assert.Equal(36, report.AnimalsCreated);
-        Assert.Equal(3, report.RecipientsCreated);
-        Assert.Equal(29, report.BreedingsAdded);
-        Assert.Equal(3, report.EmbryosAdded);
-        Assert.Equal(3, report.Conflicts.Count);
+        Assert.Equal(40, report.AnimalsCreated);
+        Assert.Equal(4, report.RecipientsCreated);
+        Assert.Equal(32, report.BreedingsAdded);
+        Assert.Equal(6, report.EmbryosAdded);
+        Assert.Equal(6, report.Conflicts.Count);
         Assert.Equal(2, report.IgnoredRows.Count);
-        Assert.Equal(36, await _context.Animals.CountAsync());
-        Assert.Equal(29, await _context.BreedingEvents.CountAsync());
-        Assert.Equal(3, await _context.EmbryoRecords.CountAsync());
+        Assert.Equal(40, await _context.Animals.CountAsync());
+        Assert.Equal(32, await _context.BreedingEvents.CountAsync());
+        Assert.Equal(6, await _context.EmbryoRecords.CountAsync());
         Assert.DoesNotContain(
             await _context.Animals.ToListAsync(),
             animal => animal.BarnName == "Pixie");
@@ -393,11 +458,27 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
         Assert.Contains(
             await _context.EmbryoRecords.ToListAsync(),
             embryo => embryo.RecipientAnimalId == bandi.AnimalId
-                && embryo.Status == EmbryoStatus.Implanted);
+                && embryo.Status == EmbryoStatus.Failed);
         Assert.Contains(
             await _context.EmbryoRecords.ToListAsync(),
             embryo => embryo.RecipientAnimalId == carmella.AnimalId
-                && embryo.Status == EmbryoStatus.Successful);
+                && embryo.Status == EmbryoStatus.Failed);
+    }
+
+    [Fact]
+    public async Task FullProvidedPaperImportIsIdempotent()
+    {
+        var source = Path.Combine(AppContext.BaseDirectory, "paper-record-import");
+
+        await _service.ReconcileAsync(source, true);
+        var second = await _service.ReconcileAsync(source, true);
+
+        Assert.Equal(40, await _context.Animals.CountAsync());
+        Assert.Equal(32, await _context.BreedingEvents.CountAsync());
+        Assert.Equal(6, await _context.EmbryoRecords.CountAsync());
+        Assert.Equal(0, second.AnimalsCreated);
+        Assert.Equal(0, second.BreedingsAdded);
+        Assert.Equal(0, second.EmbryosAdded);
     }
 
     private void WriteSources(
@@ -415,7 +496,7 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
                 .Concat(breedings));
         File.WriteAllLines(
             Path.Combine(_sourceDirectory, "embryos.csv"),
-            new[] { "Recipient / Linked Animal,Implant / Bred Date,Embryo Dam,Embryo Sire,Mating,Create Animal If Missing?,Create Embryo?,Review Note" }
+            new[] { "Recipient / Linked Animal,Implant / Bred Date,Embryo Dam,Embryo Sire,Mating,Outcome,Create Animal If Missing?,Create Embryo?,Review Note" }
                 .Concat(embryos));
     }
 

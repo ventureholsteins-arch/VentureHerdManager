@@ -51,6 +51,11 @@ public class BreedingEventsController : ControllerBase
     public async Task<ActionResult<BreedingEvent>> Create(BreedingEvent breeding)
     {
         breeding.SireUsed = NormalizeSireName(breeding.SireUsed);
+        await ReproductiveEventRules.ClosePriorServiceAsync(
+            _context,
+            breeding.AnimalId,
+            breeding.BreedingDate,
+            "a new breeding");
         var isEmbryoTransfer =
             breeding.BreedingType == BreedingType.EmbryoTransfer;
         var expectedDueDate = breeding.BreedingDate.AddDays(

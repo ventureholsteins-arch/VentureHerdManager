@@ -305,6 +305,11 @@ public class EmbryoRecordsController : ControllerBase
         }
 
         var implantDate = request.ImplantDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        await ReproductiveEventRules.ClosePriorServiceAsync(
+            _context,
+            recipient.AnimalId,
+            implantDate.ToDateTime(TimeOnly.MinValue),
+            "a new embryo implant");
         record.Mating ??= BuildEmbryoName(record);
         record.RecipientAnimalId = recipient.AnimalId;
         record.ImplantDate = implantDate;

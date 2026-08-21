@@ -79,11 +79,13 @@ interface ChecklistItem {
 export interface EmbryoRecord {
   id: number
   embryoRecordId?: number
+  breedingEventId?: number | null
   createdAt?: string
   updatedAt?: string
   code: string
   sire: string
   donor: string
+  donorAnimalId?: number | null
   mating: string
   groupName: string
   grade: string
@@ -248,6 +250,14 @@ const achievements = ref<AchievementRecord[]>([])
 const nextRowId = ref(1)
 const nextBaggingRowId = ref(1)
 const nextEmbryoId = ref(1)
+const showEmbryoCreate = ref(false)
+const embryoCreateGroup = ref('')
+const embryoCreateDonor = ref('')
+const embryoCreateDonorAnimalId = ref<number | null>(null)
+const embryoCreateSire = ref('')
+const embryoCreateGrade = ref('')
+const embryoCreateQuantity = ref(1)
+const embryoCreateSaving = ref(false)
 const nextAchievementId = ref(1)
 
 const herdListOrder = defaultLists.map(list => list.key)
@@ -430,6 +440,7 @@ function embryoFromApi(record: ApiEmbryoRecord): EmbryoRecord {
     code: record.code ?? '',
     sire: record.sire ?? '',
     donor: record.donor ?? '',
+    donorAnimalId: record.donorAnimalId ?? null,
     mating: record.mating ?? '',
     groupName: record.groupName ?? '',
     grade: record.grade ?? '',
@@ -449,6 +460,7 @@ function embryoToApi(record: EmbryoRecord): Omit<ApiEmbryoRecord, 'embryoRecordI
     code: record.code || null,
     sire: record.sire || null,
     donor: record.donor || null,
+    donorAnimalId: record.donorAnimalId ?? null,
     mating: record.mating || null,
     groupName: record.groupName || null,
     grade: record.grade || null,
@@ -777,7 +789,7 @@ const showStringCows = computed(() =>
     if (!a) return false
     return a.animalStage === 3 || a.animalStage === 4 ||
       getShowClassLabel(a.birthDate, a.animalStage).includes('Cow') ||
-      getShowClassLabel(a.birthDate, a.animalStage).includes('Year-Old')
+      getShowClassLabel(a.birthDate, a.animalStage).includes('Cow')
   })
 )
 
@@ -1263,32 +1275,35 @@ function toggleAnimalInList(key: string, animalId: number) {
 function addChecklistItem() { checklistItems.value.push({ id: Date.now(), text: 'New item', done: false }) }
 
 async function addEmbryoRecord() {
-  const requestedGroup = window.prompt('Embryo group name (for example: Carissa x Braxton)', '')
-  if (requestedGroup === null) return
-
-  const groupName = requestedGroup.trim()
+  const groupName = embryoCreateGroup.value.trim()
   if (!groupName) {
     alert('Group name is required to create embryos in a batch.')
     return
   }
-
-  const requestedQuantity = window.prompt(`How many embryos should be created for "${groupName}"?`, '1')
-  if (requestedQuantity === null) return
-
-  const quantity = Number.parseInt(requestedQuantity, 10)
+  const quantity = Number(embryoCreateQuantity.value)
   if (!Number.isFinite(quantity) || quantity < 1 || quantity > 100) {
     alert('Quantity must be a whole number between 1 and 100.')
     return
   }
 
+  const linkedDonor = embryoCreateDonorAnimalId.value
+    ? animals.value.find(animal => animal.animalId === embryoCreateDonorAnimalId.value)
+    : null
+  const donorName = embryoCreateDonor.value.trim()
+    || linkedDonor?.barnName
+    || linkedDonor?.registeredName
+    || ''
   const draft: EmbryoRecord = {
     id: nextEmbryoId.value++,
     code: '',
-    sire: '',
-    donor: '',
-    mating: groupName,
+    sire: embryoCreateSire.value.trim(),
+    donor: donorName,
+    donorAnimalId: embryoCreateDonorAnimalId.value,
+    mating: donorName && embryoCreateSire.value.trim()
+      ? `${donorName} x ${embryoCreateSire.value.trim()}`
+      : groupName,
     groupName,
-    grade: '',
+    grade: embryoCreateGrade.value.trim(),
     status: 'In Storage',
     recipientAnimalId: null,
     implantDate: '',
@@ -1300,14 +1315,24 @@ async function addEmbryoRecord() {
   }
 
   try {
+    embryoCreateSaving.value = true
     const created = await createEmbryoBatch(embryoToApi(draft), quantity)
     embryoRecords.value = [
       ...created.map(item => embryoFromApi(item)),
       ...embryoRecords.value
     ]
+    showEmbryoCreate.value = false
+    embryoCreateGroup.value = ''
+    embryoCreateDonor.value = ''
+    embryoCreateDonorAnimalId.value = null
+    embryoCreateSire.value = ''
+    embryoCreateGrade.value = ''
+    embryoCreateQuantity.value = 1
   } catch (error) {
     console.error('Failed to create embryo batch:', error)
     alert('Failed to create embryo batch.')
+  } finally {
+    embryoCreateSaving.value = false
   }
 }
 
@@ -1405,6 +1430,29 @@ async function markEmbryoLost(rec: EmbryoRecord) {
     alert(error instanceof Error
       ? error.message
       : 'Failed to record that this embryo did not stick.')
+  } finally {
+    embryoActionId.value = null
+  }
+}
+
+async function markEmbryoSuccessful(rec: EmbryoRecord) {
+  if (!rec.embryoRecordId || !rec.recipientAnimalId || !rec.implantDate) {
+    alert('A linked recipient and implant date are required before confirming pregnancy.')
+    return
+  }
+
+  embryoActionId.value = rec.embryoRecordId
+  try {
+    const updated = await recordEmbryoOutcome(
+      rec.embryoRecordId,
+      true,
+      'Pregnancy confirmed from embryo transfer.'
+    )
+    applyEmbryoFromApi(rec, updated)
+    await Promise.all([loadRemoteEmbryos(), loadEmbryoImplants()])
+  } catch (error) {
+    console.error('Failed to confirm embryo pregnancy:', error)
+    alert(error instanceof Error ? error.message : 'Failed to confirm embryo pregnancy.')
   } finally {
     embryoActionId.value = null
   }
@@ -1853,10 +1901,20 @@ watch(activeTab, tab => {
       <div class="rp-ph">
         <h2>Embryo Inventory</h2>
         <div class="rp-ph-actions">
-          <button type="button" class="rp-add-btn" @click="addEmbryoRecord">+ Add Embryo</button>
+          <button type="button" class="rp-add-btn" @click="showEmbryoCreate = !showEmbryoCreate">+ Add Embryos</button>
         </div>
       </div>
       <p class="rp-hint">Track storage, assign recipients, and log outcomes. Use Did Not Stick to record a failed implant and move that embryo to the Failed section below.</p>
+
+      <form v-if="showEmbryoCreate" class="emb-create-form" @submit.prevent="addEmbryoRecord">
+        <label>Group name<input v-model="embryoCreateGroup" type="text" placeholder="Carissa x Braxton" required></label>
+        <label>Donor in herd (optional)<select v-model.number="embryoCreateDonorAnimalId"><option :value="null">Type donor name instead</option><option v-for="a in animalOptions" :key="`donor-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option></select></label>
+        <label>Donor / Dam<input v-model="embryoCreateDonor" type="text" placeholder="Carissa"></label>
+        <label>Sire<input v-model="embryoCreateSire" type="text" placeholder="Braxton"></label>
+        <label>Grade<input v-model="embryoCreateGrade" type="text" placeholder="Grade 1"></label>
+        <label>Quantity<input v-model.number="embryoCreateQuantity" type="number" min="1" max="100" inputmode="numeric" required></label>
+        <div class="emb-create-actions"><button class="rp-add-btn" type="submit" :disabled="embryoCreateSaving">{{ embryoCreateSaving ? 'Creating…' : `Create ${embryoCreateQuantity} in group` }}</button><button type="button" class="rp-x" @click="showEmbryoCreate = false">Cancel</button></div>
+      </form>
 
       <div v-if="hasNoAnimals" class="rp-error">
         Herd data is empty right now, so embryos and bagging may look missing. Use Reload Data above.
@@ -1888,7 +1946,7 @@ watch(activeTab, tab => {
               <p class="emb-workflow-hint">Workflow: Save edits → Mark Implanted → Did Not Stick (if failed).</p>
               <div class="emb-grid">
                 <label>Code / ID<input v-model="rec.code" type="text" placeholder="ET-2026-001"></label>
-                <label>Group<input v-model="rec.groupName" type="text" placeholder="Donor line, flush, or custom group"></label>
+                <label>Group<input v-model.lazy="rec.groupName" type="text" placeholder="Donor line, flush, or custom group"></label>
                 <label>Sire<input v-model="rec.sire" type="text" placeholder="Sire name"></label>
                 <label>Donor Cow<input v-model="rec.donor" type="text" placeholder="Donor name"></label>
                 <label>Mating<input v-model="rec.mating" type="text" placeholder="Donor x Sire"></label>
@@ -1897,7 +1955,7 @@ watch(activeTab, tab => {
                 <label>Recipient Animal
                   <select v-model.number="rec.recipientAnimalId">
                     <option :value="null">No recipient yet</option>
-                    <option v-for="a in animalOptions" :key="`r-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</option>
+                    <option v-for="a in animalOptions" :key="`r-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `${a.damName || 'Unknown dam'} × ${a.sireName || 'Unknown sire'} (#${a.animalId})` }}</option>
                   </select>
                 </label>
                 <label>Implant Date<input v-model="rec.implantDate" type="date"></label>
@@ -2008,6 +2066,12 @@ watch(activeTab, tab => {
             <div>
               <small>Group / grade</small>
               <strong>{{ record.groupName || 'Ungrouped' }} · {{ record.grade || 'No grade' }}</strong>
+            </div>
+            <div class="implant-record-actions">
+              <button v-if="record.status === 'Implanted'" type="button" class="rp-add-btn" :disabled="embryoActionId === record.embryoRecordId" @click="markEmbryoSuccessful(record)">Confirm Pregnant</button>
+              <button v-if="record.status === 'Implanted'" type="button" class="rp-add-btn emb-loss" :disabled="embryoActionId === record.embryoRecordId" @click="markEmbryoLost(record)">Did Not Stick</button>
+              <button v-if="record.recipientAnimalId" type="button" class="rp-add-btn" @click="openAnimalFromReports(record.recipientAnimalId)">Open Recipient</button>
+              <button type="button" class="rp-x" @click="markEmbryoBackToStorage(record)">Undo Implant</button>
             </div>
           </article>
         </div>
@@ -2370,7 +2434,7 @@ watch(activeTab, tab => {
 
               <label>
                 Bagging Group
-                <input v-model="row.showName" type="text" placeholder="Group name" />
+                <input v-model.lazy="row.showName" type="text" placeholder="Group name" />
               </label>
 
               <label>
@@ -2625,6 +2689,7 @@ watch(activeTab, tab => {
 .emb-in-storage { border-left-color: #31572c; }
 .emb-assigned { border-left-color: #d97706; }
 .emb-implanted { border-left-color: #2563eb; background: #f8fbff; }
+.emb-create-form{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:12px 0 18px;padding:14px;border:1px solid #cfdcd2;border-radius:10px;background:#f8fbf8}.emb-create-form label{display:grid;gap:5px;font-size:.78rem;font-weight:850;color:#31572c}.emb-create-form input{min-width:0;padding:10px;border:1px solid #b9cabb;border-radius:7px;background:#fff;font:inherit;color:#17251b}.emb-create-actions{grid-column:1/-1;display:flex;gap:8px;align-items:center}
 .emb-confirmed-pregnant { border-left-color: #0f766e; background: #f0fdfa; }
 .emb-failed { border-left-color: #dc2626; background: #fff8f8; }
 .emb-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
@@ -2667,6 +2732,8 @@ watch(activeTab, tab => {
 .implant-list { margin-top: 20px; display: grid; gap: 9px; }
 .implant-record-card { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 12px; padding: 13px; border: 1px solid #cfdcd2; border-left: 4px solid #2563eb; border-radius: 9px; background: #f8fbff; }
 .implant-record-card > div { display: grid; gap: 3px; min-width: 0; }
+.implant-record-card .implant-record-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
+.implant-record-actions .rp-add-btn { width: auto; }
 .implant-record-card span, .implant-record-card small { color: #5d6f63; font-size: .78rem; }
 .implant-record-card strong { overflow-wrap: anywhere; }
 .pcdart-match-list { display: grid; gap: 10px; margin-top: 10px; }
@@ -2915,6 +2982,7 @@ textarea { min-height: 72px; resize: vertical; }
 .lineup-textarea::placeholder { color: #b4c2b8; }
 
 @media (max-width: 700px) {
+  .emb-create-form{grid-template-columns:1fr 1fr}.emb-create-form label:first-child{grid-column:1/-1}
   .lineup-notes-row {
     grid-template-columns: 1fr;
   }
@@ -3096,6 +3164,10 @@ textarea { min-height: 72px; resize: vertical; }
   .emb-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .emb-actions .rp-add-btn { width: 100%; }
   .implant-record-card { grid-template-columns: 1fr; }
+  .chart-row-2 { grid-template-columns: 1fr; }
+  .bar-chart { overflow-x: auto; overflow-y: hidden; padding: 18px 2px 4px; scroll-snap-type: x proximity; }
+  .bar-col { flex: 0 0 40px; min-width: 40px; scroll-snap-align: start; }
+  .bar-label { font-size: .68rem; }
   .browse-filters { grid-template-columns: 1fr; }
   .emb-grid { grid-template-columns: 1fr; }
   .emb-full { grid-column: 1; }

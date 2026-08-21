@@ -49,8 +49,10 @@
               :key="embryo.embryoRecordId"
               :value="String(embryo.embryoRecordId)"
             >
-              {{ embryo.code || `Embryo #${embryo.embryoRecordId}` }}
-              <template v-if="embryo.sire"> · {{ embryo.sire }}</template>
+              {{ embryo.mating || `${embryo.donor || 'Unknown dam'} × ${embryo.sire || 'Unknown sire'}` }}
+              · {{ embryo.groupName || 'Ungrouped' }}
+              <template v-if="embryo.grade"> · {{ embryo.grade }}</template>
+              <template v-if="embryo.code"> · {{ embryo.code }}</template>
             </option>
           </select>
           <small>The transfer will link this embryo to {{ animalName }} and remove it from available inventory.</small>
@@ -73,7 +75,8 @@
         </div>
 
         <div class="form-group">
-          <button @click="recordBreeding" class="btn-primary">Record Breeding</button>
+          <p v-if="saveError" class="save-error">{{ saveError }}</p>
+          <button @click="recordBreeding" class="btn-primary" :disabled="saving">{{ saving ? 'Saving…' : 'Record Breeding' }}</button>
         </div>
       </div>
     </div>
@@ -96,6 +99,8 @@ const availableEmbryos = ref<EmbryoRecord[]>([])
 const notes = ref('')
 const pregnancyStatus = ref('0')
 const recentSires = ref<string[]>(['Seashore', 'Robust', 'Elevation'])
+const saving = ref(false)
+const saveError = ref('')
 
 const emit = defineEmits<{
   close: []
@@ -112,6 +117,8 @@ const openModal = async (id: number, name: string) => {
   selectedEmbryoId.value = ''
   notes.value = ''
   pregnancyStatus.value = '0'
+  saving.value = false
+  saveError.value = ''
   isOpen.value = true
   try {
     availableEmbryos.value = (await getAllEmbryos())
@@ -141,6 +148,8 @@ const recordBreeding = async () => {
     return
   }
 
+  saving.value = true
+  saveError.value = ''
   emit('recordBreeding', {
     animalId: animalId.value,
     breedingDate: breedingDate.value,
@@ -150,10 +159,16 @@ const recordBreeding = async () => {
     pregnancyStatus: parseInt(pregnancyStatus.value),
     embryoRecordId: selectedEmbryoId.value
       ? parseInt(selectedEmbryoId.value)
-      : null
+      : null,
+    complete: (success: boolean, message?: string) => {
+      saving.value = false
+      if (success) {
+        closeModal()
+      } else {
+        saveError.value = message || 'The breeding could not be saved.'
+      }
+    }
   })
-
-  closeModal()
 }
 
 defineExpose({
@@ -266,4 +281,5 @@ textarea.form-input {
 .btn-primary:hover {
   background: #254520;
 }
+.save-error { color: #991b1b; background: #fff1f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px; }
 </style>

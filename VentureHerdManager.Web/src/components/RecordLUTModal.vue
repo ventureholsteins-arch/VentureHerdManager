@@ -29,7 +29,7 @@
               :class="{ selected: selectedAnimalId === String(animal.animalId) }"
               @click="selectAnimal(animal)"
             >
-              {{ animal.barnName }}
+              {{ animalLabel(animal) }}
               <span v-if="animal.animalStage" class="stage-tag">{{ stageLabel(animal.animalStage) }}</span>
             </button>
             <p v-if="filteredAnimals.length === 0" class="no-results">No animals match "{{ animalSearch }}"</p>
@@ -58,7 +58,8 @@
         </div>
 
         <div class="form-group">
-          <button @click="recordLUT" class="btn-primary">Record LUT Injection</button>
+          <p v-if="saveError" class="save-error">{{ saveError }}</p>
+          <button @click="recordLUT" class="btn-primary" :disabled="saving">{{ saving ? 'Saving…' : 'Record LUT Injection' }}</button>
         </div>
       </div>
     </div>
@@ -72,9 +73,16 @@ const API_BASE = import.meta.env.VITE_API_URL
 
 interface AnimalOption {
   animalId: number
-  barnName: string
+  barnName?: string | null
+  registeredName?: string | null
+  displayName?: string | null
+  sireName?: string | null
+  damName?: string | null
   animalStage?: number
 }
+
+const animalLabel = (animal: AnimalOption) =>
+  animal.barnName || animal.registeredName || animal.displayName || `Animal #${animal.animalId}`
 
 const isOpen = ref(false)
 const animalId = ref<number | null>(null)
@@ -84,19 +92,26 @@ const animalName = ref('')
 const administrationDate = ref(new Date().toISOString().split('T')[0])
 const notes = ref('')
 const animals = ref<AnimalOption[]>([])
+const saving = ref(false)
+const saveError = ref('')
 
 const filteredAnimals = computed(() => {
   const q = animalSearch.value.trim().toLowerCase()
-  if (!q) return animals.value.slice(0, 30)
+  if (!q) return [...animals.value]
+    .sort((a, b) => (a.animalStage === 3 ? -1 : 0) - (b.animalStage === 3 ? -1 : 0)
+      || animalLabel(a).localeCompare(animalLabel(b)))
+    .slice(0, 30)
   return animals.value
-    .filter(a => (a.barnName || '').toLowerCase().includes(q))
+    .filter(a => [a.barnName, a.registeredName, a.displayName, a.sireName, a.damName]
+      .some(value => (value || '').toLowerCase().includes(q)))
+    .sort((a, b) => animalLabel(a).localeCompare(animalLabel(b)))
     .slice(0, 30)
 })
 
 const selectedAnimalLabel = computed(() => {
   if (!selectedAnimalId.value) return ''
   const animal = animals.value.find(a => String(a.animalId) === selectedAnimalId.value)
-  return animal?.barnName ?? `Animal #${selectedAnimalId.value}`
+  return animal ? animalLabel(animal) : `Animal #${selectedAnimalId.value}`
 })
 
 const stageLabel = (stage: number): string => {
@@ -108,7 +123,7 @@ const stageLabel = (stage: number): string => {
 
 function selectAnimal(animal: AnimalOption) {
   selectedAnimalId.value = String(animal.animalId)
-  animalSearch.value = animal.barnName
+  animalSearch.value = animalLabel(animal)
 }
 
 const expectedHeatStart = computed(() => {
@@ -143,11 +158,15 @@ const openModal = async (id?: number, name?: string) => {
   animalId.value = typeof id === 'number' && id > 0 ? id : null
   selectedAnimalId.value = animalId.value ? String(animalId.value) : ''
   animalSearch.value = animalId.value
-    ? (animals.value.find(a => a.animalId === animalId.value)?.barnName ?? name ?? '')
+    ? (animals.value.find(a => a.animalId === animalId.value)
+        ? animalLabel(animals.value.find(a => a.animalId === animalId.value)!)
+        : name ?? '')
     : ''
   animalName.value = name ?? ''
   administrationDate.value = new Date().toISOString().split('T')[0]
   notes.value = ''
+  saving.value = false
+  saveError.value = ''
   isOpen.value = true
 }
 
@@ -172,15 +191,23 @@ const recordLUT = () => {
   const heatEnd = new Date(adminDate)
   heatEnd.setHours(heatEnd.getHours() + 96)
 
+  saving.value = true
+  saveError.value = ''
   emit('recordLUT', {
     animalId: resolvedAnimalId,
     administrationDate: administrationDate.value,
     expectedHeatWatchStart: heatStart.toISOString(),
     expectedHeatWatchEnd: heatEnd.toISOString(),
-    notes: notes.value || null
+    notes: notes.value || null,
+    complete: (success: boolean, message?: string) => {
+      saving.value = false
+      if (success) {
+        closeModal()
+      } else {
+        saveError.value = message || 'The LUT injection could not be saved.'
+      }
+    }
   })
-
-  closeModal()
 }
 
 defineExpose({
@@ -372,4 +399,5 @@ textarea.form-input {
 .btn-primary:hover {
   background: #254520;
 }
+.save-error { color: #991b1b; background: #fff1f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px; }
 </style>

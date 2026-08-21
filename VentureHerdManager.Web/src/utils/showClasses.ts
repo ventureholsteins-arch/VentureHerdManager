@@ -64,7 +64,6 @@ export function getShowClassLabel(
   }
 
   const year = referenceDate.getFullYear()
-  const ageMonthsAtShow = toMonthDiff(birth, referenceDate)
   const isInMilk = animalStage === 3
 
   const mar1Current = new Date(year, 2, 1)
@@ -82,10 +81,8 @@ export function getShowClassLabel(
   const sep1TwoBack = new Date(year - 2, 8, 1)
   const nov30TwoBack = new Date(year - 2, 10, 30)
 
-  const dec1ThreeBack = new Date(year - 3, 11, 1)
   const febTwoBackEnd = new Date(year - 2, 1, febEnd(year - 2))
   const sep1ThreeBack = new Date(year - 3, 8, 1)
-  const nov30ThreeBack = new Date(year - 3, 10, 30)
   const jun1TwoBack = new Date(year - 2, 5, 1)
   const aug31TwoBack = new Date(year - 2, 7, 31)
   const mar1TwoBack = new Date(year - 2, 2, 1)
@@ -101,7 +98,13 @@ export function getShowClassLabel(
   const sep1SixBack = new Date(year - 6, 8, 1)
   const aug31FiveBack = new Date(year - 5, 7, 31)
 
-  if (birth >= mar1Current && ageMonthsAtShow >= 4) {
+  // World Dairy Expo age classes are determined by birth-date windows,
+  // not by the calf's age on the day this screen happens to be opened.
+  if (isInMilk && birth >= sep1TwoBack) {
+    return 'Yearling Heifer in Milk'
+  }
+
+  if (birth >= mar1Current) {
     return 'Spring Heifer Calf'
   }
 
@@ -111,10 +114,6 @@ export function getShowClassLabel(
 
   if (inRange(birth, sep1Prev, nov30Prev)) {
     return 'Fall Heifer Calf'
-  }
-
-  if (isInMilk && inRange(birth, sep1TwoBack, aug31Prev)) {
-    return 'Yearling Heifer in Milk'
   }
 
   if (inRange(birth, jun1Prev, aug31Prev)) {
@@ -141,12 +140,8 @@ export function getShowClassLabel(
     return 'Spring Junior Two-Year-Old Cow'
   }
 
-  if (inRange(birth, dec1ThreeBack, febTwoBackEnd)) {
-    return 'Winter Senior Two-Year-Old Cow'
-  }
-
-  if (inRange(birth, sep1ThreeBack, nov30ThreeBack)) {
-    return 'Fall Senior Two-Year-Old Cow'
+  if (inRange(birth, sep1ThreeBack, febTwoBackEnd)) {
+    return 'Senior Two-Year-Old Cow'
   }
 
   if (inRange(birth, mar1ThreeBack, aug31ThreeBack)) {

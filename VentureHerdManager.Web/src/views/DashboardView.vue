@@ -622,9 +622,11 @@ onMounted(() => {
               </span>
             </button>
 
-            <span class="hero-updated">
-              Powered by Venture Ag Marketing
-            </span>
+            <div class="hero-maker" aria-label="Powered by Venture Ag Marketing">
+              <span class="hero-maker-label">Powered by</span>
+              <span class="venture-logo-crop" aria-hidden="true" />
+              <small>Custom Ag Application Solutions</small>
+            </div>
           </div>
 
           <p
@@ -1085,6 +1087,46 @@ onMounted(() => {
   font-size: 0.95rem;
 }
 
+.hero-maker {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 170px;
+  align-items: center;
+  justify-content: end;
+  gap: 3px 9px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.hero-maker-label {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.76rem;
+  font-style: italic;
+}
+
+.venture-logo-crop {
+  display: block;
+  width: 170px;
+  height: 50px;
+  background-color: rgba(255, 255, 255, 0.94);
+  background-image: url('/venture-ag-marketing-logo.jpg');
+  background-repeat: no-repeat;
+  background-position: center 47%;
+  background-size: 118% auto;
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 rgba(15, 22, 16, 0.55);
+}
+
+.hero-maker small {
+  grid-column: 2;
+  color: rgba(255, 255, 255, 0.68);
+  font-family: 'Courier New', monospace;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
 .card {
   padding: 16px 18px;
   border: 1px solid rgba(16, 40, 24, 0.08);
@@ -1213,6 +1255,16 @@ onMounted(() => {
   .hero-updated {
     text-align: center;
     font-size: 0.85rem;
+  }
+
+  .hero-maker {
+    grid-template-columns: auto 150px;
+    justify-content: center;
+  }
+
+  .venture-logo-crop {
+    width: 150px;
+    height: 44px;
   }
 
   .hero-powered {

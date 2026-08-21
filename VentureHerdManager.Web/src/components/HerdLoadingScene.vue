@@ -102,15 +102,21 @@ const scenePosition = computed(() => ({
 .loader-brand {
   display: flex;
   justify-content: center;
-  padding: 4px 12px 14px;
+  width: 100%;
+  height: min(128px, 28vw);
+  padding: 0;
+  overflow: hidden;
   border-bottom: 1px solid rgba(41, 36, 28, 0.26);
 }
 
 .loader-brand img {
   display: block;
-  width: min(330px, 78%);
-  max-height: 76px;
-  object-fit: contain;
+  flex: 0 0 auto;
+  width: min(460px, 100%);
+  max-width: none;
+  height: auto;
+  align-self: flex-start;
+  transform: translateY(-31.5%);
 }
 
 .branded .loader-main { padding: 14px 0 10px; }
@@ -217,8 +223,8 @@ const scenePosition = computed(() => ({
     gap: 12px;
   }
 
-  .loader-brand { padding-bottom: 9px; }
-  .loader-brand img { max-height: 56px; }
+  .loader-brand { height: min(98px, 28vw); }
+  .loader-brand img { width: min(350px, 100%); }
 
   .loader-footer {
     grid-template-columns: 1fr;

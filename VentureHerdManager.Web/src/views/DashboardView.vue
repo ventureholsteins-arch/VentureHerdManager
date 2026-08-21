@@ -517,8 +517,14 @@ onMounted(() => {
             >
           </div>
 
-          <div class="hero-stats">
-            <div class="hero-stat">
+          <section class="hero-ledger" aria-label="Current herd count">
+            <div class="hero-ledger-heading">
+              <span>Today in the barn</span>
+              <small>Live herd count</small>
+            </div>
+
+            <div class="hero-stats">
+              <div class="hero-stat">
               <span class="hero-stat-value">
                 {{ animalCounts.total }}
               </span>
@@ -527,10 +533,10 @@ onMounted(() => {
                 Total
               </span>
 
-              <small>Active animals</small>
-            </div>
+                <small>active animals</small>
+              </div>
 
-            <div class="hero-stat">
+              <div class="hero-stat">
               <span class="hero-stat-value">
                 {{ animalCounts.milking }}
               </span>
@@ -539,10 +545,10 @@ onMounted(() => {
                 Milking
               </span>
 
-              <small>Active stage 3 cows</small>
-            </div>
+                <small>cows milking</small>
+              </div>
 
-            <div class="hero-stat">
+              <div class="hero-stat">
               <span class="hero-stat-value">
                 {{ animalCounts.dry }}
               </span>
@@ -551,10 +557,10 @@ onMounted(() => {
                 Dry
               </span>
 
-              <small>Cows</small>
-            </div>
+                <small>cows dry</small>
+              </div>
 
-            <div class="hero-stat">
+              <div class="hero-stat">
               <span class="hero-stat-value">
                 {{ animalCounts.heifers + animalCounts.calves }}
               </span>
@@ -563,9 +569,10 @@ onMounted(() => {
                 Youngstock
               </span>
 
-              <small>Heifers & calves</small>
+                <small>heifers + calves</small>
+              </div>
             </div>
-          </div>
+          </section>
         </div>
 
         <div class="hero-side">
@@ -902,30 +909,66 @@ onMounted(() => {
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.26));
 }
 
+.hero-ledger {
+  margin-top: 10px;
+  border: 2px solid rgba(39, 35, 27, 0.92);
+  border-radius: 3px;
+  background: rgba(239, 233, 211, 0.94);
+  box-shadow: 5px 5px 0 rgba(22, 30, 20, 0.78);
+  color: #29241c;
+  overflow: hidden;
+}
+
+.hero-ledger-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px 6px;
+  border-bottom: 1px solid rgba(41, 36, 28, 0.5);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.hero-ledger-heading span {
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-ledger-heading small {
+  color: #6a624e;
+  font-family: 'Courier New', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .hero-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
-  margin-top: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .hero-stat {
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 8px;
-  background: rgba(7, 14, 11, 0.38);
-  backdrop-filter: blur(8px);
-  color: #fff;
-  min-height: 64px;
+  position: relative;
+  min-height: 76px;
+  padding: 10px 12px 9px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  color: #29241c;
+}
+
+.hero-stat + .hero-stat {
+  border-left: 1px solid rgba(41, 36, 28, 0.42);
 }
 
 .hero-stat-value {
   display: block;
   font-size: 2.1rem;
-  font-weight: 800;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 900;
   letter-spacing: -0.02em;
   line-height: 1.1;
 }
@@ -934,7 +977,8 @@ onMounted(() => {
   display: block;
   margin-top: 4px;
   font-size: 0.95rem;
-  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -942,7 +986,9 @@ onMounted(() => {
 .hero-stat small {
   display: block;
   margin-top: 2px;
-  color: rgba(255, 255, 255, 0.78);
+  color: #6a624e;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .hero-side {
@@ -1176,18 +1222,34 @@ onMounted(() => {
 
   .hero-stats {
     width: 100%;
-    max-width: 420px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
   }
 
   .hero-stat {
-    padding: 8px 7px;
-    min-height: 50px;
+    padding: 9px 8px;
+    min-height: 63px;
+  }
+
+  .hero-stat:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .hero-stat:nth-child(n + 3) {
+    border-top: 1px solid rgba(41, 36, 28, 0.42);
   }
 
   .hero-stat-value {
-    font-size: 1.42rem;
+    font-size: 1.55rem;
+  }
+
+  .hero-ledger {
+    width: calc(100% - 12px);
+    margin-top: 6px;
+    box-shadow: 4px 4px 0 rgba(22, 30, 20, 0.78);
+  }
+
+  .hero-ledger-heading {
+    padding: 6px 9px 5px;
   }
 
   .hero-app-logo {
@@ -1496,15 +1558,15 @@ onMounted(() => {
 
 /* Quick Actions Bar */
 .quick-actions-bar {
-  display: flex;
-  gap: 8px;
-  margin: 4px 0 8px;
-  padding: 10px;
-  background: linear-gradient(165deg, #f6faf7, #eef5f0);
-  border-radius: 8px;
-  border: 1px solid #d2ddd5;
-  border-top: 3px solid #244f2f;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 7px 3px 12px 0;
+  padding: 0;
+  overflow: hidden;
+  background: #efe9d3;
+  border: 2px solid #29241c;
+  border-radius: 3px;
+  box-shadow: 4px 4px 0 rgba(36, 79, 47, 0.75);
 }
 
 .quick-btn {
@@ -1512,16 +1574,16 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 9px;
-  flex: 1 1 180px;
   min-height: 54px;
   padding: 10px 14px;
-  border: 1px solid #31572c;
-  border-bottom: 3px solid #244f2f;
-  border-radius: 6px;
-  background: white;
-  color: #31572c;
-  font-weight: 700;
-  font-size: 0.92rem;
+  border: 0;
+  border-right: 1px solid rgba(41, 36, 28, 0.42);
+  border-radius: 0;
+  background: transparent;
+  color: #29241c;
+  font-family: 'Courier New', monospace;
+  font-weight: 900;
+  font-size: 0.84rem;
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1530,9 +1592,11 @@ onMounted(() => {
 .quick-btn:hover {
   background: #31572c;
   color: white;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(49, 87, 44, 0.2);
+  transform: none;
+  box-shadow: none;
 }
+
+.quick-btn:last-child { border-right: 0; }
 
 .quick-btn > span {
   display: inline-block;
@@ -1540,11 +1604,6 @@ onMounted(() => {
   text-align: left;
 }
 
-.heat-btn:hover { background: #ff6b6b; border-color: #ff6b6b; color: white; }
-.lut-btn:hover { background: #2563eb; border-color: #2563eb; color: white; }
-.embryo-btn:hover { background: #7c3aed; border-color: #7c3aed; color: white; }
-.report-btn:hover { background: #0284c7; border-color: #0284c7; color: white; }
-.add-btn:hover { background: #10b981; border-color: #10b981; color: white; }
 
 .add-animal-inline {
   border: 1px solid #c8d4cb;
@@ -1570,17 +1629,25 @@ onMounted(() => {
     top: 4px;
     z-index: 20;
     margin: 2px 0 8px;
-    padding: 8px;
-    gap: 6px;
-    border-width: 1px;
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0;
+    border-width: 2px;
+    box-shadow: 3px 3px 0 rgba(36, 79, 47, 0.75);
   }
 
   .quick-btn {
-    flex: 1 1 calc(50% - 8px);
     min-height: 52px;
     padding: 8px 12px;
-    font-size: 0.84rem;
+    border-right: 1px solid rgba(41, 36, 28, 0.42);
+    border-bottom: 1px solid rgba(41, 36, 28, 0.42);
+    font-size: 0.78rem;
+  }
+
+  .quick-btn:nth-child(even) { border-right: 0; }
+  .quick-btn:last-child {
+    grid-column: 1 / -1;
+    border-right: 0;
+    border-bottom: 0;
   }
 
 }
@@ -1594,7 +1661,6 @@ onMounted(() => {
     top: 2px;
   }
 
-  .quick-btn { flex: 1 1 calc(50% - 8px); }
 }
 
 /* Enhanced Search Input */

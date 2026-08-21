@@ -122,6 +122,7 @@ async function unlockApp() {
       <HerdLoadingScene
         message="Opening your herd..."
         :delay-ms="0"
+        branded
       />
     </div>
 

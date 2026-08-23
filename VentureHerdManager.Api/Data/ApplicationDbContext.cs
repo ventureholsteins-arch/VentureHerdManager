@@ -599,7 +599,13 @@ public class ApplicationDbContext : DbContext
                          entry.State == EntityState.Added
                          && entry.Entity is not DemoSession))
         {
-            entry.Property("DemoSessionId").CurrentValue = sessionId;
+            // Herd-data imports are linked to a session-scoped animal but do
+            // not themselves carry the shadow session column. Stamp only the
+            // entity types configured for demo isolation.
+            if (entry.Metadata.FindProperty("DemoSessionId") != null)
+            {
+                entry.Property("DemoSessionId").CurrentValue = sessionId;
+            }
         }
     }
 }

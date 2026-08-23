@@ -140,7 +140,10 @@ public class EmbryoRecordsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, EmbryoRecord record)
+    public Task<IActionResult> Update(int id, EmbryoRecord record) =>
+        ExecuteWithRetryAsync(() => UpdateCore(id, record));
+
+    private async Task<IActionResult> UpdateCore(int id, EmbryoRecord record)
     {
         if (id != record.EmbryoRecordId)
         {
@@ -267,7 +270,10 @@ public class EmbryoRecordsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    public Task<IActionResult> Delete(int id) =>
+        ExecuteWithRetryAsync(() => DeleteCore(id));
+
+    private async Task<IActionResult> DeleteCore(int id)
     {
         await using var transaction = _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(
@@ -303,9 +309,14 @@ public class EmbryoRecordsController : ControllerBase
     }
 
     [HttpPost("{id}/implant")]
-    public async Task<IActionResult> Implant(
+    public Task<IActionResult> Implant(
         int id,
-        [FromBody] ImplantEmbryoRequest request)
+        [FromBody] ImplantEmbryoRequest request) =>
+        ExecuteWithRetryAsync(() => ImplantCore(id, request));
+
+    private async Task<IActionResult> ImplantCore(
+        int id,
+        ImplantEmbryoRequest request)
     {
         await using var transaction = _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(
@@ -369,9 +380,14 @@ public class EmbryoRecordsController : ControllerBase
     }
 
     [HttpPost("{id}/assign")]
-    public async Task<IActionResult> Assign(
+    public Task<IActionResult> Assign(
         int id,
-        [FromBody] AssignEmbryoRequest request)
+        [FromBody] AssignEmbryoRequest request) =>
+        ExecuteWithRetryAsync(() => AssignCore(id, request));
+
+    private async Task<IActionResult> AssignCore(
+        int id,
+        AssignEmbryoRequest request)
     {
         await using var transaction = _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(
@@ -413,7 +429,10 @@ public class EmbryoRecordsController : ControllerBase
     }
 
     [HttpPost("{id}/undo-implant")]
-    public async Task<IActionResult> UndoImplant(int id)
+    public Task<IActionResult> UndoImplant(int id) =>
+        ExecuteWithRetryAsync(() => UndoImplantCore(id));
+
+    private async Task<IActionResult> UndoImplantCore(int id)
     {
         await using var transaction = _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(
@@ -478,9 +497,14 @@ public class EmbryoRecordsController : ControllerBase
     }
 
     [HttpPost("{id}/outcome")]
-    public async Task<IActionResult> RecordOutcome(
+    public Task<IActionResult> RecordOutcome(
         int id,
-        [FromBody] EmbryoOutcomeRequest request)
+        [FromBody] EmbryoOutcomeRequest request) =>
+        ExecuteWithRetryAsync(() => RecordOutcomeCore(id, request));
+
+    private async Task<IActionResult> RecordOutcomeCore(
+        int id,
+        EmbryoOutcomeRequest request)
     {
         await using var transaction = _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(
@@ -541,6 +565,19 @@ public class EmbryoRecordsController : ControllerBase
             await transaction.CommitAsync();
         }
         return Ok(record);
+    }
+
+    private Task<IActionResult> ExecuteWithRetryAsync(
+        Func<Task<IActionResult>> operation)
+    {
+        if (!_context.Database.IsRelational())
+        {
+            return operation();
+        }
+
+        return _context.Database
+            .CreateExecutionStrategy()
+            .ExecuteAsync(operation);
     }
 
     private static void NormalizeNewRecord(EmbryoRecord record)

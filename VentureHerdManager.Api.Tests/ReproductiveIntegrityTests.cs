@@ -14,6 +14,63 @@ namespace VentureHerdManager.Api.Tests;
 public sealed class ReproductiveIntegrityTests
 {
     [Fact]
+    public async Task NewImplantClosesPreviousImplantForSameRecipient()
+    {
+        await using var context = CreateContext();
+        var recipient = new Animal { BarnName = "Carmella" };
+        context.Animals.Add(recipient);
+        await context.SaveChangesAsync();
+
+        var priorBreeding = new BreedingEvent
+        {
+            AnimalId = recipient.AnimalId,
+            BreedingDate = new DateTime(2026, 7, 15),
+            SireUsed = "Seashell x Legend",
+            BreedingType = BreedingType.EmbryoTransfer,
+            PregnancyStatus = PregnancyStatus.Unconfirmed
+        };
+        context.BreedingEvents.Add(priorBreeding);
+        await context.SaveChangesAsync();
+
+        var priorEmbryo = new EmbryoRecord
+        {
+            Donor = "Seashell",
+            Sire = "Legend",
+            Mating = "Seashell x Legend",
+            Status = EmbryoStatus.Implanted,
+            RecipientAnimalId = recipient.AnimalId,
+            ImplantDate = new DateOnly(2026, 7, 15),
+            BreedingEventId = priorBreeding.BreedingEventId
+        };
+        var nextEmbryo = new EmbryoRecord
+        {
+            Donor = "Carissa",
+            Sire = "Braxton",
+            Mating = "Carissa x Braxton",
+            Status = EmbryoStatus.InStorage
+        };
+        context.AddRange(priorEmbryo, nextEmbryo);
+        await context.SaveChangesAsync();
+        var controller = new EmbryoRecordsController(
+            context,
+            NullLogger<EmbryoRecordsController>.Instance);
+
+        var result = await controller.Implant(
+            nextEmbryo.EmbryoRecordId,
+            new ImplantEmbryoRequest
+            {
+                RecipientAnimalId = recipient.AnimalId,
+                ImplantDate = new DateOnly(2026, 8, 9)
+            });
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(PregnancyStatus.Open, priorBreeding.PregnancyStatus);
+        Assert.Equal(EmbryoStatus.Failed, priorEmbryo.Status);
+        Assert.Equal(EmbryoStatus.Implanted, nextEmbryo.Status);
+        Assert.Equal(2, await context.BreedingEvents.CountAsync());
+    }
+
+    [Fact]
     public async Task ImplantAndOutcomeCreateOneConsistentLinkedHistory()
     {
         await using var context = CreateContext();

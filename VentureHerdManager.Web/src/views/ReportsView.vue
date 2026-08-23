@@ -2028,16 +2028,24 @@ watch(activeTab, tab => {
             <span class="as-val">{{ embryoImplantsData.totals.totalImplanted }}</span>
           </div>
           <div class="as-stat">
-            <span class="as-label">Successful (Pregnant)</span>
+            <span class="as-label">Awaiting Pregnancy Check</span>
+            <span class="as-val">{{ embryoImplantsData.totals.waitingForPregCheck }}</span>
+          </div>
+          <div class="as-stat">
+            <span class="as-label">Confirmed Pregnant</span>
             <span class="as-val">{{ embryoImplantsData.totals.totalSuccessful }}</span>
           </div>
           <div class="as-stat">
-            <span class="as-label">Failed / Did Not Stick</span>
+            <span class="as-label">Did Not Stick</span>
             <span class="as-val">{{ embryoImplantsData.totals.totalFailed }}</span>
           </div>
           <div class="as-stat">
-            <span class="as-label">Success Rate</span>
-            <span class="as-val">{{ embryoImplantsData.totals.successRatePct }}%</span>
+            <span class="as-label">Results Recorded</span>
+            <span class="as-val">{{ embryoImplantsData.totals.resolvedImplants }} / {{ embryoImplantsData.totals.totalImplanted }}</span>
+          </div>
+          <div class="as-stat">
+            <span class="as-label">Pregnancy Rate (Resolved)</span>
+            <span class="as-val">{{ embryoImplantsData.totals.resolvedImplants ? `${embryoImplantsData.totals.successRatePct}%` : '—' }}</span>
           </div>
         </div>
 

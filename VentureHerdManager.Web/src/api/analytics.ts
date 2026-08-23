@@ -40,7 +40,11 @@ export interface EmbryoImplantResponse {
     totalImplanted: number
     totalFailed: number
     totalSuccessful: number
+    resolvedImplants: number
+    waitingForPregCheck: number
     successRatePct: number
+    failureRatePct: number
+    outcomeRecordedPct: number
   }
 }
 

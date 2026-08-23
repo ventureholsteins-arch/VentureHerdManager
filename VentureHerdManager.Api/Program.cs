@@ -493,6 +493,36 @@ static async Task InitializeDatabaseAsync(
         Console.WriteLine($"Database migration warning: {ex.Message}");
     }
 
+    // Some early production databases recorded the nullable breeding-date
+    // migration without changing the physical columns. Open/failed services
+    // must be able to clear projected due dates without losing their history.
+    try
+    {
+        foreach (var columnName in new[]
+                 {
+                     "ExpectedDueDate",
+                     "PregnancyCheckDueDate",
+                     "RecommendedDryOffDate",
+                     "CloseUpDate"
+                 })
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                $@"IF OBJECT_ID(N'dbo.BreedingEvents', N'U') IS NOT NULL
+                   AND EXISTS (
+                     SELECT 1
+                     FROM sys.columns
+                     WHERE [object_id] = OBJECT_ID(N'dbo.BreedingEvents')
+                       AND [name] = N'{columnName}'
+                       AND [is_nullable] = 0)
+                   ALTER TABLE [dbo].[BreedingEvents]
+                     ALTER COLUMN [{columnName}] DATETIME2 NULL;");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Breeding date nullability repair warning: {ex.Message}");
+    }
+
     // Older production databases can contain legacy schema changes that stop
     // EF before it reaches the herd-data migration. Keep this feature's three
     // tables independently idempotent, then record this migration only after

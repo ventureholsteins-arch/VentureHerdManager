@@ -48,6 +48,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<HerdDataImport> HerdDataImports => Set<HerdDataImport>();
     public DbSet<AnimalDataRecord> AnimalDataRecords => Set<AnimalDataRecord>();
     public DbSet<AnimalIdentityMapping> AnimalIdentityMappings => Set<AnimalIdentityMapping>();
+    public DbSet<LifetimeProductionSnapshot> LifetimeProductionSnapshots => Set<LifetimeProductionSnapshot>();
     public DbSet<SharedBaggingSchedule> SharedBaggingSchedules => Set<SharedBaggingSchedule>();
     public DbSet<BaggingPushSubscription> BaggingPushSubscriptions => Set<BaggingPushSubscription>();
     public DbSet<BaggingReminderDelivery> BaggingReminderDeliveries => Set<BaggingReminderDelivery>();

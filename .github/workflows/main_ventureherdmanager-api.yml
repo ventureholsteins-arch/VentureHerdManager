@@ -11,6 +11,12 @@ on:
       - "VentureHerdManager.Api/**"
       - ".github/workflows/main_ventureherdmanager-api.yml"
   workflow_dispatch:
+    inputs:
+      apply_paper_records:
+        description: 'Apply the bundled paper-record reconciliation after deployment'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build:
@@ -90,4 +96,45 @@ jobs:
         uses: azure/cli@v2
         with:
           inlineScript: az webapp restart --resource-group VentureHerdMananger --name ventureherdmanager-api
+
+      - name: Open controlled paper-record import window
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_paper_records }}
+        uses: azure/cli@v2
+        with:
+          inlineScript: >
+            az webapp config appsettings set
+            --resource-group VentureHerdMananger
+            --name ventureherdmanager-api
+            --settings PaperRecordImport__AllowApply="true"
+
+      - name: Apply paper-record reconciliation
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_paper_records }}
+        env:
+          HERD_DATA_ADMIN_KEY: ${{ secrets.HERD_DATA_ADMIN_KEY }}
+        run: |
+          api_url="https://ventureherdmanager-api-gkgscwf2e6dte8dg.centralus-01.azurewebsites.net"
+          for attempt in {1..30}; do
+            status=$(curl --silent --output paper-import-report.json --write-out "%{http_code}" \
+              --request POST \
+              --header "X-Herd-Admin-Key: ${HERD_DATA_ADMIN_KEY}" \
+              "${api_url}/api/paper-record-import/apply" || true)
+            if [ "$status" = "200" ]; then
+              cat paper-import-report.json
+              exit 0
+            fi
+            echo "Paper import is waiting for the API (attempt ${attempt}, HTTP ${status})."
+            sleep 10
+          done
+          cat paper-import-report.json || true
+          exit 1
+
+      - name: Close controlled paper-record import window
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.apply_paper_records }}
+        uses: azure/cli@v2
+        with:
+          inlineScript: >
+            az webapp config appsettings set
+            --resource-group VentureHerdMananger
+            --name ventureherdmanager-api
+            --settings PaperRecordImport__AllowApply="false"
           

@@ -122,6 +122,11 @@ jobs:
               cat paper-import-report.json
               exit 0
             fi
+            if [ "$status" = "500" ]; then
+              echo "Paper import returned a server error:"
+              cat paper-import-report.json || true
+              exit 1
+            fi
             echo "Paper import is waiting for the API (attempt ${attempt}, HTTP ${status})."
             sleep 10
           done

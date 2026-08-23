@@ -1092,14 +1092,6 @@ static async Task InitializeDatabaseAsync(
 
     try
     {
-        // Some compatibility tables are created later in this initializer.
-        // Run the idempotent demo-column pass again so a fresh demo database
-        // cannot accept traffic with a half-scoped schema.
-        if (isDemoMode)
-        {
-            await EnsureDemoSessionSchemaAsync(context);
-        }
-
         await context.SaveChangesAsync();
     }
     catch (Exception ex)

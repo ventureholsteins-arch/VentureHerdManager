@@ -24,6 +24,27 @@ public sealed class PaperRecordImportService
         bool apply,
         CancellationToken cancellationToken = default)
     {
+        if (!_context.Database.IsRelational())
+        {
+            return await ReconcileCoreAsync(
+                sourceDirectory,
+                apply,
+                cancellationToken);
+        }
+
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+            await ReconcileCoreAsync(
+                sourceDirectory,
+                apply,
+                cancellationToken));
+    }
+
+    private async Task<PaperImportReport> ReconcileCoreAsync(
+        string? sourceDirectory,
+        bool apply,
+        CancellationToken cancellationToken)
+    {
         var directory = ResolveDirectory(sourceDirectory);
         var animalRows = ReadCsv(Path.Combine(directory, "animals.csv"));
         var breedingRows = ReadCsv(Path.Combine(directory, "breedings.csv"));

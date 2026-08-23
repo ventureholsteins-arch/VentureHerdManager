@@ -32,13 +32,20 @@ export interface DashboardLutTracking {
 }
 
 export interface DashboardEmbryoImplant {
-  heatEventId: number
+  trackingType: 'NeedsImplant' | 'PregCheckUpcoming'
+  heatEventId?: number | null
+  embryoRecordId?: number | null
   animalId: number
   animalName: string
-  heatDateTime: string
+  heatDateTime?: string | null
   embryoImplantDate?: string | null
   daysTracked: number
   daysUntilImplant: number
+  code?: string | null
+  donor?: string | null
+  sire?: string | null
+  mating?: string | null
+  breedingEventId?: number | null
 }
 
 export interface DashboardHeat {

@@ -7,6 +7,10 @@
       </div>
 
       <div class="modal-body">
+        <div v-if="saving" class="saving-banner" role="status" aria-live="polite">
+          <span class="saving-spinner" aria-hidden="true"></span>
+          <strong>{{ saveStatus }}</strong>
+        </div>
         <div v-if="animalName" class="animal-info">
           Calving for: <strong>{{ animalName }}</strong>
         </div>
@@ -119,7 +123,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { uploadPhoto } from '../api/photos'
 
 const isOpen = ref(false)
 const animalId = ref<number | null>(null)
@@ -139,6 +142,7 @@ const calfPhotoFile = ref<File | null>(null)
 const isUploadingPhoto = ref(false)
 const saving = ref(false)
 const saveError = ref('')
+const saveStatus = ref('Saving calving…')
 
 const emit = defineEmits<{
   close: []
@@ -163,6 +167,7 @@ const openModal = (id: number, name: string) => {
   isUploadingPhoto.value = false
   saving.value = false
   saveError.value = ''
+  saveStatus.value = 'Saving calving…'
   isOpen.value = true
 }
 
@@ -192,28 +197,13 @@ const recordCalving = async () => {
 
   saving.value = true
   saveError.value = ''
-  let pictureUrl: string | null = null
-
-  if (calfPhotoFile.value) {
-    try {
-      isUploadingPhoto.value = true
-      pictureUrl = await uploadPhoto(calfPhotoFile.value, 'calving-events')
-    } catch (error) {
-      saveError.value = error instanceof Error
-        ? error.message
-        : 'Photo could not be uploaded.'
-      saving.value = false
-      isUploadingPhoto.value = false
-      return
-    } finally {
-      isUploadingPhoto.value = false
-    }
-  }
+  saveStatus.value = 'Saving calving…'
 
   emit('recordCalving', {
     animalId: animalId.value,
     calvingDate: calvingDate.value,
-    pictureUrl,
+    pictureUrl: null,
+    photoFile: calfPhotoFile.value,
     calfBarnName: calfBarnName.value || null,
     calfRegisteredName: calfRegisteredName.value || null,
     calfSireName: calfSireName.value || null,
@@ -224,6 +214,10 @@ const recordCalving = async () => {
     twins: twins.value,
     stillborn: stillborn.value,
     notes: notes.value || null,
+    setStatus: (status: string) => {
+      saveStatus.value = status
+      isUploadingPhoto.value = status.toLowerCase().includes('photo')
+    },
     complete: (success: boolean, message?: string) => {
       saving.value = false
       if (success) {
@@ -290,6 +284,33 @@ defineExpose({
 .modal-body {
   padding: 20px;
 }
+
+.saving-banner {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -8px -8px 14px;
+  padding: 12px 14px;
+  border: 1px solid #9bb79c;
+  border-radius: 8px;
+  background: #eff7ef;
+  color: #183b20;
+  box-shadow: 0 6px 18px rgba(24, 59, 32, .16);
+}
+
+.saving-spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #bfd1c0;
+  border-top-color: #31572c;
+  border-radius: 50%;
+  animation: saving-spin .8s linear infinite;
+}
+
+@keyframes saving-spin { to { transform: rotate(360deg); } }
 
 .animal-info {
   background: #f5f5f5;

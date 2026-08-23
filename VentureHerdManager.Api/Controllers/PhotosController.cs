@@ -42,6 +42,13 @@ public class PhotosController : ControllerBase
         {
             return BadRequest(exception.Message);
         }
+        catch (InvalidOperationException exception)
+        {
+            return Problem(
+                title: "Photo storage is temporarily unavailable",
+                detail: exception.Message,
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
 
         return Ok(new PhotoUploadResponse
         {

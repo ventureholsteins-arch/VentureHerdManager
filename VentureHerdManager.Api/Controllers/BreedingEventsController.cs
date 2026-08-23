@@ -114,33 +114,10 @@ public class BreedingEventsController : ControllerBase
             breeding.BreedingType == BreedingType.EmbryoTransfer
             || linkedEmbryo != null;
 
+        await using var transaction = _context.Database.IsRelational()
+            ? await _context.Database.BeginTransactionAsync()
+            : null;
         var checkedAt = DateTime.UtcNow;
-
-        // Commit the actual check result first. Production databases can lag
-        // newer optional scheduling/embryo fields; those must never roll back
-        // the pregnancy status the user just recorded.
-        try
-        {
-            var updated = await _context.BreedingEvents
-                .Where(b => b.BreedingEventId == breedingEventId)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(b => b.PregnancyStatus, status)
-                    .SetProperty(b => b.PregnancyCheckDate, checkedAt)
-                    .SetProperty(b => b.UpdatedAt, checkedAt));
-
-            if (updated == 0)
-            {
-                return NotFound();
-            }
-        }
-        catch (InvalidOperationException exception) when (
-            exception.Message.Contains("ExecuteUpdate", StringComparison.Ordinal))
-        {
-            breeding.PregnancyStatus = status;
-            breeding.PregnancyCheckDate = checkedAt;
-            breeding.UpdatedAt = checkedAt;
-            await _context.SaveChangesAsync();
-        }
 
         ReproductiveEventRules.ApplyPregnancyStatus(
             breeding,
@@ -159,14 +136,26 @@ public class BreedingEventsController : ControllerBase
         try
         {
             await _context.SaveChangesAsync();
+            if (transaction != null)
+            {
+                await transaction.CommitAsync();
+            }
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(
+            _logger.LogError(
                 exception,
-                "Pregnancy status {PregnancyStatus} was saved for breeding {BreedingEventId}, but optional embryo synchronization could not be completed.",
+                "Pregnancy status {PregnancyStatus} and linked embryo synchronization failed for breeding {BreedingEventId}.",
                 status,
                 breedingEventId);
+            if (transaction != null)
+            {
+                await transaction.RollbackAsync();
+            }
+            return Problem(
+                title: "Pregnancy result was not saved.",
+                detail: exception.GetBaseException().Message,
+                statusCode: StatusCodes.Status500InternalServerError);
         }
 
         return NoContent();

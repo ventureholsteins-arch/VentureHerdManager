@@ -10,7 +10,7 @@ import RetroIcon from '../components/RetroIcon.vue'
 import EditAnimalModal from '../components/EditAnimalModal.vue'
 import RecordLUTModal from '../components/RecordLUTModal.vue'
 import RecordBreedingModal from '../components/RecordBreedingModal.vue'
-import { implantEmbryo } from '../api/embryoRecords'
+import { EMBRYO_STATUS_LABELS, getEmbryosForRecipient, implantEmbryo, type EmbryoRecord } from '../api/embryoRecords'
 import { getAnimalHerdData, getAdminKey, getMatingSuggestions } from '../api/herdData'
 
 import {
@@ -41,6 +41,7 @@ import {
 import {
   getCalvings,
   recordCalving,
+  attachCalvingPhoto,
   deleteCalvingEvent,
   updateCalvingEvent,
   type CalvingEvent
@@ -90,6 +91,7 @@ const breedingEvents = ref<BreedingEvent[]>([])
 const calvingEvents = ref<CalvingEvent[]>([])
 const dryOffEvents = ref<DryOffEvent[]>([])
 const lutEvents = ref<LutalyseEvent[]>([])
+const recipientEmbryos = ref<EmbryoRecord[]>([])
 const animalNotes = ref<AnimalNote[]>([])
 const timelineEntries = ref<AnimalTimelineEntry[]>([])
 const animalSearchResults = computed(() => {
@@ -118,6 +120,7 @@ function openAnimalFromSearch(id: number) {
   router.push(`/animals/${id}`)
 }
 const herdDataRecords = ref<any[]>([])
+const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
 const matingData = ref<any>(null)
 function latestRecordForSource(source: number) {
   return herdDataRecords.value
@@ -189,6 +192,8 @@ const stillborn = ref(false)
 const calvingNotes = ref('')
 const isUploadingHeatPhoto = ref(false)
 const isUploadingCalvingPhoto = ref(false)
+const calvingSaving = ref(false)
+const calvingSaveStatus = ref('')
 
 const showDryOffForm = ref(false)
 const dryReason = ref('')
@@ -478,9 +483,10 @@ onMounted(async () => {
       getCalvings(animalId.value).then(value => { calvingEvents.value = value }),
       getDryOffEvents(animalId.value).then(value => { dryOffEvents.value = value }),
       getLutEvents(animalId.value).then(value => { lutEvents.value = value }),
+      getEmbryosForRecipient(animalId.value).then(value => { recipientEmbryos.value = value }),
       getAnimalNotes(animalId.value).then(value => { animalNotes.value = value })
     ]).catch(error => console.warn('Some animal history is still loading:', error))
-    if (getAdminKey()) void Promise.all([
+    if (getAdminKey() || isDemoOnly) void Promise.all([
       getAnimalHerdData(animalId.value).then(value => { herdDataRecords.value = value }),
       getMatingSuggestions(animalId.value).then(value => { matingData.value = value }).catch(() => null)
     ]).catch(error => console.warn('Private milk/genomic history is unavailable:', error))
@@ -615,17 +621,13 @@ async function savePregCheck() {
 }
 
 async function saveCalving() {
-  if (!animal.value) return
+  if (!animal.value || calvingSaving.value) return
 
+  let calvingWasSaved = false
+  calvingSaving.value = true
+  calvingSaveStatus.value = 'Saving calving…'
   try {
-    let pictureUrl: string | null = null
-
-    if (calvingPhotoFile.value) {
-      isUploadingCalvingPhoto.value = true
-      pictureUrl = await uploadPhoto(calvingPhotoFile.value, 'calving-events')
-    }
-
-    await recordCalving(
+    const saved = await recordCalving(
       animal.value.animalId,
       calfSex.value,
       calfBarnName.value.trim(),
@@ -636,8 +638,22 @@ async function saveCalving() {
       twins.value,
       stillborn.value,
       calvingNotes.value,
-      pictureUrl
+      null
     )
+    calvingWasSaved = true
+    calvingSaveStatus.value = 'Calving saved ✓'
+
+    if (calvingPhotoFile.value) {
+      isUploadingCalvingPhoto.value = true
+      calvingSaveStatus.value = 'Calving saved ✓ — Uploading photo…'
+      try {
+        const pictureUrl = await uploadPhoto(calvingPhotoFile.value, 'calving-events')
+        await attachCalvingPhoto(saved.calvingEventId, pictureUrl)
+        calvingSaveStatus.value = 'Saved ✓'
+      } catch (photoError) {
+        alert(`Calving saved ✓ — Photo upload failed. Retry the photo from this animal card.\n\n${photoError instanceof Error ? photoError.message : ''}`)
+      }
+    }
 
     calfSex.value = 0
     calfBarnName.value = ''
@@ -654,9 +670,10 @@ async function saveCalving() {
     await reloadAnimalData()
   } catch (error) {
     console.error('Failed to save calving:', error)
-    alert('Failed to save calving event.')
+    if (!calvingWasSaved) alert('Calving was not saved. Your entered information is still here; please retry.')
   } finally {
     isUploadingCalvingPhoto.value = false
+    calvingSaving.value = false
   }
 }
 
@@ -1073,7 +1090,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
       <section v-if="animal.animalStatus === 1" class="sold-banner"><div><strong>SOLD - ARCHIVED</strong><span>{{ animal.soldDate ? new Date(animal.soldDate).toLocaleDateString() : 'Sold animal' }} · All records are retained</span><p v-if="animal.soldNotes">{{ animal.soldNotes }}</p></div><button @click="undoSold">Restore to active herd</button></section>
       <section v-if="animal.animalStatus === 0 && animal.herdLocation === 1" class="sold-banner muellers-banner"><div><strong>ACTIVE AT MUELLER'S</strong><span>Still part of the active herd · All records and reminders continue</span></div><button @click="changeHerdLocation(0)">Return to Home Herd</button></section>
 
-      <section v-if="getAdminKey() && linearQuickGlance.length" class="panel linear-quick-panel">
+      <section v-if="(getAdminKey() || isDemoOnly) && linearQuickGlance.length" class="panel linear-quick-panel">
         <div class="private-data-heading">
           <h2>Linear Graph Quick Glance</h2>
           <button class="mini-btn" type="button" @click="router.push('/reports/herd-data?view=linear')">Open full linear</button>
@@ -1097,6 +1114,19 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
         <article v-if="latestMilkRecord.fatPercent != null"><small>Fat</small><strong>{{ latestMilkRecord.fatPercent }}%</strong></article>
         <article v-if="latestMilkRecord.proteinPercent != null"><small>Protein</small><strong>{{ latestMilkRecord.proteinPercent }}%</strong></article>
         <button @click="router.push('/reports/herd-data?view=milk')">Milk analytics →</button>
+      </section>
+
+      <section v-if="latestGenomicRecord" class="latest-genomic-strip">
+        <div class="genomic-strip-title"><span>LATEST GENOMICS</span><strong>{{ latestGenomicRecord.reportDate }}</strong></div>
+        <article><small>TPI</small><strong>{{ latestGenomicRecord.tpi ?? '—' }}</strong></article>
+        <article><small>NM$</small><strong>{{ latestGenomicRecord.netMerit ?? '—' }}</strong></article>
+        <article><small>PTA Milk</small><strong>{{ latestGenomicRecord.milkPta ?? '—' }}</strong></article>
+        <article><small>DPR</small><strong>{{ latestGenomicRecord.daughterPregnancyRate ?? '—' }}</strong></article>
+        <article><small>Productive Life</small><strong>{{ latestGenomicRecord.productiveLife ?? '—' }}</strong></article>
+        <article><small>Type</small><strong>{{ latestGenomicRecord.typeScore ?? '—' }}</strong></article>
+        <article><small>UDC</small><strong>{{ latestGenomicRecord.udderComposite ?? '—' }}</strong></article>
+        <article><small>FLC</small><strong>{{ latestGenomicRecord.feetLegsComposite ?? '—' }}</strong></article>
+        <button @click="router.push('/reports/herd-data?view=genomics')">Genomic details →</button>
       </section>
 
       <section class="panel pedigree-panel">
@@ -1352,6 +1382,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
           v-if="showCalvingForm"
           class="form-card"
         >
+          <div v-if="calvingSaving" class="inline-saving-banner" role="status">{{ calvingSaveStatus }}</div>
           <h3>Record Calving</h3>
 
           <label>Calf Sex</label>
@@ -1450,13 +1481,15 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
           <div class="form-actions">
             <button
               class="save"
+              :disabled="calvingSaving"
               @click="saveCalving"
             >
-              Save Calving
+              {{ calvingSaving ? calvingSaveStatus : 'Save Calving' }}
             </button>
 
             <button
               class="cancel"
+              :disabled="calvingSaving"
               @click="showCalvingForm = false"
             >
               Cancel
@@ -1537,7 +1570,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
           <h2>Milk &amp; Genomic History</h2>
           <button class="mini-btn" type="button" @click="router.push('/reports/herd-data')">Open analytics</button>
         </div>
-        <p v-if="!getAdminKey()" class="upload-hint">Unlock the private Milk &amp; Genomic Analytics page to display these records.</p>
+        <p v-if="!getAdminKey() && !isDemoOnly" class="upload-hint">Unlock the private Milk &amp; Genomic Analytics page to display these records.</p>
         <template v-else>
           <div v-if="herdDataRecords.length === 0" class="timeline-card"><strong>No imported milk or genomic records yet.</strong></div>
           <div v-else class="data-history-grid">
@@ -1573,6 +1606,22 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
             <details v-if="matingData.avoid?.length" class="avoid-sires"><summary>Sires to avoid for this specific cow ({{ matingData.avoid.length }})</summary><p class="upload-hint">These bulls are not universally bad. They are flagged because their current proof may fail to improve this cow's particular weaknesses.</p><article v-for="sire in matingData.avoid" :key="`avoid-${sire.sireReferenceId}`"><strong>{{ sire.name }}</strong><span>{{ sire.naabCode || 'No NAAB code' }}</span><p>{{ sire.concerns.join(' · ') }}</p></article></details>
           </div>
         </template>
+      </section>
+
+      <section class="panel embryo-history-panel">
+        <h2>Embryo / ET History</h2>
+        <div v-if="recipientEmbryos.length === 0" class="timeline-card">
+          <strong>No embryo transfers recorded</strong>
+          <small>Embryos implanted into this animal will stay here permanently.</small>
+        </div>
+        <div v-for="embryo in recipientEmbryos" :key="embryo.embryoRecordId" class="timeline-card embryo-history-card">
+          <strong>{{ embryo.mating || `${embryo.donor || 'Unknown donor'} × ${embryo.sire || 'Unknown sire'}` }}</strong>
+          <small>{{ embryo.implantDate || 'Implant date not recorded' }} · {{ EMBRYO_STATUS_LABELS[embryo.status] }}</small>
+          <p>Dam: {{ embryo.donor || 'Unknown' }} · Sire: {{ embryo.sire || 'Unknown' }}</p>
+          <p v-if="embryo.pregnancyCheckDate">Pregnancy check: {{ embryo.pregnancyCheckDate }}</p>
+          <p v-else-if="embryo.pregnancyCheckDueDate">Pregnancy check due: {{ embryo.pregnancyCheckDueDate }}</p>
+          <p v-if="embryo.failureNotes">Outcome note: {{ embryo.failureNotes }}</p>
+        </div>
       </section>
 
       <section class="panel">
@@ -2299,6 +2348,8 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
   font-size: 0.9rem;
 }
 
+.inline-saving-banner{position:sticky;top:8px;z-index:4;margin:0 0 12px;padding:11px 13px;border:1px solid #9bb79c;border-radius:8px;background:#eff7ef;color:#183b20;font-weight:850;box-shadow:0 6px 18px rgba(24,59,32,.14)}
+
 .latest-milk-strip{display:grid;grid-template-columns:auto repeat(6,minmax(80px,1fr)) auto;gap:7px;align-items:stretch;margin:12px 0;padding:10px;border-left:6px solid #2f80ed;background:#eef6ff;overflow-x:auto}
 .latest-milk-strip article,.milk-strip-title{display:grid;align-content:center;min-width:82px;padding:7px;background:#fff}
 .milk-strip-title{background:#123b68;color:#fff}
@@ -2307,6 +2358,25 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
 .latest-milk-strip strong{font-size:1rem}
 .latest-milk-strip .down{color:#b91c1c}
 .latest-milk-strip>button{min-width:120px;border:0;border-radius:6px;background:#1769c2;color:#fff;font-weight:850}
+.latest-genomic-strip{display:grid;grid-template-columns:auto repeat(8,minmax(74px,1fr)) auto;gap:7px;align-items:stretch;margin:12px 0;padding:10px;border-left:6px solid #31572c;background:#eef6ef;overflow-x:auto}
+.latest-genomic-strip article,.genomic-strip-title{display:grid;align-content:center;min-width:76px;padding:7px;background:#fff}
+.genomic-strip-title{background:#1f3b25;color:#fff}
+.genomic-strip-title span{font-size:.66rem;font-weight:950;letter-spacing:.08em}
+.latest-genomic-strip small{color:#64748b;font-size:.7rem}
+.latest-genomic-strip strong{font-size:1rem}
+.latest-genomic-strip>button{min-width:120px;border:0;border-radius:6px;background:#31572c;color:#fff;font-weight:850}
+
+.animal-layout{display:flex;flex-direction:column}
+.animal-layout > *{order:10}
+.animal-layout > .hero{order:1}
+.animal-layout > .info-grid,
+.animal-layout > .sold-banner{order:2}
+.quick-actions-panel{order:3}
+.latest-milk-strip{order:4}
+.latest-genomic-strip{order:5}
+.pedigree-panel{order:6}
+.linear-quick-panel{order:7}
+.milk-genomic-panel{order:20}
 
 @media (max-width: 700px) {
   .page {
@@ -2318,12 +2388,10 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
     flex-direction: column;
   }
 
-  .quick-actions-panel { order: 3; }
-  .linear-quick-panel { order: 4; }
-  .latest-milk-strip { order: 5; }
-  .milk-genomic-panel { order: 6; }
-  .pedigree-panel { order: 7; }
-
+  .animal-layout > * { order: 10; }
+  .animal-layout > .hero { order: 1; }
+  .animal-layout > .info-grid,
+  .animal-layout > .sold-banner { order: 2; }
   .hero {
     margin-bottom: 12px;
     gap: 12px;
@@ -2333,6 +2401,8 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
   .edit-animal-button{width:100%;margin-left:0}
   .latest-milk-strip{grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
   .milk-strip-title,.latest-milk-strip>button{grid-column:1/-1}
+  .latest-genomic-strip{grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
+  .genomic-strip-title,.latest-genomic-strip>button{grid-column:1/-1}
 
   .panel,
   .info-card {

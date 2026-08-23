@@ -7,7 +7,8 @@ import { getAppearance, type AppearanceSetting } from '../api/appearance'
 import { recordHeat } from '../api/heat'
 import { getLatestPregnancyStatuses, recordBreeding } from '../api/breeding'
 import { assignEmbryo, implantEmbryo } from '../api/embryoRecords'
-import { recordCalving } from '../api/calving'
+import { attachCalvingPhoto, recordCalving } from '../api/calving'
+import { uploadPhoto } from '../api/photos'
 import { addNote } from '../api/notes'
 import { recordLUT } from '../api/lut'
 import type { Animal } from '../models/Animal'
@@ -74,7 +75,7 @@ interface DashboardCachePayload {
 }
 
 const searchQuery = ref('')
-const stageFilter = ref<number | null>(3)
+const stageFilter = ref<number | null>(null)
 const statusFilter = ref<number | null>(0)
 const locationFilter = ref<number | null>(0)
 const pregnancyFilter = ref<number | null>(null)
@@ -400,11 +401,12 @@ const onRecordBreeding = async (data: any) => {
 
 // Handle calving recording
 const onRecordCalving = async (data: any) => {
+  let savedCalvingId: number | null = null
   try {
-    await recordCalving({
+    const saved = await recordCalving({
       animalId: data.animalId,
       calvingDate: data.calvingDate,
-      pictureUrl: data.pictureUrl,
+      pictureUrl: undefined,
       calfBarnName: data.calfBarnName,
       calfRegisteredName: data.calfRegisteredName,
       calfSireName: data.calfSireName,
@@ -416,8 +418,7 @@ const onRecordCalving = async (data: any) => {
       stillborn: data.stillborn,
       notes: data.notes
     })
-    data.complete?.(true)
-    alert('Calving event recorded successfully! Cow moved to Milking status.')
+    savedCalvingId = saved.calvingEventId
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     data.complete?.(false, message)
@@ -425,6 +426,25 @@ const onRecordCalving = async (data: any) => {
     console.error('Failed to record calving:', error)
     return
   }
+
+  if (data.photoFile && savedCalvingId) {
+    try {
+      data.setStatus?.('Calving saved ✓ — Uploading photo…')
+      const pictureUrl = await uploadPhoto(data.photoFile, 'calving-events')
+      data.setStatus?.('Photo uploaded — Linking…')
+      await attachCalvingPhoto(savedCalvingId, pictureUrl)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Photo upload failed.'
+      data.complete?.(true)
+      alert(`Calving saved ✓ — Photo upload failed. Retry the photo from the animal card.\n\n${message}`)
+      await refreshDashboard().catch(() => undefined)
+      return
+    }
+  }
+
+  data.setStatus?.('Saved ✓')
+  data.complete?.(true)
+  alert('Calving saved ✓ Cow moved to Milking status.')
 
   try {
     await refreshDashboard()

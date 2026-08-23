@@ -439,15 +439,15 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
 
         var report = await _service.ReconcileAsync(source, true);
 
-        Assert.Equal(40, report.AnimalsCreated);
-        Assert.Equal(4, report.RecipientsCreated);
-        Assert.Equal(32, report.BreedingsAdded);
-        Assert.Equal(6, report.EmbryosAdded);
-        Assert.Equal(6, report.Conflicts.Count);
+        Assert.Equal(41, report.AnimalsCreated);
+        Assert.Equal(5, report.RecipientsCreated);
+        Assert.Equal(35, report.BreedingsAdded);
+        Assert.Equal(8, report.EmbryosAdded);
+        Assert.Equal(8, report.Conflicts.Count);
         Assert.Equal(2, report.IgnoredRows.Count);
-        Assert.Equal(40, await _context.Animals.CountAsync());
-        Assert.Equal(32, await _context.BreedingEvents.CountAsync());
-        Assert.Equal(6, await _context.EmbryoRecords.CountAsync());
+        Assert.Equal(41, await _context.Animals.CountAsync());
+        Assert.Equal(35, await _context.BreedingEvents.CountAsync());
+        Assert.Equal(8, await _context.EmbryoRecords.CountAsync());
         Assert.DoesNotContain(
             await _context.Animals.ToListAsync(),
             animal => animal.BarnName == "Pixie");
@@ -473,9 +473,9 @@ public sealed class PaperRecordImportServiceTests : IAsyncLifetime
         await _service.ReconcileAsync(source, true);
         var second = await _service.ReconcileAsync(source, true);
 
-        Assert.Equal(40, await _context.Animals.CountAsync());
-        Assert.Equal(32, await _context.BreedingEvents.CountAsync());
-        Assert.Equal(6, await _context.EmbryoRecords.CountAsync());
+        Assert.Equal(41, await _context.Animals.CountAsync());
+        Assert.Equal(35, await _context.BreedingEvents.CountAsync());
+        Assert.Equal(8, await _context.EmbryoRecords.CountAsync());
         Assert.Equal(0, second.AnimalsCreated);
         Assert.Equal(0, second.BreedingsAdded);
         Assert.Equal(0, second.EmbryosAdded);

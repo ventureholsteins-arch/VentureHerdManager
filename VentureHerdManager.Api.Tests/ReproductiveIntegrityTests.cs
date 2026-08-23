@@ -240,7 +240,8 @@ public sealed class ReproductiveIntegrityTests
             BarnName = "Fresh Cow",
             AnimalStage = AnimalStage.Dry
         };
-        context.Animals.Add(cow);
+        var geneticDam = new Animal { BarnName = "Carissa" };
+        context.Animals.AddRange(cow, geneticDam);
         await context.SaveChangesAsync();
         var breeding = new BreedingEvent
         {
@@ -256,6 +257,9 @@ public sealed class ReproductiveIntegrityTests
         await context.SaveChangesAsync();
         var embryo = new EmbryoRecord
         {
+            Donor = "Carissa",
+            DonorAnimalId = geneticDam.AnimalId,
+            Sire = "Braxton",
             RecipientAnimalId = cow.AnimalId,
             ImplantDate = new DateOnly(2025, 9, 1),
             BreedingEventId = breeding.BreedingEventId,
@@ -268,7 +272,9 @@ public sealed class ReproductiveIntegrityTests
         await controller.Create(new CreateCalvingEventRequest
         {
             AnimalId = cow.AnimalId,
-            CalvingDate = new DateTime(2026, 6, 3)
+            CalvingDate = new DateTime(2026, 6, 3),
+            CalfBarnName = "ET Calf",
+            CalfSex = CalfSex.Heifer
         });
 
         Assert.Equal(AnimalStage.Milking, cow.AnimalStage);
@@ -277,7 +283,11 @@ public sealed class ReproductiveIntegrityTests
         Assert.Null(breeding.PregnancyCheckDueDate);
         Assert.Null(breeding.RecommendedDryOffDate);
         Assert.Null(breeding.CloseUpDate);
-        Assert.Equal(EmbryoStatus.Successful, embryo.Status);
+        Assert.Equal(EmbryoStatus.Completed, embryo.Status);
+        var calf = await context.Animals.SingleAsync(animal => animal.BarnName == "ET Calf");
+        Assert.Equal(geneticDam.AnimalId, calf.DamId);
+        Assert.Equal("Carissa", calf.DamName);
+        Assert.Equal("Braxton", calf.SireName);
         Assert.Empty(await context.BreedingEvents
             .CurrentReproductiveEvents(context)
             .ToListAsync());

@@ -102,5 +102,6 @@ public enum EmbryoStatus
     Assigned = 1,
     Implanted = 2,
     Failed = 3,
-    Successful = 4
+    Successful = 4,
+    Completed = 5
 }

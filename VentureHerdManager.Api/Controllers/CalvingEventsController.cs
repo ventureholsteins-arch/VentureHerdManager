@@ -70,6 +70,18 @@ public class CalvingEventsController : ControllerBase
             return NotFound($"Animal {calving.AnimalId} was not found.");
         }
 
+        var completedBreeding = await _context.BreedingEvents
+            .Where(breeding =>
+                breeding.AnimalId == animal.AnimalId
+                && breeding.BreedingDate <= calving.CalvingDate)
+            .OrderByDescending(breeding => breeding.BreedingDate)
+            .ThenByDescending(breeding => breeding.BreedingEventId)
+            .FirstOrDefaultAsync();
+        var linkedEmbryo = completedBreeding == null
+            ? null
+            : await _context.EmbryoRecords.FirstOrDefaultAsync(embryo =>
+                embryo.BreedingEventId == completedBreeding.BreedingEventId);
+
         if (
             !calving.Stillborn &&
             calving.CalfAnimalId == null &&
@@ -95,11 +107,12 @@ public class CalvingEventsController : ControllerBase
                 },
                 AnimalStage = AnimalStage.Calf,
                 AnimalStatus = AnimalStatus.Active,
-                SireName = request.CalfSireName,
-                DamId = animal.AnimalId,
-                DamName = !string.IsNullOrWhiteSpace(request.CalfDamName)
-                    ? request.CalfDamName
-                    : animal.RegisteredName ?? animal.BarnName,
+                SireName = linkedEmbryo?.Sire ?? request.CalfSireName,
+                DamId = linkedEmbryo?.DonorAnimalId ?? animal.AnimalId,
+                DamName = linkedEmbryo?.Donor
+                    ?? (!string.IsNullOrWhiteSpace(request.CalfDamName)
+                        ? request.CalfDamName
+                        : animal.RegisteredName ?? animal.BarnName),
                 Breed = animal.Breed,
                 CreatedBy = calving.CreatedBy,
                 UpdatedBy = calving.CreatedBy
@@ -114,27 +127,16 @@ public class CalvingEventsController : ControllerBase
 
         animal.AnimalStage = AnimalStage.Milking;
 
-        var completedBreeding = await _context.BreedingEvents
-            .Where(breeding =>
-                breeding.AnimalId == animal.AnimalId
-                && breeding.BreedingDate <= calving.CalvingDate)
-            .OrderByDescending(breeding => breeding.BreedingDate)
-            .ThenByDescending(breeding => breeding.BreedingEventId)
-            .FirstOrDefaultAsync();
         if (completedBreeding != null)
         {
             ReproductiveEventRules.CompleteByCalving(
                 completedBreeding,
                 calving.CalvingDate);
-            var linkedEmbryo = await _context.EmbryoRecords
-                .FirstOrDefaultAsync(embryo =>
-                    embryo.BreedingEventId
-                        == completedBreeding.BreedingEventId);
             if (linkedEmbryo != null)
             {
-                ReproductiveEventRules.SynchronizeEmbryoOutcome(
+                ReproductiveEventRules.CompleteEmbryoByCalving(
                     linkedEmbryo,
-                    PregnancyStatus.Pregnant);
+                    calving.CalvingDate);
             }
         }
 
@@ -191,6 +193,59 @@ public class CalvingEventsController : ControllerBase
             });
     }
 
+    [HttpPost("{calvingEventId:int}/photo")]
+    public async Task<IActionResult> AttachPhoto(
+        int calvingEventId,
+        [FromBody] AttachCalvingPhotoRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PictureUrl))
+        {
+            return BadRequest("A photo URL is required.");
+        }
+
+        var calving = await _context.CalvingEvents
+            .FirstOrDefaultAsync(value => value.CalvingEventId == calvingEventId);
+        if (calving == null)
+        {
+            return NotFound();
+        }
+
+        calving.PictureUrl = request.PictureUrl.Trim();
+        calving.UpdatedAt = DateTime.UtcNow;
+        calving.UpdatedBy = request.UpdatedBy;
+
+        if (!await _context.AnimalPhotos.AnyAsync(photo =>
+                photo.RelatedEventId == calvingEventId
+                && photo.RelatedEventType == nameof(CalvingEvent)
+                && photo.PhotoUrl == calving.PictureUrl))
+        {
+            _context.AnimalPhotos.Add(new AnimalPhoto
+            {
+                AnimalId = calving.AnimalId,
+                PhotoUrl = calving.PictureUrl,
+                PhotoType = AnimalPhotoType.Calving,
+                RelatedEventId = calvingEventId,
+                RelatedEventType = nameof(CalvingEvent),
+                Caption = "Calving event photo",
+                CreatedBy = request.UpdatedBy
+            });
+        }
+
+        if (calving.CalfAnimalId is int calfAnimalId)
+        {
+            var calf = await _context.Animals.FindAsync(calfAnimalId);
+            if (calf != null && string.IsNullOrWhiteSpace(calf.ProfilePictureUrl))
+            {
+                calf.ProfilePictureUrl = calving.PictureUrl;
+                calf.UpdatedAt = DateTime.UtcNow;
+                calf.UpdatedBy = request.UpdatedBy;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
     [HttpPut("{calvingEventId}")]
     public async Task<IActionResult> Update(
         int calvingEventId,
@@ -237,6 +292,12 @@ public class CalvingEventsController : ControllerBase
 
         return NoContent();
     }
+}
+
+public sealed class AttachCalvingPhotoRequest
+{
+    public string PictureUrl { get; set; } = string.Empty;
+    public string? UpdatedBy { get; set; }
 }
 
 public class CreateCalvingEventRequest

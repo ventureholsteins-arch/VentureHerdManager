@@ -122,7 +122,8 @@ public sealed class PaperRecordImportService
         foreach (var row in breedingRows)
         {
             var name = row.Get("Animal Name");
-            if (Normalize(name) == "pixie")
+            if (Normalize(name) == "pixie"
+                && !row.Get("Notes").Contains("Owner confirmed", StringComparison.OrdinalIgnoreCase))
             {
                 report.IgnoredRows.Add(
                     "Pixie breeding row was intentionally ignored for manual correction.");

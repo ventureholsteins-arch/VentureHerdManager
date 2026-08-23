@@ -470,7 +470,7 @@ async function openReportSection(section: ReportSection) {
 
         <button
           v-for="item in dashboard.embryoImplants"
-          :key="item.heatEventId"
+          :key="item.embryoRecordId ? `embryo-${item.embryoRecordId}` : `heat-${item.heatEventId}`"
           class="event-row"
           @click="openAnimal(item.animalId)"
         >
@@ -479,14 +479,14 @@ async function openReportSection(section: ReportSection) {
           <div class="event-content">
             <strong>{{ item.animalName }}</strong>
 
-            <small>
-              Heat on {{ formatDate(item.heatDateTime) }}
-            </small>
-
-            <p>
-              Implant day {{ 7 - item.daysTracked }} of 7
-              - {{ item.daysUntilImplant }} {{ item.daysUntilImplant === 1 ? 'day' : 'days' }} to implant
-            </p>
+            <template v-if="item.trackingType === 'PregCheckUpcoming'">
+              <small>Implanted {{ formatDate(item.embryoImplantDate) }}</small>
+              <p>{{ item.mating || `${item.donor || 'Unknown donor'} × ${item.sire || 'Unknown sire'}` }} · Preg check upcoming</p>
+            </template>
+            <template v-else>
+              <small>Heat on {{ formatDate(item.heatDateTime) }}</small>
+              <p>Needs implant · {{ item.daysUntilImplant }} {{ item.daysUntilImplant === 1 ? 'day' : 'days' }} to planned transfer</p>
+            </template>
           </div>
 
           <span class="arrow">></span>

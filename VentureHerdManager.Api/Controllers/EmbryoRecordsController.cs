@@ -23,11 +23,37 @@ public class EmbryoRecordsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<EmbryoRecord>>> GetAll()
+    public async Task<ActionResult<List<EmbryoRecordListItem>>> GetAll()
     {
         return await _context.EmbryoRecords
             .AsNoTracking()
             .OrderByDescending(e => e.CreatedAt)
+            .Select(e => new EmbryoRecordListItem
+            {
+                EmbryoRecordId = e.EmbryoRecordId,
+                Code = e.Code,
+                Sire = e.Sire,
+                Donor = e.Donor,
+                Mating = e.Mating,
+                DonorAnimalId = e.DonorAnimalId,
+                Grade = e.Grade,
+                GroupName = e.GroupName,
+                Status = e.Status,
+                RecipientAnimalId = e.RecipientAnimalId,
+                RecipientName = e.RecipientAnimal == null ? null : e.RecipientAnimal.BarnName ?? e.RecipientAnimal.RegisteredName,
+                ImplantDate = e.ImplantDate,
+                BreedingEventId = e.BreedingEventId,
+                PregnancyStatus = e.BreedingEvent == null ? null : e.BreedingEvent.PregnancyStatus,
+                PregnancyCheckDate = e.BreedingEvent == null ? null : e.BreedingEvent.PregnancyCheckDate,
+                PregnancyCheckDueDate = e.BreedingEvent == null ? null : e.BreedingEvent.PregnancyCheckDueDate,
+                LinkedBreedingNote = e.LinkedBreedingNote,
+                FailureNotes = e.FailureNotes,
+                Notes = e.Notes,
+                CollectionLocation = e.CollectionLocation,
+                StorageLocation = e.StorageLocation,
+                CreatedAt = e.CreatedAt,
+                UpdatedAt = e.UpdatedAt
+            })
             .ToListAsync();
     }
 
@@ -637,4 +663,31 @@ public class SetEmbryoGroupRequest
 {
     public List<int> EmbryoRecordIds { get; set; } = [];
     public string? GroupName { get; set; }
+}
+
+public sealed class EmbryoRecordListItem
+{
+    public int EmbryoRecordId { get; set; }
+    public string? Code { get; set; }
+    public string? Sire { get; set; }
+    public string? Donor { get; set; }
+    public string? Mating { get; set; }
+    public int? DonorAnimalId { get; set; }
+    public string? Grade { get; set; }
+    public string? GroupName { get; set; }
+    public EmbryoStatus Status { get; set; }
+    public int? RecipientAnimalId { get; set; }
+    public string? RecipientName { get; set; }
+    public DateOnly? ImplantDate { get; set; }
+    public int? BreedingEventId { get; set; }
+    public PregnancyStatus? PregnancyStatus { get; set; }
+    public DateTime? PregnancyCheckDate { get; set; }
+    public DateTime? PregnancyCheckDueDate { get; set; }
+    public string? LinkedBreedingNote { get; set; }
+    public string? FailureNotes { get; set; }
+    public string? Notes { get; set; }
+    public string? CollectionLocation { get; set; }
+    public string? StorageLocation { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }

@@ -11,10 +11,14 @@ export interface EmbryoRecord {
   donorAnimalId?: number | null
   grade: string | null
   groupName?: string | null
-  status: 0 | 1 | 2 | 3 | 4
+  status: 0 | 1 | 2 | 3 | 4 | 5
   recipientAnimalId: number | null
+  recipientName?: string | null
   implantDate: string | null
   breedingEventId?: number | null
+  pregnancyStatus?: number | null
+  pregnancyCheckDate?: string | null
+  pregnancyCheckDueDate?: string | null
   linkedBreedingNote: string | null
   failureNotes: string | null
   notes: string | null
@@ -30,6 +34,7 @@ export const EMBRYO_STATUS_LABELS: Record<number, string> = {
   2: 'Implanted',
   3: 'Failed',
   4: 'Confirmed Pregnant',
+  5: 'Calved / Completed',
 }
 
 export async function getAllEmbryos(): Promise<EmbryoRecord[]> {

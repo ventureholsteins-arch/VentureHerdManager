@@ -94,6 +94,19 @@ public static class ReproductiveEventRules
         breeding.UpdatedAt = DateTime.UtcNow;
     }
 
+    public static void CompleteEmbryoByCalving(
+        EmbryoRecord embryo,
+        DateTime calvingDate)
+    {
+        embryo.Status = EmbryoStatus.Completed;
+        embryo.FailureNotes = null;
+        embryo.LinkedBreedingNote = AppendNote(
+            embryo.LinkedBreedingNote,
+            $"Successful implant completed by calving on {calvingDate:d}.");
+        embryo.UpdatedBy = "Calving workflow";
+        embryo.UpdatedAt = DateTime.UtcNow;
+    }
+
     public static async Task ClosePriorServiceAsync(
         Data.ApplicationDbContext context,
         int animalId,

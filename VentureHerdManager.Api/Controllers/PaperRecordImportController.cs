@@ -9,24 +9,31 @@ public sealed class PaperRecordImportController : ControllerBase
 {
     private readonly PaperRecordImportService _service;
     private readonly IConfiguration _configuration;
+    private readonly HerdDataAdminAccess _admin;
 
     public PaperRecordImportController(
         PaperRecordImportService service,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        HerdDataAdminAccess admin)
     {
         _service = service;
         _configuration = configuration;
+        _admin = admin;
     }
 
     [HttpPost("preview")]
     public async Task<ActionResult<PaperImportReport>> Preview(
-        CancellationToken cancellationToken) =>
-        await _service.ReconcileAsync(null, false, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (!_admin.IsAuthorized(Request)) return Unauthorized();
+        return await _service.ReconcileAsync(null, false, cancellationToken);
+    }
 
     [HttpPost("apply")]
     public async Task<ActionResult<PaperImportReport>> Apply(
         CancellationToken cancellationToken)
     {
+        if (!_admin.IsAuthorized(Request)) return Unauthorized();
         if (!_configuration.GetValue<bool>("PaperRecordImport:AllowApply"))
         {
             return StatusCode(

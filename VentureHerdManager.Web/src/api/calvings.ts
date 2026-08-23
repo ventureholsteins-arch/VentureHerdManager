@@ -37,7 +37,7 @@ export async function recordCalving(
   stillborn: boolean,
   notes: string,
   pictureUrl?: string | null
-): Promise<void> {
+): Promise<{ calvingEventId: number; calfAnimalId?: number }> {
   const response = await fetch(`${API_BASE}/CalvingEvents`, {
     method: 'POST',
     headers: {
@@ -64,6 +64,16 @@ export async function recordCalving(
     const details = await response.text()
     throw new Error(details || `Failed to record calving (${response.status})`)
   }
+  return response.json()
+}
+
+export async function attachCalvingPhoto(calvingEventId: number, pictureUrl: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/CalvingEvents/${calvingEventId}/photo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pictureUrl, updatedBy: 'Austin' })
+  })
+  if (!response.ok) throw new Error(await response.text() || 'Calving saved, but photo linking failed.')
 }
 
 export async function updateCalvingEvent(

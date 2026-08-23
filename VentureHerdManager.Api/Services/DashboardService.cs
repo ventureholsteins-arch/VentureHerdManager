@@ -346,13 +346,16 @@ public class DashboardService
         Dictionary<int, string> animalNameDict)
     {
         var trackingStart = today.AddDays(-embryoTrackingDays);
-
-        var items = await (
+        var planned = await (
             from heat in _context.HeatEvents.AsNoTracking()
             where
                 heat.HasEmbryoTransfer
                 && heat.HeatDateTime.Date >= trackingStart
                 && heat.HeatDateTime.Date <= today
+                && !_context.EmbryoRecords.Any(embryo =>
+                    embryo.RecipientAnimalId == heat.AnimalId
+                    && embryo.ImplantDate.HasValue
+                    && embryo.ImplantDate.Value >= DateOnly.FromDateTime(heat.HeatDateTime))
             orderby heat.HeatDateTime descending
             select new
             {
@@ -370,10 +373,12 @@ public class DashboardService
             })
             .ToListAsync();
 
-        return items
+        var result = planned
             .Select(item => new
             {
+                TrackingType = "NeedsImplant",
                 item.HeatEventId,
+                EmbryoRecordId = (int?)null,
                 item.AnimalId,
                 AnimalName = GetAnimalName(
                     item.AnimalId,
@@ -384,6 +389,46 @@ public class DashboardService
                 item.DaysUntilImplant
             } as dynamic)
             .ToList();
+
+        var awaitingResult = await _context.EmbryoRecords
+            .AsNoTracking()
+            .Where(embryo =>
+                embryo.ImplantDate.HasValue
+                && embryo.RecipientAnimalId.HasValue
+                && embryo.Status == EmbryoStatus.Implanted)
+            .OrderBy(embryo => embryo.ImplantDate)
+            .Select(embryo => new
+            {
+                embryo.EmbryoRecordId,
+                AnimalId = embryo.RecipientAnimalId!.Value,
+                embryo.ImplantDate,
+                embryo.Code,
+                embryo.Donor,
+                embryo.Sire,
+                embryo.Mating,
+                embryo.BreedingEventId
+            })
+            .ToListAsync();
+
+        result.AddRange(awaitingResult.Select(item => new
+        {
+            TrackingType = "PregCheckUpcoming",
+            HeatEventId = (int?)null,
+            EmbryoRecordId = (int?)item.EmbryoRecordId,
+            item.AnimalId,
+            AnimalName = GetAnimalName(item.AnimalId, animalNameDict),
+            HeatDateTime = (DateTime?)null,
+            EmbryoImplantDate = item.ImplantDate,
+            DaysTracked = (today - item.ImplantDate!.Value.ToDateTime(TimeOnly.MinValue)).Days,
+            DaysUntilImplant = 0,
+            item.Code,
+            item.Donor,
+            item.Sire,
+            item.Mating,
+            item.BreedingEventId
+        } as dynamic));
+
+        return result;
     }
 
     private async Task<List<dynamic>> GetRecentHeatsAsync(

@@ -89,9 +89,13 @@ export interface EmbryoRecord {
   mating: string
   groupName: string
   grade: string
-  status: 'In Storage' | 'Assigned' | 'Implanted' | 'Failed' | 'Confirmed Pregnant'
+  status: 'In Storage' | 'Assigned' | 'Implanted' | 'Failed' | 'Confirmed Pregnant' | 'Calved / Completed'
   recipientAnimalId: number | null
+  recipientName?: string | null
   implantDate: string
+  pregnancyStatus?: number | null
+  pregnancyCheckDate?: string | null
+  pregnancyCheckDueDate?: string | null
   linkedBreedingNote: string
   failureNotes: string
   notes: string
@@ -420,6 +424,7 @@ function statusFromApi(status: ApiEmbryoRecord['status']): EmbryoRecord['status'
   if (status === 2) return 'Implanted'
   if (status === 3) return 'Failed'
   if (status === 4) return 'Confirmed Pregnant'
+  if (status === 5) return 'Calved / Completed'
   return 'In Storage'
 }
 
@@ -428,6 +433,7 @@ function statusToApi(status: EmbryoRecord['status']): ApiEmbryoRecord['status'] 
   if (status === 'Implanted') return 2
   if (status === 'Failed') return 3
   if (status === 'Confirmed Pregnant') return 4
+  if (status === 'Calved / Completed') return 5
   return 0
 }
 
@@ -446,7 +452,12 @@ function embryoFromApi(record: ApiEmbryoRecord): EmbryoRecord {
     grade: record.grade ?? '',
     status: statusFromApi(record.status),
     recipientAnimalId: record.recipientAnimalId,
+    recipientName: record.recipientName ?? null,
     implantDate: record.implantDate ?? '',
+    breedingEventId: record.breedingEventId ?? null,
+    pregnancyStatus: record.pregnancyStatus ?? null,
+    pregnancyCheckDate: record.pregnancyCheckDate ?? null,
+    pregnancyCheckDueDate: record.pregnancyCheckDueDate ?? null,
     linkedBreedingNote: record.linkedBreedingNote ?? '',
     failureNotes: record.failureNotes ?? '',
     notes: record.notes ?? '',
@@ -831,6 +842,7 @@ const embryosActive = computed(() =>
         || record.status === 'Implanted'
         || record.status === 'Failed'
         || record.status === 'Confirmed Pregnant'
+        || record.status === 'Calved / Completed'
 
       return (record.status === 'In Storage' || record.status === 'Assigned')
         && !hasImplantHistory
@@ -872,7 +884,8 @@ const embryosWithImplants = computed(() =>
       || Boolean(record.breedingEventId)
       || record.status === 'Implanted'
       || record.status === 'Failed'
-      || record.status === 'Confirmed Pregnant')
+      || record.status === 'Confirmed Pregnant'
+      || record.status === 'Calved / Completed')
     .sort((left, right) => (right.implantDate || '').localeCompare(left.implantDate || ''))
 )
 const hasNoAnimals = computed(() => animals.value.length === 0)
@@ -2019,7 +2032,7 @@ watch(activeTab, tab => {
             <span class="as-val">{{ embryoImplantsData.totals.totalSuccessful }}</span>
           </div>
           <div class="as-stat">
-            <span class="as-label">Failed / Stuck</span>
+            <span class="as-label">Failed / Did Not Stick</span>
             <span class="as-val">{{ embryoImplantsData.totals.totalFailed }}</span>
           </div>
           <div class="as-stat">
@@ -2056,12 +2069,24 @@ watch(activeTab, tab => {
           <div v-if="embryosWithImplants.length === 0" class="rp-empty">No implant records were returned. Implant an embryo from Inventory, then refresh.</div>
           <article v-for="record in embryosWithImplants" :key="`implant-${record.id}`" class="implant-record-card">
             <div>
+              <small>Embryo / mating</small>
               <strong>{{ record.code || record.mating || `${record.donor || 'Unknown donor'} × ${record.sire || 'Unknown sire'}` }}</strong>
-              <span>{{ record.implantDate }} · {{ record.status }}</span>
+              <span>{{ record.implantDate || 'Date not recorded' }} · {{ record.status }}</span>
             </div>
             <div>
               <small>Recipient</small>
-              <strong>{{ record.recipientAnimalId ? getAnimalLabel(record.recipientAnimalId) : 'Not linked' }}</strong>
+              <strong>{{ record.recipientName || (record.recipientAnimalId ? getAnimalLabel(record.recipientAnimalId) : 'Not linked') }}</strong>
+            </div>
+            <div>
+              <small>Donor × sire</small>
+              <strong>{{ record.donor || 'Unknown donor' }} × {{ record.sire || 'Unknown sire' }}</strong>
+            </div>
+            <div>
+              <small>Pregnancy follow-up</small>
+              <strong v-if="record.pregnancyCheckDate">Checked {{ record.pregnancyCheckDate }}</strong>
+              <strong v-else-if="record.pregnancyCheckDueDate">Due {{ record.pregnancyCheckDueDate }}</strong>
+              <strong v-else>Not scheduled</strong>
+              <span v-if="record.breedingEventId">Breeding record #{{ record.breedingEventId }}</span>
             </div>
             <div>
               <small>Group / grade</small>

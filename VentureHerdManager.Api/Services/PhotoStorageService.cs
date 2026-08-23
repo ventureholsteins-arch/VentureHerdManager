@@ -50,9 +50,20 @@ public class PhotoStorageService : IPhotoStorageService
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
-                Console.WriteLine(
-                    $"Blob photo upload unavailable; using local storage. {ex.Message}");
+                if (_environment.IsProduction())
+                {
+                    throw new InvalidOperationException(
+                        "Photo storage is unavailable. The herd record was not affected; retry the photo after Blob Storage is restored.",
+                        ex);
+                }
+                Console.WriteLine($"Blob photo upload unavailable; using local development storage. {ex.Message}");
             }
+        }
+
+        if (_environment.IsProduction())
+        {
+            throw new InvalidOperationException(
+                "BlobStorage:ConnectionString is not configured. Production photo uploads cannot use temporary local storage.");
         }
 
         return await UploadToLocalAsync(

@@ -149,7 +149,7 @@ public class AnalyticsController : ControllerBase
         // Get monthly embryos with a confirmed pregnancy outcome.
         var successfulPregnancies = (await _context.EmbryoRecords
             .AsNoTracking()
-            .Where(e => e.Status == EmbryoStatus.Successful && e.ImplantDate.HasValue)
+            .Where(e => (e.Status == EmbryoStatus.Successful || e.Status == EmbryoStatus.Completed) && e.ImplantDate.HasValue)
             .GroupBy(e => new { e.ImplantDate!.Value.Year, e.ImplantDate!.Value.Month })
             .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
             .ToListAsync(cancellationToken))
@@ -178,8 +178,10 @@ public class AnalyticsController : ControllerBase
         var totalImplanted = implanted.Sum(i => i.Count);
         var totalFailed = failed.Sum(f => f.Count);
         var totalSuccessful = successfulPregnancies.Sum(s => s.Count);
-        var successRate = totalImplanted > 0
-            ? Math.Round((double)totalSuccessful / totalImplanted * 100, 1)
+        var resolvedImplants = totalSuccessful + totalFailed;
+        var waitingForPregCheck = Math.Max(0, totalImplanted - resolvedImplants);
+        var successRate = resolvedImplants > 0
+            ? Math.Round((double)totalSuccessful / resolvedImplants * 100, 1)
             : 0.0;
 
         return Ok(new
@@ -190,7 +192,11 @@ public class AnalyticsController : ControllerBase
                 totalImplanted,
                 totalFailed,
                 totalSuccessful,
-                successRatePct = successRate
+                waitingForPregCheck,
+                successRatePct = successRate,
+                failureRatePct = resolvedImplants > 0
+                    ? Math.Round((double)totalFailed / resolvedImplants * 100, 1)
+                    : 0.0
             }
         });
     }

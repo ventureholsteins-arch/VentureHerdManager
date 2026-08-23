@@ -109,6 +109,15 @@ public class DemoController : ControllerBase
 
         await SafeDbStep("AnimalPhotos delete", () => _context.AnimalPhotos.ExecuteDeleteAsync(cancellationToken));
         await SafeDbStep("AnimalNotes delete", () => _context.AnimalNotes.ExecuteDeleteAsync(cancellationToken));
+        var demoAnimalIds = _context.Animals.Select(animal => animal.AnimalId);
+        await SafeDbStep("LifetimeProductionSnapshots delete", () => _context.LifetimeProductionSnapshots.Where(value => demoAnimalIds.Contains(value.AnimalId)).ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("AnimalDataRecords delete", () => _context.AnimalDataRecords.Where(value => demoAnimalIds.Contains(value.AnimalId)).ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("AnimalIdentityMappings delete", () => _context.AnimalIdentityMappings.Where(value => demoAnimalIds.Contains(value.AnimalId)).ExecuteDeleteAsync(cancellationToken));
+        await SafeDbStep("HerdDataImports delete", () => _context.HerdDataImports
+            .Where(value => value.FileName.StartsWith("demo-")
+                && !value.Records.Any()
+                && !value.LifetimeProductionSnapshots.Any())
+            .ExecuteDeleteAsync(cancellationToken));
         await SafeDbStep("ClassificationRecords delete", () => _context.ClassificationRecords.ExecuteDeleteAsync(cancellationToken));
         await SafeDbStep("ShowAchievements delete", () => _context.ShowAchievements.ExecuteDeleteAsync(cancellationToken));
         await SafeDbStep("EmbryoRecords delete", () => _context.EmbryoRecords.ExecuteDeleteAsync(cancellationToken));
@@ -135,6 +144,9 @@ public class DemoController : ControllerBase
         var utcNow = DateTime.UtcNow;
         const string seedUser = "DemoSeeder";
         var random = new Random(20260724);
+
+        static string DemoImportHash(string value) =>
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 
         static string MakeRegistration(string prefix, int number) => $"{prefix}-{number:000}";
 
@@ -689,6 +701,132 @@ public class DemoController : ControllerBase
         _context.EmbryoRecords.AddRange(embryoRecords);
         _context.ShowAchievements.AddRange(showAchievements);
         _context.ClassificationRecords.AddRange(classificationRecords);
+
+        // Fictional dairy records let the demo show the complete PC-DART and
+        // genomic workflow without implying that these are real evaluations.
+        var reportDate = DateOnly.FromDateTime(utcNow);
+        var pcdartImport = new HerdDataImport
+        {
+            Source = HerdDataSource.Pcdart,
+            FileName = "demo-pcdart-test-day.csv",
+            FileHash = DemoImportHash($"demo-pcdart-{_demoSessionContext.SessionId}-{reportDate:yyyyMMdd}"),
+            ReportDate = reportDate,
+            RowsImported = 4,
+            ImportedAt = utcNow
+        };
+        var genomicImport = new HerdDataImport
+        {
+            Source = HerdDataSource.Zoetis,
+            FileName = "demo-zoetis-genomics.csv",
+            FileHash = DemoImportHash($"demo-genomics-{_demoSessionContext.SessionId}-{reportDate:yyyyMMdd}"),
+            ReportDate = reportDate,
+            RowsImported = 4,
+            ImportedAt = utcNow
+        };
+        _context.HerdDataImports.AddRange(pcdartImport, genomicImport);
+
+        var dairyRecords = new[]
+        {
+            (Animal: aurora, Dim: 148, Milk: 96.4m, Fat: 4.1m, Protein: 3.3m, Scc: 1.9m, LifetimeMilk: 82450m, Lactations: 3),
+            (Animal: nova, Dim: 203, Milk: 72.8m, Fat: 5.0m, Protein: 3.8m, Scc: 2.2m, LifetimeMilk: 61780m, Lactations: 3),
+            (Animal: ember, Dim: 91, Milk: 67.2m, Fat: 4.3m, Protein: 3.5m, Scc: 1.8m, LifetimeMilk: 45520m, Lactations: 2),
+            (Animal: willow, Dim: 236, Milk: 81.6m, Fat: 4.0m, Protein: 3.2m, Scc: 2.0m, LifetimeMilk: 70810m, Lactations: 3)
+        };
+        foreach (var item in dairyRecords)
+        {
+            _context.AnimalDataRecords.Add(new AnimalDataRecord
+            {
+                Import = pcdartImport,
+                AnimalId = item.Animal.AnimalId,
+                Source = HerdDataSource.Pcdart,
+                ReportDate = reportDate,
+                SourceAnimalId = item.Animal.RegistrationNumber ?? $"DEMO-{item.Animal.AnimalId}",
+                SourceAnimalName = item.Animal.BarnName ?? item.Animal.RegisteredName ?? "Demo animal",
+                OfficialId = item.Animal.RegistrationNumber,
+                DaysInMilk = item.Dim,
+                Milk = item.Milk,
+                FatPercent = item.Fat,
+                ProteinPercent = item.Protein,
+                SomaticCellScore = item.Scc,
+                LastCalvingDate = reportDate.AddDays(-item.Dim),
+                RawDataJson = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object?>
+                {
+                    ["DIM"] = item.Dim, ["Milk"] = item.Milk, ["Fat %"] = item.Fat,
+                    ["Protein %"] = item.Protein, ["SCS"] = item.Scc, ["Demo data"] = true
+                }),
+                CreatedAt = utcNow
+            });
+            _context.LifetimeProductionSnapshots.Add(new LifetimeProductionSnapshot
+            {
+                AnimalId = item.Animal.AnimalId,
+                Import = pcdartImport,
+                ReportDate = reportDate,
+                LifetimeMilk = item.LifetimeMilk,
+                LifetimeFat = Math.Round(item.LifetimeMilk * item.Fat / 100m, 0),
+                LifetimeProtein = Math.Round(item.LifetimeMilk * item.Protein / 100m, 0),
+                Lactations = item.Lactations,
+                SourceFileName = pcdartImport.FileName,
+                CreatedAt = utcNow
+            });
+        }
+
+        var genomicRecords = new[]
+        {
+            (Animal: aurora, Tpi: 2914, Nm: 742, Milk: 1180, Fat: 71, Protein: 48, Dpr: 1.2m, Pl: 4.8m, Type: 2.15m, Udc: 1.92m, Flc: 1.34m),
+            (Animal: clover, Tpi: 3048, Nm: 856, Milk: 1510, Fat: 83, Protein: 57, Dpr: 1.8m, Pl: 5.6m, Type: 2.42m, Udc: 2.21m, Flc: 1.61m),
+            (Animal: demoCalf, Tpi: 2972, Nm: 801, Milk: 1375, Fat: 78, Protein: 51, Dpr: 1.5m, Pl: 5.2m, Type: 2.31m, Udc: 2.08m, Flc: 1.48m),
+            (Animal: daisy, Tpi: 2836, Nm: 681, Milk: 960, Fat: 62, Protein: 42, Dpr: 0.9m, Pl: 4.1m, Type: 1.88m, Udc: 1.73m, Flc: 1.19m)
+        };
+        foreach (var item in genomicRecords)
+        {
+            var raw = new Dictionary<string, object?>
+            {
+                ["TPI"] = item.Tpi, ["NM$"] = item.Nm, ["MILK"] = item.Milk,
+                ["FAT"] = item.Fat, ["PROT"] = item.Protein, ["DPR"] = item.Dpr,
+                ["PL"] = item.Pl, ["TYPE FS"] = item.Type, ["UDC"] = item.Udc,
+                ["FLC"] = item.Flc, ["DWP$"] = item.Nm + 95, ["CA$"] = 42,
+                ["Official ID"] = item.Animal.RegistrationNumber ?? $"DEMO-{item.Animal.AnimalId}",
+                ["Breed"] = item.Animal.Breed, ["Result Type"] = "CLARIFIDE Plus (fictional demo)",
+                ["Evaluation Date"] = reportDate.ToString("MM/dd/yyyy"),
+                ["Parentage Status"] = "Demo parentage verified",
+                ["ST"] = 1.2m, ["SG"] = 0.8m, ["BD"] = 0.6m, ["DF"] = 1.4m,
+                ["RA"] = -0.2m, ["RW"] = 0.9m, ["LS"] = -0.4m, ["LR"] = 0.7m,
+                ["FA"] = 1.1m, ["FLS"] = item.Flc, ["FU"] = 1.8m, ["UH"] = 2.0m,
+                ["UW"] = 1.5m, ["UC"] = 1.3m, ["UD"] = 1.7m, ["FT"] = 0.5m,
+                ["RT"] = 0.4m, ["TL"] = -0.1m, ["Demo data"] = true
+            };
+            _context.AnimalDataRecords.Add(new AnimalDataRecord
+            {
+                Import = genomicImport,
+                AnimalId = item.Animal.AnimalId,
+                Source = HerdDataSource.Zoetis,
+                ReportDate = reportDate,
+                SourceAnimalId = item.Animal.RegistrationNumber ?? $"DEMO-{item.Animal.AnimalId}",
+                SourceAnimalName = item.Animal.BarnName ?? item.Animal.RegisteredName ?? "Demo animal",
+                OfficialId = item.Animal.RegistrationNumber,
+                Tpi = item.Tpi,
+                NetMerit = item.Nm,
+                MilkPta = item.Milk,
+                FatPta = item.Fat,
+                ProteinPta = item.Protein,
+                DaughterPregnancyRate = item.Dpr,
+                ProductiveLife = item.Pl,
+                TypeScore = item.Type,
+                UdderComposite = item.Udc,
+                FeetLegsComposite = item.Flc,
+                SomaticCellScore = 2.72m,
+                RawDataJson = System.Text.Json.JsonSerializer.Serialize(raw),
+                CreatedAt = utcNow
+            });
+            _context.AnimalIdentityMappings.Add(new AnimalIdentityMapping
+            {
+                Source = HerdDataSource.Zoetis,
+                SourceKey = $"{_demoSessionContext.SessionId}:{item.Animal.RegistrationNumber ?? $"DEMO-{item.Animal.AnimalId}"}",
+                SourceLabel = item.Animal.BarnName ?? item.Animal.RegisteredName ?? "Demo animal",
+                AnimalId = item.Animal.AnimalId,
+                ConfirmedAt = utcNow
+            });
+        }
 
         _context.AnimalNotes.Add(new AnimalNote
         {

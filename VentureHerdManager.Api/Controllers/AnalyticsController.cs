@@ -125,13 +125,15 @@ public class AnalyticsController : ControllerBase
         [FromQuery] int months = 12,
         CancellationToken cancellationToken = default)
     {
+        months = Math.Clamp(months, 1, 60);
         var cutoff = DateTime.Today.AddMonths(-months + 1);
         var cutoffStart = new DateTime(cutoff.Year, cutoff.Month, 1);
+        var cutoffDate = DateOnly.FromDateTime(cutoffStart);
 
         // Inventory records are the source of truth for embryo transfers.
         var implanted = (await _context.EmbryoRecords
             .AsNoTracking()
-            .Where(e => e.ImplantDate.HasValue)
+            .Where(e => e.ImplantDate.HasValue && e.ImplantDate >= cutoffDate)
             .GroupBy(e => new { e.ImplantDate!.Value.Year, e.ImplantDate!.Value.Month })
             .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
             .ToListAsync(cancellationToken))
@@ -140,7 +142,9 @@ public class AnalyticsController : ControllerBase
         // Get monthly embryos marked as failed
         var failed = (await _context.EmbryoRecords
             .AsNoTracking()
-            .Where(e => e.Status == EmbryoStatus.Failed && e.ImplantDate.HasValue)
+            .Where(e => e.Status == EmbryoStatus.Failed
+                && e.ImplantDate.HasValue
+                && e.ImplantDate >= cutoffDate)
             .GroupBy(e => new { e.ImplantDate!.Value.Year, e.ImplantDate!.Value.Month })
             .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
             .ToListAsync(cancellationToken))
@@ -149,7 +153,9 @@ public class AnalyticsController : ControllerBase
         // Get monthly embryos with a confirmed pregnancy outcome.
         var successfulPregnancies = (await _context.EmbryoRecords
             .AsNoTracking()
-            .Where(e => (e.Status == EmbryoStatus.Successful || e.Status == EmbryoStatus.Completed) && e.ImplantDate.HasValue)
+            .Where(e => (e.Status == EmbryoStatus.Successful || e.Status == EmbryoStatus.Completed)
+                && e.ImplantDate.HasValue
+                && e.ImplantDate >= cutoffDate)
             .GroupBy(e => new { e.ImplantDate!.Value.Year, e.ImplantDate!.Value.Month })
             .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
             .ToListAsync(cancellationToken))
@@ -192,10 +198,14 @@ public class AnalyticsController : ControllerBase
                 totalImplanted,
                 totalFailed,
                 totalSuccessful,
+                resolvedImplants,
                 waitingForPregCheck,
                 successRatePct = successRate,
                 failureRatePct = resolvedImplants > 0
                     ? Math.Round((double)totalFailed / resolvedImplants * 100, 1)
+                    : 0.0,
+                outcomeRecordedPct = totalImplanted > 0
+                    ? Math.Round((double)resolvedImplants / totalImplanted * 100, 1)
                     : 0.0
             }
         });

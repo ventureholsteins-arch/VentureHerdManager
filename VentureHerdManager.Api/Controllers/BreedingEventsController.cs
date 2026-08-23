@@ -95,9 +95,15 @@ public class BreedingEventsController : ControllerBase
     }
 
     [HttpPut("{breedingEventId}/pregnancy-status")]
-    public async Task<IActionResult> UpdatePregnancyStatus(
+    public Task<IActionResult> UpdatePregnancyStatus(
         int breedingEventId,
-        [FromBody] PregnancyStatus status)
+        [FromBody] PregnancyStatus status) =>
+        ExecuteWithRetryAsync(() =>
+            UpdatePregnancyStatusCore(breedingEventId, status));
+
+    private async Task<IActionResult> UpdatePregnancyStatusCore(
+        int breedingEventId,
+        PregnancyStatus status)
     {
         var breeding = await _context.BreedingEvents
             .FirstOrDefaultAsync(b => b.BreedingEventId == breedingEventId);
@@ -159,6 +165,19 @@ public class BreedingEventsController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    private Task<IActionResult> ExecuteWithRetryAsync(
+        Func<Task<IActionResult>> operation)
+    {
+        if (!_context.Database.IsRelational())
+        {
+            return operation();
+        }
+
+        return _context.Database
+            .CreateExecutionStrategy()
+            .ExecuteAsync(operation);
     }
 
     [HttpPut("{breedingEventId}")]

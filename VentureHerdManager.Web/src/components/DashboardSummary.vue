@@ -573,7 +573,7 @@ async function openReportSection(section: ReportSection) {
         </div>
 
         <button
-          v-for="breeding in dashboard.recentBreedings"
+          v-for="breeding in visibleItems(dashboard.recentBreedings, 'recentBreedings')"
           :key="breeding.breedingEventId"
           class="event-row"
           @click="openAnimal(breeding.animalId)"
@@ -596,6 +596,15 @@ async function openReportSection(section: ReportSection) {
           </div>
 
           <span class="arrow">></span>
+        </button>
+
+        <button
+          v-if="(dashboard.recentBreedings?.length ?? 0) > 6"
+          type="button"
+          class="list-toggle"
+          @click="toggleList('recentBreedings')"
+        >
+          {{ expandedLists.recentBreedings ? 'Show Less' : `Show More (${dashboard.recentBreedings.length - 6})` }}
         </button>
       </section>
     </template>

@@ -79,6 +79,7 @@ interface DashboardCachePayload {
 }
 
 const searchQuery = ref('')
+const quickSearchQuery = ref('')
 const stageFilter = ref<number | null>(3)
 const statusFilter = ref<number | null>(0)
 const locationFilter = ref<number | null>(0)
@@ -170,6 +171,19 @@ const filteredAnimals = computed(() => {
   )
 })
 
+const quickSearchResults = computed(() => {
+  const query = quickSearchQuery.value.trim()
+  if (!query) return []
+
+  return animals.value.filter(animal =>
+    fuzzyMatch(query, animal.barnName || '')
+    || fuzzyMatch(query, animal.registeredName || '')
+    || fuzzyMatch(query, animal.registrationNumber || '')
+    || fuzzyMatch(query, animal.sireName || '')
+    || fuzzyMatch(query, animal.damName || '')
+  ).slice(0, 6)
+})
+
 const formattedLastUpdated = computed(() => {
   if (!lastUpdatedAt.value) {
     return null
@@ -212,7 +226,7 @@ const getBaaLabel = (baa: number | null | undefined): string => {
   return `BAA ${baa.toFixed(2)}`
 }
 
-async function loadAnimals() {
+async function loadAnimals(retryOnFailure = true) {
   const refreshingExistingHerd = hasUsableHerd.value
   loading.value = !refreshingExistingHerd
   refreshing.value = refreshingExistingHerd
@@ -265,6 +279,10 @@ async function loadAnimals() {
     console.error('Failed to load dashboard information:', error)
 
     if (animals.value.length > 0) {
+      if (retryOnFailure) {
+        await new Promise(resolve => window.setTimeout(resolve, 1200))
+        return loadAnimals(false)
+      }
       warningMessage.value = 'Live refresh failed. Showing last loaded herd data.'
     } else {
       errorMessage.value =
@@ -317,6 +335,11 @@ function openCalendar() {
 
 function openReports() {
   router.push('/reports')
+}
+
+function openQuickSearchAnimal(animalId: number) {
+  quickSearchQuery.value = ''
+  router.push(`/animals/${animalId}`)
 }
 
 function useDefaultHeroLogo(event: Event) {
@@ -685,7 +708,7 @@ onMounted(() => {
 
     <section
       v-if="loading && !hasUsableHerd"
-      class="card dashboard-loader"
+      class="dashboard-loader cold-start-overlay"
     >
       <HerdLoadingScene message="Opening your herd..." />
     </section>
@@ -702,6 +725,31 @@ onMounted(() => {
       <section v-if="warningMessage" class="card warning-card">
         <strong>Using cached data</strong>
         <p>{{ warningMessage }}</p>
+      </section>
+
+      <section class="dashboard-quick-search" aria-label="Find an animal">
+        <div class="quick-search-field">
+          <span aria-hidden="true">⌕</span>
+          <input
+            v-model="quickSearchQuery"
+            type="search"
+            autocomplete="off"
+            placeholder="Find an animal…"
+            aria-label="Find an animal"
+          >
+        </div>
+        <div v-if="quickSearchQuery.trim()" class="quick-search-results">
+          <button
+            v-for="animal in quickSearchResults"
+            :key="animal.animalId"
+            type="button"
+            @click="openQuickSearchAnimal(animal.animalId)"
+          >
+            <strong>{{ dashboardAnimalName(animal) }}</strong>
+            <small>{{ getStageLabel(animal.animalStage) }}<template v-if="animal.registrationNumber"> · {{ animal.registrationNumber }}</template></small>
+          </button>
+          <p v-if="quickSearchResults.length === 0">No matching animal</p>
+        </div>
       </section>
 
       <section class="quick-actions-bar">
@@ -1189,6 +1237,23 @@ onMounted(() => {
   text-align: left;
 }
 
+.cold-start-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.72), transparent 36%),
+    #e8e2cd;
+}
+
+.cold-start-overlay :deep(.retro-loader) {
+  width: min(720px, calc(100vw - 32px));
+  box-sizing: border-box;
+}
+
 .dashboard-loader h2,
 .dashboard-loader p {
   margin: 0;
@@ -1654,6 +1719,78 @@ onMounted(() => {
 }
 
 /* Quick Actions Bar */
+.dashboard-quick-search {
+  position: relative;
+  z-index: 30;
+  width: min(440px, calc(100% - 8px));
+  margin: 9px 4px 5px auto;
+}
+
+.quick-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(41, 36, 28, 0.55);
+  border-radius: 3px;
+  background: rgba(255, 253, 245, 0.96);
+  box-shadow: 2px 2px 0 rgba(36, 79, 47, 0.28);
+  color: #31572c;
+}
+
+.quick-search-field > span {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.quick-search-field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #29241c;
+  font: 750 0.9rem/1.2 system-ui, sans-serif;
+}
+
+.quick-search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid rgba(41, 36, 28, 0.45);
+  border-radius: 4px;
+  background: #fffdf5;
+  box-shadow: 0 12px 28px rgba(20, 28, 21, 0.2);
+}
+
+.quick-search-results button {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid #e5dfcb;
+  background: transparent;
+  color: #29241c;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-search-results button:hover,
+.quick-search-results button:focus-visible {
+  background: #eef4ec;
+}
+
+.quick-search-results button:last-of-type { border-bottom: 0; }
+.quick-search-results small { color: #667369; }
+.quick-search-results p { margin: 0; padding: 11px 12px; color: #667369; }
+
 .quick-actions-bar {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1727,6 +1864,11 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
+  .dashboard-quick-search {
+    width: calc(100% - 6px);
+    margin: 7px 3px 6px;
+  }
+
   .quick-actions-bar {
     position: sticky;
     top: 4px;

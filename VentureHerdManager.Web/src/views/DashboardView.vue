@@ -710,7 +710,20 @@ onMounted(() => {
       v-if="loading && !hasUsableHerd"
       class="dashboard-loader cold-start-overlay"
     >
-      <HerdLoadingScene message="Opening your herd..." />
+      <div class="cold-start-content">
+        <div class="cold-start-product-brand">
+          <img src="/venture-herd-manager-logo.png" alt="Venture Herd Manager">
+        </div>
+
+        <HerdLoadingScene message="Opening your herd..." :delay-ms="0" />
+
+        <div class="cold-start-company-brand">
+          <span>Powered by</span>
+          <img src="/venture-ag-marketing-logo.png" alt="Venture Ag Marketing">
+          <strong>Custom Ag Application Solutions</strong>
+          <p>Your operation shouldn't have to fit somebody else's software.</p>
+        </div>
+      </div>
     </section>
 
     <section
@@ -1242,16 +1255,77 @@ onMounted(() => {
   inset: 0;
   z-index: 1000;
   min-height: 100vh;
-  padding: 20px;
+  padding: 24px 20px;
   box-sizing: border-box;
   background:
     radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.72), transparent 36%),
     #e8e2cd;
 }
 
-.cold-start-overlay :deep(.retro-loader) {
+.cold-start-content {
+  width: min(720px, calc(100vw - 40px));
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+}
+
+.cold-start-content :deep(.retro-loader) {
   width: min(720px, calc(100vw - 32px));
   box-sizing: border-box;
+}
+
+.cold-start-product-brand {
+  width: min(430px, 76vw);
+  padding: 12px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #0d1a10;
+  box-shadow: 0 10px 30px rgba(20, 24, 18, 0.18);
+}
+
+.cold-start-product-brand img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cold-start-company-brand {
+  display: grid;
+  justify-items: center;
+  color: #403a2d;
+  text-align: center;
+}
+
+.cold-start-company-brand img {
+  display: block;
+  width: min(210px, 48vw);
+  height: auto;
+  margin: 2px 0 1px;
+}
+
+.cold-start-company-brand > span,
+.cold-start-company-brand > strong {
+  color: #6a624e;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cold-start-company-brand p {
+  margin: 9px 0 0;
+  color: #29241c;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(0.76rem, 1.6vw, 0.94rem);
+  font-style: italic;
+}
+
+@media (max-width: 560px) {
+  .cold-start-overlay { padding: 18px 14px; }
+  .cold-start-content { width: calc(100vw - 28px); gap: 13px; }
+  .cold-start-content :deep(.retro-loader) { width: 100%; }
+  .cold-start-product-brand { width: min(310px, 78vw); padding: 9px 18px; }
+  .cold-start-company-brand img { width: min(165px, 48vw); }
 }
 
 .dashboard-loader h2,

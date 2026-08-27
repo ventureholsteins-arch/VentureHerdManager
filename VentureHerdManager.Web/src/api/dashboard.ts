@@ -140,23 +140,27 @@ function normalizeDashboardSummary(value: unknown): DashboardSummary {
 
 // Keep the last successful summary available long enough that normal app
 // navigation never waits on a sleeping Azure database.
-const DASHBOARD_CACHE_MS = 15 * 60_000
+const DASHBOARD_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60_000
 const DASHBOARD_TIMEOUT_MS = 30_000
-const DASHBOARD_STORAGE_KEY = 'venture-herd-summary-cache-v1'
+const DASHBOARD_STORAGE_PREFIX = 'venture-herd-summary-cache-v2'
 let cachedDashboard: DashboardSummary | null = null
 let cachedAt = 0
 let dashboardRequest: Promise<DashboardSummary> | null = null
 
-function dashboardStorage() {
-  return import.meta.env.VITE_DEMO_ONLY === 'true'
-    ? sessionStorage
-    : localStorage
+function dashboardStorageKey() {
+  if (import.meta.env.VITE_DEMO_ONLY === 'true') {
+    const demoSession = localStorage.getItem('venture-herd-demo-session-id') || 'default'
+    return `${DASHBOARD_STORAGE_PREFIX}:demo:${demoSession}`
+  }
+  return `${DASHBOARD_STORAGE_PREFIX}:production`
 }
 
 function restoreDashboardCache() {
   if (cachedDashboard) return
   try {
-    const raw = dashboardStorage().getItem(DASHBOARD_STORAGE_KEY)
+    const storageKey = dashboardStorageKey()
+    const legacyStorage = import.meta.env.VITE_DEMO_ONLY === 'true' ? sessionStorage : localStorage
+    const raw = localStorage.getItem(storageKey) || legacyStorage.getItem('venture-herd-summary-cache-v1')
     if (!raw) return
     const saved = JSON.parse(raw) as {
       value?: unknown
@@ -164,17 +168,24 @@ function restoreDashboardCache() {
     }
     if (
       typeof saved.savedAt === 'number'
-      && Date.now() - saved.savedAt < DASHBOARD_CACHE_MS
+      && Date.now() - saved.savedAt < DASHBOARD_CACHE_MAX_AGE_MS
     ) {
       cachedDashboard = normalizeDashboardSummary(saved.value)
       cachedAt = saved.savedAt
+      localStorage.setItem(storageKey, JSON.stringify({ value: cachedDashboard, savedAt: cachedAt }))
+      legacyStorage.removeItem('venture-herd-summary-cache-v1')
     }
   } catch {
-    dashboardStorage().removeItem(DASHBOARD_STORAGE_KEY)
+    localStorage.removeItem(dashboardStorageKey())
   }
 }
 
-export async function getDashboardSummary(dueDays = 30): Promise<DashboardSummary> {
+export function getCachedDashboardSummary(): DashboardSummary | null {
+  restoreDashboardCache()
+  return cachedDashboard ? normalizeDashboardSummary(cachedDashboard) : null
+}
+
+export async function getDashboardSummary(dueDays = 30, forceRefresh = false): Promise<DashboardSummary> {
   if (dueDays !== 30) {
     const response = await fetch(`${API_BASE}/Dashboard?dueDays=${dueDays}`)
     if (!response.ok) throw new Error('Failed to load dashboard')
@@ -183,7 +194,7 @@ export async function getDashboardSummary(dueDays = 30): Promise<DashboardSummar
   restoreDashboardCache()
   const now = Date.now()
 
-  if (cachedDashboard && now - cachedAt < DASHBOARD_CACHE_MS) {
+  if (!forceRefresh && cachedDashboard && now - cachedAt < DASHBOARD_CACHE_MAX_AGE_MS) {
     return cachedDashboard
   }
 
@@ -214,8 +225,8 @@ export async function getDashboardSummary(dueDays = 30): Promise<DashboardSummar
     const payload = await response.json()
     cachedDashboard = normalizeDashboardSummary(payload)
     cachedAt = Date.now()
-    dashboardStorage().setItem(
-      DASHBOARD_STORAGE_KEY,
+    localStorage.setItem(
+      dashboardStorageKey(),
       JSON.stringify({
         value: cachedDashboard,
         savedAt: cachedAt

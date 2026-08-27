@@ -37,7 +37,16 @@ const herdListsStorageKey = 'venture-herd-lists-v2'
 const saleAnimalIds = ref<number[]>([])
 const lastUpdatedAt = ref<string | null>(null)
 
-const DASHBOARD_CACHE_KEY = 'venture-herd-dashboard-cache-v1'
+const DASHBOARD_CACHE_PREFIX = 'venture-herd-dashboard-cache-v2'
+const hasUsableHerd = computed(() => animals.value.length > 0)
+
+function dashboardCacheKey() {
+  if (import.meta.env.VITE_DEMO_ONLY === 'true') {
+    const demoSession = localStorage.getItem('venture-herd-demo-session-id') || 'default'
+    return `${DASHBOARD_CACHE_PREFIX}:demo:${demoSession}`
+  }
+  return `${DASHBOARD_CACHE_PREFIX}:production`
+}
 
 function loadSaleAnimalIds() {
   try {
@@ -63,11 +72,6 @@ function toggleSaleAnimal(animalId: number) {
     console.warn('Could not update the sale report list:', error)
   }
 }
-const dashboardStorage =
-  import.meta.env.VITE_DEMO_ONLY === 'true'
-    ? sessionStorage
-    : localStorage
-
 interface DashboardCachePayload {
   savedAt: string
   animals: Animal[]
@@ -209,7 +213,9 @@ const getBaaLabel = (baa: number | null | undefined): string => {
 }
 
 async function loadAnimals() {
-  loading.value = animals.value.length === 0
+  const refreshingExistingHerd = hasUsableHerd.value
+  loading.value = !refreshingExistingHerd
+  refreshing.value = refreshingExistingHerd
   errorMessage.value = ''
   warningMessage.value = ''
 
@@ -232,8 +238,8 @@ async function loadAnimals() {
     lastUpdatedAt.value = loadedAt
     loading.value = false
 
-    const saveCache = () => dashboardStorage.setItem(
-      DASHBOARD_CACHE_KEY,
+    const saveCache = () => localStorage.setItem(
+      dashboardCacheKey(),
       JSON.stringify({
         savedAt: loadedAt,
         animals: animals.value,
@@ -272,10 +278,12 @@ async function loadAnimals() {
   }
 }
 
-function loadDashboardCache() {
-  const cached = dashboardStorage.getItem(DASHBOARD_CACHE_KEY)
+function loadDashboardCache(): boolean {
+  const cacheKey = dashboardCacheKey()
+  const legacyStorage = import.meta.env.VITE_DEMO_ONLY === 'true' ? sessionStorage : localStorage
+  const cached = localStorage.getItem(cacheKey) || legacyStorage.getItem('venture-herd-dashboard-cache-v1')
   if (!cached) {
-    return
+    return false
   }
 
   try {
@@ -289,9 +297,18 @@ function loadDashboardCache() {
     if (payload.savedAt) {
       lastUpdatedAt.value = payload.savedAt
     }
+    if (animals.value.length > 0) {
+      loading.value = false
+      localStorage.setItem(cacheKey, JSON.stringify(payload))
+      legacyStorage.removeItem('venture-herd-dashboard-cache-v1')
+      return true
+    }
   } catch (error) {
     console.warn('Invalid dashboard cache payload:', error)
+    localStorage.removeItem(cacheKey)
+    legacyStorage.removeItem('venture-herd-dashboard-cache-v1')
   }
+  return false
 }
 
 function openCalendar() {
@@ -517,8 +534,9 @@ const goToBreedingTab = (animalId: number) => {
 
 onMounted(() => {
   loadSaleAnimalIds()
-  loadDashboardCache()
-  loadAnimals()
+  const restoredCache = loadDashboardCache()
+  loading.value = !restoredCache
+  void loadAnimals()
 })
 </script>
 
@@ -666,14 +684,14 @@ onMounted(() => {
     </header>
 
     <section
-      v-if="loading"
+      v-if="loading && !hasUsableHerd"
       class="card dashboard-loader"
     >
       <HerdLoadingScene message="Opening your herd..." />
     </section>
 
     <section
-      v-else-if="errorMessage"
+      v-else-if="errorMessage && !hasUsableHerd"
       class="card error-card"
     >
       <strong>Unable to load dashboard</strong>

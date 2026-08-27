@@ -3,33 +3,21 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getAppearance, type AppearanceSetting } from './api/appearance'
 import { resetDemo } from './api/demo'
 import { clearAdminKey, getAdminKey, setAdminKey, validateAdminKey } from './api/herdData'
-import HerdLoadingScene from './components/HerdLoadingScene.vue'
 
 const appearance = ref<AppearanceSetting | null>(null)
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
 const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
 const demoResetting = ref(false)
-const appUnlocked = ref(Boolean(getAdminKey()))
+const appUnlocked = ref(isDemoOnly || Boolean(getAdminKey()))
 const unlockKey = ref('')
 const unlockBusy = ref(false)
 const unlockError = ref('')
-const startupVisible = ref(appUnlocked.value)
 
 async function refreshAppearance() {
   appearance.value = await getAppearance()
 }
 
 onMounted(async () => {
-  if (startupVisible.value) {
-    window.setTimeout(() => {
-      startupVisible.value = false
-    }, 3000)
-  }
-
-  if (isDemoOnly) {
-    appUnlocked.value = true
-  }
-
   try {
     await refreshAppearance()
   } catch (error) {
@@ -119,24 +107,6 @@ async function unlockApp() {
       <RouterView />
     </div>
 
-    <div v-if="startupVisible" class="startup-screen">
-      <div class="startup-product-brand">
-        <img src="/venture-herd-manager-logo.png" alt="Venture Herd Manager">
-      </div>
-
-      <HerdLoadingScene
-        message="Opening your herd..."
-        :delay-ms="0"
-      />
-
-      <div class="startup-company-brand">
-        <div class="startup-powered">Powered by</div>
-        <img src="/venture-ag-marketing-logo.png" alt="Venture Ag Marketing">
-        <div class="startup-solutions">Custom Ag Application Solutions</div>
-        <p>Your operation shouldn't have to fit somebody else's software.</p>
-      </div>
-    </div>
-
     <footer v-if="appUnlocked" class="app-footer">
       <span class="footer-brand">
         <span>Powered by</span>
@@ -175,93 +145,6 @@ async function unlockApp() {
 .app-content {
   position: relative;
   z-index: 1;
-}
-
-.startup-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  grid-template-rows: auto auto auto;
-  place-content: center;
-  justify-items: center;
-  gap: 18px;
-  padding: 24px 20px;
-  box-sizing: border-box;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(255,255,255,.74), transparent 34%),
-    #e8e2cd;
-}
-
-.startup-screen :deep(.retro-loader) {
-  width: min(720px, calc(100vw - 40px));
-  box-sizing: border-box;
-}
-
-.startup-product-brand {
-  width: min(430px, 76vw);
-  padding: 12px 24px;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 8px;
-  background: #0d1a10;
-  box-shadow: 0 10px 30px rgba(20,24,18,.18);
-}
-
-.startup-product-brand img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.startup-company-brand {
-  display: grid;
-  justify-items: center;
-  color: #403a2d;
-  text-align: center;
-}
-
-.startup-company-brand img {
-  display: block;
-  width: min(210px, 48vw);
-  height: auto;
-  margin: 2px 0 1px;
-}
-
-.startup-powered,
-.startup-solutions {
-  color: #6a624e;
-  font-size: .58rem;
-  font-weight: 800;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-}
-
-.startup-company-brand p {
-  margin: 9px 0 0;
-  color: #29241c;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(.76rem, 1.6vw, .94rem);
-  font-style: italic;
-}
-
-@media (max-width: 560px) {
-  .startup-screen {
-    gap: 13px;
-    padding: 18px 14px;
-  }
-
-  .startup-screen :deep(.retro-loader) {
-    width: calc(100vw - 28px);
-  }
-
-  .startup-product-brand {
-    width: min(310px, 78vw);
-    padding: 9px 18px;
-  }
-
-  .startup-company-brand img {
-    width: min(165px, 48vw);
-  }
 }
 
 .unlock-screen { position:relative;z-index:3;min-height:100vh;display:grid;place-items:center;padding:20px;box-sizing:border-box; }

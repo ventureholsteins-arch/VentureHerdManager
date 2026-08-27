@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
+  getCachedDashboardSummary,
   getDashboardSummary,
   type DashboardSummary
 } from '../api/dashboard'
@@ -39,6 +40,7 @@ const emptyDashboard: DashboardSummary = {
 
 const dashboard = ref<DashboardSummary>(emptyDashboard)
 const loading = ref(true)
+const refreshing = ref(false)
 const errorMessage = ref('')
 const pregChecksSectionRef = ref<HTMLElement | null>(null)
 const dueSoonSectionRef = ref<HTMLElement | null>(null)
@@ -99,9 +101,12 @@ type ReportSection =
   | 'lutTracking'
   | 'embryo'
 
-async function loadDashboardSummary(allowRetry = true) {
+async function loadDashboardSummary(allowRetry = true, forceRefresh = false) {
+  const hasVisibleSummary = dashboard.value.totalAnimals > 0 || (props.animals?.length ?? 0) > 0
+  loading.value = !hasVisibleSummary
+  refreshing.value = hasVisibleSummary
   try {
-    dashboard.value = await getDashboardSummary(dueWithin60.value ? 60 : 30)
+    dashboard.value = await getDashboardSummary(dueWithin60.value ? 60 : 30, forceRefresh)
     summaryFailed.value = false
     errorMessage.value = ''
   } catch (error) {
@@ -121,6 +126,7 @@ async function loadDashboardSummary(allowRetry = true) {
     }
   } finally {
     loading.value = false
+    refreshing.value = false
   }
 }
 
@@ -134,8 +140,16 @@ watch(
   { deep: false }
 )
 
-onMounted(async () => {
-  await loadDashboardSummary()
+onMounted(() => {
+  const cached = getCachedDashboardSummary()
+  if (cached) {
+    dashboard.value = cached
+    loading.value = false
+    if (props.animals?.length) applyAnimalFallback(props.animals)
+    void loadDashboardSummary(true, true)
+    return
+  }
+  void loadDashboardSummary()
 })
 
 onBeforeUnmount(() => {
@@ -210,9 +224,10 @@ async function openReportSection(section: ReportSection) {
 
 <template>
   <section class="dashboard-summary">
-    <HerdLoadingScene v-if="loading" message="Waking up your herd..." />
+    <HerdLoadingScene v-if="loading && dashboard.totalAnimals === 0 && !(props.animals?.length)" message="Waking up your herd..." />
 
     <template v-else>
+      <p v-if="refreshing" class="summary-refreshing" aria-live="polite">Updating herd summary…</p>
       <p v-if="errorMessage" class="error-message">
         {{ errorMessage }}
       </p>

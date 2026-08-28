@@ -2,7 +2,6 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ensureDemo } from '../api/demo'
-import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -18,6 +17,7 @@ onMounted(() => {
 async function launchDemo() {
   loading.value = true
   error.value = null
+  window.dispatchEvent(new Event('herd-startup-begin'))
 
   try {
     let result
@@ -40,12 +40,14 @@ async function launchDemo() {
 
     sessionStorage.setItem('demo-launched', 'true')
     await router.push('/')
+    window.dispatchEvent(new Event('herd-startup-finish'))
   } catch (err) {
     console.error('Demo setup failed:', err)
     error.value =
       err instanceof Error
         ? err.message
         : 'The demo could not be prepared. Please try again.'
+    window.dispatchEvent(new Event('herd-startup-finish'))
   } finally {
     loading.value = false
   }
@@ -67,11 +69,6 @@ async function launchDemo() {
       </p>
 
       <p v-if="error" class="error-msg">{{ error }}</p>
-
-      <HerdLoadingScene
-        v-if="loading"
-        message="Preparing your sample herd..."
-      />
 
       <div class="launch-buttons">
         <button

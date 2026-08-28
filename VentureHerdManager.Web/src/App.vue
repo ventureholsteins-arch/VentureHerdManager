@@ -13,16 +13,29 @@ const appUnlocked = ref(isDemoOnly || Boolean(getAdminKey()))
 const unlockKey = ref('')
 const unlockBusy = ref(false)
 const unlockError = ref('')
-const startupVisible = ref(isDemoOnly || Boolean(getAdminKey()))
+const startupVisible = ref(!isDemoOnly && Boolean(getAdminKey()))
 let startupTimer: number | null = null
+let startupShownAt = 0
 
-function showStartup() {
+function beginStartup() {
   startupVisible.value = true
+  startupShownAt = Date.now()
+  if (startupTimer !== null) window.clearTimeout(startupTimer)
+  startupTimer = null
+}
+
+function finishStartup() {
+  const remaining = Math.max(0, 2200 - (Date.now() - startupShownAt))
   if (startupTimer !== null) window.clearTimeout(startupTimer)
   startupTimer = window.setTimeout(() => {
     startupVisible.value = false
     startupTimer = null
-  }, 2200)
+  }, remaining)
+}
+
+function showStartup() {
+  beginStartup()
+  finishStartup()
 }
 
 async function refreshAppearance() {
@@ -30,7 +43,7 @@ async function refreshAppearance() {
 }
 
 onMounted(async () => {
-  if (appUnlocked.value) showStartup()
+  if (appUnlocked.value && !isDemoOnly) showStartup()
   try {
     await refreshAppearance()
   } catch (error) {
@@ -38,11 +51,15 @@ onMounted(async () => {
   }
 
   window.addEventListener('appearance-updated', refreshAppearance)
+  window.addEventListener('herd-startup-begin', beginStartup)
+  window.addEventListener('herd-startup-finish', finishStartup)
 })
 
 onBeforeUnmount(() => {
   if (startupTimer !== null) window.clearTimeout(startupTimer)
   window.removeEventListener('appearance-updated', refreshAppearance)
+  window.removeEventListener('herd-startup-begin', beginStartup)
+  window.removeEventListener('herd-startup-finish', finishStartup)
 })
 
 const appStyle = computed(() => ({

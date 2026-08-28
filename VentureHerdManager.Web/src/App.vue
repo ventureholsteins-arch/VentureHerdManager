@@ -43,16 +43,18 @@ async function refreshAppearance() {
 }
 
 onMounted(async () => {
+  // Register launch events before any network work so a fast demo tap cannot
+  // outrun the full-screen loader while appearance settings are loading.
+  window.addEventListener('appearance-updated', refreshAppearance)
+  window.addEventListener('herd-startup-begin', beginStartup)
+  window.addEventListener('herd-startup-finish', finishStartup)
+
   if (appUnlocked.value && !isDemoOnly) showStartup()
   try {
     await refreshAppearance()
   } catch (error) {
     console.error('Failed to load app appearance:', error)
   }
-
-  window.addEventListener('appearance-updated', refreshAppearance)
-  window.addEventListener('herd-startup-begin', beginStartup)
-  window.addEventListener('herd-startup-finish', finishStartup)
 })
 
 onBeforeUnmount(() => {

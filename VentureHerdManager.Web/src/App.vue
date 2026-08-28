@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getAppearance, type AppearanceSetting } from './api/appearance'
 import { resetDemo } from './api/demo'
 import { clearAdminKey, getAdminKey, setAdminKey, validateAdminKey } from './api/herdData'
+import BrandedHerdLoader from './components/BrandedHerdLoader.vue'
 
 const appearance = ref<AppearanceSetting | null>(null)
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
@@ -12,12 +13,24 @@ const appUnlocked = ref(isDemoOnly || Boolean(getAdminKey()))
 const unlockKey = ref('')
 const unlockBusy = ref(false)
 const unlockError = ref('')
+const startupVisible = ref(isDemoOnly || Boolean(getAdminKey()))
+let startupTimer: number | null = null
+
+function showStartup() {
+  startupVisible.value = true
+  if (startupTimer !== null) window.clearTimeout(startupTimer)
+  startupTimer = window.setTimeout(() => {
+    startupVisible.value = false
+    startupTimer = null
+  }, 2200)
+}
 
 async function refreshAppearance() {
   appearance.value = await getAppearance()
 }
 
 onMounted(async () => {
+  if (appUnlocked.value) showStartup()
   try {
     await refreshAppearance()
   } catch (error) {
@@ -28,6 +41,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (startupTimer !== null) window.clearTimeout(startupTimer)
   window.removeEventListener('appearance-updated', refreshAppearance)
 })
 
@@ -64,6 +78,7 @@ async function unlockApp() {
   try {
     await validateAdminKey()
     appUnlocked.value = true
+    showStartup()
     unlockKey.value = ''
   } catch {
     clearAdminKey()
@@ -106,6 +121,8 @@ async function unlockApp() {
     <div v-else class="app-content">
       <RouterView />
     </div>
+
+    <BrandedHerdLoader v-if="startupVisible && appUnlocked" />
 
     <footer v-if="appUnlocked" class="app-footer">
       <span class="footer-brand">

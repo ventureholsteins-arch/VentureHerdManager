@@ -335,7 +335,7 @@ function normalizeBaggingRow(row: Partial<ShowBaggingRow>): ShowBaggingRow {
     lineupOrder: row.lineupOrder ?? 1,
     showName: row.showName ?? '',
     showDate: row.showDate ?? new Date().toISOString().slice(0, 10),
-    wasSuccessful: row.wasSuccessful ?? true,
+    wasSuccessful: row.wasSuccessful ?? false,
     entryTime: row.entryTime ?? '',
     notes: row.notes ?? '',
     showAchievementId: row.showAchievementId,
@@ -993,7 +993,7 @@ function addShowBaggingRow(animal: Animal) {
     lineupOrder: showBaggingRows.value.length + 1,
     showName: showBaggingShowName.value,
     showDate: showBaggingShowDate.value,
-    wasSuccessful: true,
+    wasSuccessful: false,
     entryTime,
     notes: '',
     quarters,
@@ -1013,7 +1013,7 @@ function addBlankBaggingRow() {
     lineupOrder: showBaggingRows.value.length + 1,
     showName: showBaggingShowName.value,
     showDate: showBaggingShowDate.value,
-    wasSuccessful: true,
+    wasSuccessful: false,
     entryTime: '',
     notes: '',
     quarters: createDefaultBaggingQuarters(),
@@ -2246,22 +2246,24 @@ watch(activeTab, tab => {
 
     <!-- SHOW BAGGING -->
     <section v-else-if="activeTab === 'showBagging'" class="rp-panel">
-      <div class="rp-ph">
+      <div class="rp-ph bagging-page-head">
         <h2>Show Bagging</h2>
         <div class="rp-ph-actions">
-          <button type="button" class="rp-add-btn" @click="baggingSimpleMode = !baggingSimpleMode">{{ baggingSimpleMode ? 'Show Advanced' : 'Simple Mode' }}</button>
           <button type="button" class="rp-add-btn bagging-primary-save" :disabled="baggingSaving" @click="saveWholeBaggingPlan">{{ baggingSaving ? 'Saving…' : 'Save Whole Show' }}</button>
-          <button type="button" class="rp-add-btn" @click="shareBaggingLink">Share Link</button>
-          <button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button>
-          <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload Data</button>
+          <button type="button" class="rp-add-btn bagging-mode-btn" @click="baggingSimpleMode = !baggingSimpleMode">{{ baggingSimpleMode ? 'More Options' : 'Simple View' }}</button>
+          <template v-if="!baggingSimpleMode">
+            <button type="button" class="rp-add-btn" @click="shareBaggingLink">Share</button>
+            <button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button>
+            <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload</button>
+          </template>
         </div>
       </div>
       <p v-if="baggingShareStatus" class="rp-hint">{{ baggingShareStatus }}</p>
-      <p v-if="baggingSimpleMode" class="rp-hint">Simple mode is on: add cows, set times, and save. Use Show Advanced for group setup and history tools.</p>
+      <p v-if="baggingSimpleMode" class="rp-hint bagging-simple-hint">Set the show start, add each cow, enter her show and milk-out times, then save.</p>
 
       <section class="bagging-show-anchor">
         <label>
-          <strong>When does the show start?</strong>
+          <strong><span class="bagging-step-number">1</span> When does the show start?</strong>
           <input v-model="showBaggingStartTime" type="datetime-local" />
         </label>
         <div>
@@ -2299,8 +2301,8 @@ watch(activeTab, tab => {
       </div>
       </details>
 
-      <details class="bagging-section-details">
-        <summary>Add a cow</summary>
+      <details class="bagging-section-details" open>
+        <summary><span class="bagging-step-number">2</span> Add a cow</summary>
       <div class="bagging-search-panel">
         <div class="browse-label">Quick Cow Search</div>
         <p class="bagging-search-hint">Type at least 2 letters to find a cow, then tap + Bag.</p>
@@ -2393,7 +2395,7 @@ watch(activeTab, tab => {
 
       <div id="bagging-rows" />
 
-      <section v-if="baggingCowsByShowTime.length > 0" class="bagging-cow-overview">
+      <section v-if="!baggingSimpleMode && baggingCowsByShowTime.length > 0" class="bagging-cow-overview">
         <div class="bagging-timeline-heading">
           <strong>All cows at a glance</strong>
           <span>{{ baggingCowsByShowTime.length }} cow{{ baggingCowsByShowTime.length === 1 ? '' : 's' }}</span>
@@ -2406,7 +2408,7 @@ watch(activeTab, tab => {
         </article>
       </section>
 
-      <section v-if="baggingTimeline.length > 0" class="bagging-timeline">
+      <section v-if="!baggingSimpleMode && baggingTimeline.length > 0" class="bagging-timeline">
         <div class="bagging-timeline-heading">
           <strong>Milking and ring schedule</strong>
           <span>Earliest first</span>
@@ -2427,7 +2429,7 @@ watch(activeTab, tab => {
 
       <details v-for="row in showBaggingRowsSorted" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-edit-group cow-bagging-details">
         <summary class="bagging-edit-summary">
-          <strong>{{ getBaggingRowAnimalLabel(row) }}</strong>
+          <strong><span class="bagging-step-number">3</span> {{ getBaggingRowAnimalLabel(row) }}</strong>
           <span>{{ formatTime(row.entryTime) }} · {{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</span>
         </summary>
         <div class="bagging-edit-group-body">
@@ -3043,6 +3045,10 @@ textarea { min-height: 72px; resize: vertical; }
 
 /* show bagging */
 .bagging-top-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.bagging-simple-hint { margin-top:-5px;padding:10px 12px;border-left:4px solid #31572c;background:#f3f8f3;color:#17331f;font-weight:750; }
+.bagging-step-number { display:inline-grid;place-items:center;width:24px;height:24px;margin-right:6px;border-radius:50%;background:#31572c;color:#fff;font-size:.75rem;font-weight:950;vertical-align:middle; }
+.bagging-mode-btn { background:#eef5ef;color:#17331f;border:1px solid #9db39f; }
+.bagging-mode-btn:hover { background:#dfece1; }
 .bagging-section-details { border:1px solid #d9e3dc;border-radius:10px;background:#fff;margin-bottom:10px;overflow:hidden; }
 .bagging-section-details>summary { cursor:pointer;padding:13px 14px;font-weight:900;color:#17331f;background:#f5faf6; }
 .bagging-section-details[open]>summary { border-bottom:1px solid #d9e3dc; }
@@ -3215,18 +3221,32 @@ textarea { min-height: 72px; resize: vertical; }
   .rp-tabs button.active { border-color:#31572c;background:#eef6ef; }
   .bagging-top-grid { grid-template-columns: 1fr; }
   .bagging-show-anchor { grid-template-columns: 1fr; }
-  .bagging-cow-overview { grid-template-columns: repeat(2,minmax(0,1fr));padding:9px;gap:6px; }
+  .bagging-page-head { gap:10px;margin-bottom:10px;padding-bottom:10px; }
+  .bagging-page-head .rp-ph-actions { grid-template-columns:1fr 1fr;gap:7px; }
+  .bagging-page-head .rp-add-btn { min-height:48px;padding:7px 8px;font-size:.8rem; }
+  .bagging-simple-hint { margin-bottom:10px; }
+  .bagging-show-anchor { margin:8px 0 10px;padding:10px;gap:8px; }
+  .bagging-show-anchor input { min-height:52px;font-size:16px; }
+  .bagging-section-details { margin-bottom:10px; }
+  .bagging-section-details>summary { min-height:48px;display:flex;align-items:center;padding:10px 12px;box-sizing:border-box; }
+  .bagging-section-details>.bagging-search-panel { padding:10px; }
+  .bagging-search-panel .rp-list-search { min-height:50px;font-size:16px; }
+  .bagging-cow-overview { grid-template-columns:1fr;padding:9px;gap:6px; }
   .bagging-cow-overview>button { min-width:0; }
   .bagging-meta-grid { grid-template-columns: 1fr; }
   .bagging-quick-edit { grid-template-columns:1fr; }
-  .bagging-udder-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .bagging-udder-grid { grid-template-columns:1fr;gap:8px; }
+  .bagging-edit-summary { min-height:54px;padding:10px 12px;box-sizing:border-box; }
+  .bagging-edit-group-body { display:block; }
+  .bagging-card { padding:10px;margin:6px 0; }
+  .bagging-quick-edit input,.bagging-meta-grid input,.bagging-meta-grid select,.bagging-notes textarea,.udder-quarter input { font-size:16px;min-height:48px;box-sizing:border-box;width:100%; }
   .bagging-card-hd { flex-direction: column; }
   .bagging-card-actions { width: 100%; justify-content: space-between; }
   .bagging-sticky-head { align-items:stretch; }
   .bagging-sticky-head .rp-ph-actions { display:grid;grid-template-columns:repeat(2,minmax(0,1fr)); }
   .bagging-search-tools { flex-direction: column; align-items: stretch; }
   .bagging-glance-grid { grid-template-columns: 1fr; }
-  .udder-quarter { min-height: 120px; padding: 10px; }
+  .udder-quarter { min-height:0;padding:12px; }
   .quarter-hours-value { font-size: 1rem; }
 }
 </style>

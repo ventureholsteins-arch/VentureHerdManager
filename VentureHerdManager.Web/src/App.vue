@@ -14,6 +14,7 @@ const unlockKey = ref('')
 const unlockBusy = ref(false)
 const unlockError = ref('')
 const startupVisible = ref(!isDemoOnly && Boolean(getAdminKey()))
+const STARTUP_MINIMUM_MS = 2800
 let startupTimer: number | null = null
 let startupShownAt = 0
 
@@ -25,7 +26,7 @@ function beginStartup() {
 }
 
 function finishStartup() {
-  const remaining = Math.max(0, 2200 - (Date.now() - startupShownAt))
+  const remaining = Math.max(0, STARTUP_MINIMUM_MS - (Date.now() - startupShownAt))
   if (startupTimer !== null) window.clearTimeout(startupTimer)
   startupTimer = window.setTimeout(() => {
     startupVisible.value = false

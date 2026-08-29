@@ -471,16 +471,24 @@ function openPendingAction() {
 onMounted(async () => {
   window.addEventListener('beforeunload', beforeUnloadHandler)
 
-  try {
-    const animalSnapshot = await getAnimalSnapshot(
-      animalId.value
-    )
+  // Start the complete snapshot immediately, but do not make the animal card
+  // wait for every timeline/history query before showing its identity and
+  // quick actions.
+  const snapshotPromise = getAnimalSnapshot(animalId.value)
 
-    snapshot.value = animalSnapshot
-    animal.value = animalSnapshot.animal
-    timelineEntries.value = animalSnapshot.timeline
+  try {
+    animal.value = await getAnimal(animalId.value)
     loading.value = false
     openPendingAction()
+
+    void snapshotPromise
+      .then(animalSnapshot => {
+        snapshot.value = animalSnapshot
+        animal.value = animalSnapshot.animal
+        timelineEntries.value = animalSnapshot.timeline
+      })
+      .catch(error => console.warn('Full animal history is still unavailable:', error))
+
     void Promise.all([
       getHeatEvents(animalId.value).then(value => { heatEvents.value = value }),
       getBreedings(animalId.value).then(value => { breedingEvents.value = value }),
@@ -495,7 +503,17 @@ onMounted(async () => {
       getMatingSuggestions(animalId.value).then(value => { matingData.value = value }).catch(() => null)
     ]).catch(error => console.warn('Private milk/genomic history is unavailable:', error))
   } catch (error) {
-    console.error('Failed to load animal:', error)
+    // If the lightweight request failed during a cold start, the snapshot can
+    // still recover the page instead of leaving the animal card blank.
+    try {
+      const animalSnapshot = await snapshotPromise
+      snapshot.value = animalSnapshot
+      animal.value = animalSnapshot.animal
+      timelineEntries.value = animalSnapshot.timeline
+      openPendingAction()
+    } catch (snapshotError) {
+      console.error('Failed to load animal:', error, snapshotError)
+    }
   } finally {
     loading.value = false
   }

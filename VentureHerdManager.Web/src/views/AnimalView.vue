@@ -174,6 +174,7 @@ const breedingType = ref(0)
 const breedingNotes = ref('')
 
 const showPregCheckForm = ref(false)
+const pregCheckFormRef = ref<HTMLElement | null>(null)
 const selectedBreedingId = ref<number | null>(null)
 const pregnancyStatus = ref(1)
 const pregCheckSaving = ref(false)
@@ -376,6 +377,10 @@ async function openPregCheckForm(preferredBreedingId?: number) {
   closeAllForms()
   pregCheckError.value = ''
   pregnancyStatus.value = 1
+  showPregCheckForm.value = true
+  await nextTick()
+  pregCheckFormRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
   if (breedingEvents.value.length === 0) {
     pregCheckSaving.value = true
     try {
@@ -393,7 +398,6 @@ async function openPregCheckForm(preferredBreedingId?: number) {
     ?? breedingEvents.value.find(event => event.pregnancyStatus === 0 || event.pregnancyStatus === 3)
     ?? breedingEvents.value[0]
   selectedBreedingId.value = eligible?.breedingEventId ?? null
-  showPregCheckForm.value = true
 }
 
 function openCalvingForm() {
@@ -1187,7 +1191,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
             <span>Breed</span>
           </button>
 
-          <button @click="() => openPregCheckForm()">
+          <button type="button" @click="openPregCheckForm()">
             <RetroIcon name="pregCheck" :size="30" />
             <span>Preg Check</span>
           </button>
@@ -1327,11 +1331,13 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
 
         <div
           v-if="showPregCheckForm"
+          ref="pregCheckFormRef"
           class="form-card"
         >
           <h3>Record Pregnancy Check</h3>
 
-          <p v-if="breedingEvents.length === 0" class="form-error">No breeding or embryo transfer is recorded for this animal yet.</p>
+          <p v-if="pregCheckSaving && breedingEvents.length === 0" class="form-loading">Loading breeding and embryo-transfer history…</p>
+          <p v-if="!pregCheckSaving && breedingEvents.length === 0" class="form-error">No breeding or embryo transfer is recorded for this animal yet.</p>
           <p v-if="pregCheckError" class="form-error">{{ pregCheckError }}</p>
 
           <label>Breeding</label>
@@ -2166,6 +2172,8 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
   border-radius: 8px;
   background: linear-gradient(180deg, #f8fafc, #f3f7fb);
 }
+
+.form-loading { margin:10px 0;padding:10px 12px;border-left:4px solid #31572c;background:#eef6ef;color:#24472a;font-weight:800; }
 
 .form-card label {
   display: block;

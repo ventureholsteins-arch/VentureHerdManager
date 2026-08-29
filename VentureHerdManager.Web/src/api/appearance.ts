@@ -3,7 +3,7 @@ const API_BASE = import.meta.env.VITE_API_URL
 const defaultAppearance: AppearanceSetting = {
   appearanceSettingId: 0,
   farmName: 'Venture Herd Manager',
-  logoUrl: '/farm-logo.png',
+  logoUrl: '/venture-herd-manager-logo.png',
   backgroundImageUrl: '/herd-manager-bg.jpg',
   backgroundOpacity: 0.15,
   overlayOpacity: 0.85,

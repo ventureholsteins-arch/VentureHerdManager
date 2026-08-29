@@ -14,7 +14,7 @@ public class AppearanceController : ControllerBase
         {
             appearanceSettingId = 0,
             farmName = "Venture Herd Manager",
-            logoUrl = "/farm-logo.png",
+            logoUrl = "/venture-herd-manager-logo.png",
             backgroundImageUrl = "/Seashell_cow.jpg",
             backgroundOpacity = 0.15,
             overlayOpacity = 0.85,

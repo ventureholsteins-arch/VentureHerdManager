@@ -142,7 +142,8 @@ public sealed class SiresController : ControllerBase
                     }
                 };
             })
-            .OrderByDescending(item => item.Breedings)
+            .OrderByDescending(item => item.LastUsed)
+            .ThenByDescending(item => item.Breedings)
             .ThenBy(item => item.Sire)
             .ToList();
 

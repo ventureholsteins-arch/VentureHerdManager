@@ -25,6 +25,8 @@
             </option>
             <option value="---">--- Enter Custom ---</option>
           </select>
+          <small v-if="loadingSires">Loading recently used sires…</small>
+          <small v-else-if="sireLoadError">Recent sires could not be loaded. You can still enter one manually.</small>
         </div>
 
         <div v-if="sireUsed === '---'" class="form-group">
@@ -86,6 +88,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { getAllEmbryos, type EmbryoRecord } from '../api/embryoRecords'
+import { getUsedSires } from '../api/sires'
 
 const isOpen = ref(false)
 const animalId = ref<number | null>(null)
@@ -98,7 +101,9 @@ const selectedEmbryoId = ref('')
 const availableEmbryos = ref<EmbryoRecord[]>([])
 const notes = ref('')
 const pregnancyStatus = ref('0')
-const recentSires = ref<string[]>(['Seashore', 'Robust', 'Elevation'])
+const recentSires = ref<string[]>([])
+const loadingSires = ref(false)
+const sireLoadError = ref(false)
 const saving = ref(false)
 const saveError = ref('')
 
@@ -120,14 +125,31 @@ const openModal = async (id: number, name: string) => {
   saving.value = false
   saveError.value = ''
   isOpen.value = true
+  loadingSires.value = true
+  sireLoadError.value = false
+  const embryosPromise = getAllEmbryos()
+  const siresPromise = getUsedSires()
   try {
-    availableEmbryos.value = (await getAllEmbryos())
+    availableEmbryos.value = (await embryosPromise)
       .filter(embryo =>
         embryo.status === 0
         || (embryo.status === 1 && embryo.recipientAnimalId === id))
   } catch (error) {
     console.error('Failed to load embryo inventory:', error)
     availableEmbryos.value = []
+  }
+  try {
+    const usage = await siresPromise
+    recentSires.value = usage.sires
+      .slice(0, 12)
+      .map(sire => sire.sire)
+      .filter(Boolean)
+  } catch (error) {
+    console.error('Failed to load recently used sires:', error)
+    recentSires.value = []
+    sireLoadError.value = true
+  } finally {
+    loadingSires.value = false
   }
 }
 

@@ -13,7 +13,7 @@ public sealed class BaggingSchedulesController(ApplicationDbContext context) : C
     public async Task<IActionResult> Latest(CancellationToken ct)
     {
         var schedule = await context.SharedBaggingSchedules.AsNoTracking()
-            .Where(value => value.IsActive)
+            .Where(value => value.IsActive && value.ShowName != "__SHOW_STRING__")
             .OrderByDescending(value => value.UpdatedAt)
             .FirstOrDefaultAsync(ct);
         return schedule == null ? NoContent() : Ok(schedule);
@@ -69,6 +69,23 @@ public sealed class BaggingSchedulesController(ApplicationDbContext context) : C
         var schedule = await context.SharedBaggingSchedules.AsNoTracking()
             .Where(value => value.PublicToken == token && value.IsActive && value.ShowName == "__SHOW_STRING__")
             .Select(value => new { showStringJson = value.ScheduleJson, updatedAt = value.UpdatedAt })
+            .FirstOrDefaultAsync(ct);
+        return schedule == null ? NotFound() : Ok(schedule);
+    }
+
+    [HttpGet("shared/{token}")]
+    public async Task<IActionResult> GetSharedBagging(string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 64) return NotFound();
+        var schedule = await context.SharedBaggingSchedules.AsNoTracking()
+            .Where(value => value.PublicToken == token && value.IsActive && value.ShowName != "__SHOW_STRING__")
+            .Select(value => new
+            {
+                value.ShowName,
+                value.ShowDate,
+                value.ScheduleJson,
+                value.UpdatedAt
+            })
             .FirstOrDefaultAsync(ct);
         return schedule == null ? NotFound() : Ok(schedule);
     }

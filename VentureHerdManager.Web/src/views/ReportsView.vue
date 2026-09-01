@@ -59,6 +59,7 @@ interface ShowBaggingQuarter {
 interface ShowBaggingRow {
   id: number
   animalId: number | null
+  animalName?: string
   lineupOrder: number
   showName: string
   showDate: string
@@ -268,10 +269,10 @@ const nextAchievementId = ref(1)
 const herdListOrder = defaultLists.map(list => list.key)
 
 const quarterTemplates: Omit<ShowBaggingQuarter, 'hoursBeforeRing'>[] = [
-  { key: 'frontLeft', label: 'Front Left' },
-  { key: 'frontRight', label: 'Front Right' },
   { key: 'rearLeft', label: 'Rear Left' },
-  { key: 'rearRight', label: 'Rear Right' }
+  { key: 'rearRight', label: 'Rear Right' },
+  { key: 'frontLeft', label: 'Front Left' },
+  { key: 'frontRight', label: 'Front Right' }
 ]
 
 function toLocalDateTimeInput(value: string | Date): string {
@@ -333,6 +334,7 @@ function normalizeBaggingRow(row: Partial<ShowBaggingRow>): ShowBaggingRow {
   return {
     id: row.id ?? nextBaggingRowId.value++,
     animalId: row.animalId ?? null,
+    animalName: row.animalName ?? '',
     lineupOrder: row.lineupOrder ?? 1,
     showName: row.showName ?? '',
     showDate: row.showDate ?? new Date().toISOString().slice(0, 10),
@@ -1037,6 +1039,7 @@ function addShowBaggingRow(animal: Animal) {
   showBaggingRows.value.push({
     id: rowId,
     animalId: animal.animalId,
+    animalName: animal.barnName || animal.registeredName || `Animal #${animal.animalId}`,
     lineupOrder: showBaggingRows.value.length + 1,
     showName: showBaggingShowName.value,
     showDate: showBaggingShowDate.value,
@@ -1057,6 +1060,7 @@ function addBlankBaggingRow() {
   showBaggingRows.value.push({
     id: nextBaggingRowId.value++,
     animalId: null,
+    animalName: '',
     lineupOrder: showBaggingRows.value.length + 1,
     showName: showBaggingShowName.value,
     showDate: showBaggingShowDate.value,
@@ -1073,7 +1077,9 @@ function removeShowBaggingRow(id: number) {
 }
 
 function getBaggingRowAnimalLabel(row: ShowBaggingRow): string {
-  return row.animalId ? getAnimalLabel(row.animalId) : 'Unassigned'
+  return row.animalId
+    ? (getAnimalById(row.animalId) ? getAnimalLabel(row.animalId) : row.animalName || `Animal #${row.animalId}`)
+    : 'Unassigned'
 }
 
 function getQuarterMilkTime(entryTime: string, hoursBeforeRing: number | null): string {
@@ -1167,12 +1173,13 @@ async function saveBaggingRow(row: ShowBaggingRow) {
 }
 
 async function saveWholeBaggingPlan() {
-  if (baggingSaving.value) return
-  if (!showBaggingRows.value.length) { alert('Add at least one cow first.'); return }
+  if (baggingSaving.value) return null
+  if (!showBaggingRows.value.length) { alert('Add at least one cow first.'); return null }
   const invalid = showBaggingRows.value.find(row => !row.animalId || !row.entryTime || Number.isNaN(new Date(row.entryTime).getTime()))
-  if (invalid) { alert(`Choose a cow and show time for ${getBaggingRowAnimalLabel(invalid)}.`); return }
+  if (invalid) { alert(`Choose a cow and show time for ${getBaggingRowAnimalLabel(invalid)}.`); return null }
   baggingSaving.value = true
   try {
+    showBaggingRows.value.forEach(row => { row.animalName = getBaggingRowAnimalLabel(row) })
     const saved = await saveBaggingSchedule({
       sharedBaggingScheduleId: baggingScheduleId.value,
       showName: showBaggingShowName.value.trim() || 'Show Bagging',
@@ -1181,9 +1188,11 @@ async function saveWholeBaggingPlan() {
     })
     baggingScheduleId.value = saved.sharedBaggingScheduleId
     baggingActionStatus.value = `Saved ${showBaggingRows.value.length} cow${showBaggingRows.value.length === 1 ? '' : 's'} together.`
+    return saved
   } catch (error) {
     console.error('Failed to save bagging plan:', error)
     alert(error instanceof Error ? error.message : 'Bagging plan could not be saved.')
+    return null
   } finally { baggingSaving.value = false }
 }
 
@@ -1261,21 +1270,15 @@ async function shareShowStringLink() {
 }
 
 async function shareBaggingLink() {
-  const resolved = router.resolve({
-    name: 'shows',
-    query: {
-      tab: 'showBagging',
-      group: showBaggingShowName.value.trim() || undefined,
-      baggingSearch: baggingHistorySearch.value.trim() || undefined
-    }
-  })
-  const shareUrl = `${window.location.origin}${resolved.href}`
-
   try {
+    baggingShareStatus.value = 'Saving and creating share link…'
+    const saved = await saveWholeBaggingPlan()
+    if (!saved) return
+    const shareUrl = `https://ventureagmarketing.com/herd-manager/bagging/?token=${encodeURIComponent(saved.publicToken)}&site=${isDemoOnly ? 'demo' : 'live'}`
     if (navigator.share) {
       await navigator.share({
-        title: 'Bagging Group Planner',
-        text: 'Open the bagging group planner and history in Venture Herd Manager.',
+        title: `${showBaggingShowName.value.trim() || 'Show'} Bagging Plan`,
+        text: 'Open the shared milk-out and ring schedule.',
         url: shareUrl
       })
       baggingShareStatus.value = 'Share dialog opened.'
@@ -1286,11 +1289,11 @@ async function shareBaggingLink() {
     baggingShareStatus.value = 'Bagging planner link copied.'
   } catch (error) {
     console.error('Failed to share bagging link:', error)
-    baggingShareStatus.value = shareUrl
+    baggingShareStatus.value = error instanceof Error ? error.message : 'The bagging link could not be created.'
   }
 }
 
-function textBaggingTeam() {
+async function textBaggingTeam() {
   const numbers = showBaggingPhoneNumbers.value
     .split(/[;,\n]+/)
     .map(value => value.replace(/[^\d+]/g, ''))
@@ -1299,8 +1302,9 @@ function textBaggingTeam() {
     baggingShareStatus.value = 'Enter at least one phone number for this show.'
     return
   }
-  const resolved = router.resolve({ name: 'shows', query: { tab: 'showBagging', group: showBaggingShowName.value.trim() || undefined } })
-  const shareUrl = `${window.location.origin}${resolved.href}`
+  const saved = await saveWholeBaggingPlan()
+  if (!saved) return
+  const shareUrl = `https://ventureagmarketing.com/herd-manager/bagging/?token=${encodeURIComponent(saved.publicToken)}&site=${isDemoOnly ? 'demo' : 'live'}`
   const nextCow = showBaggingRowsSorted.value[0]
   const message = [
     showBaggingShowName.value.trim() || 'Show bagging plan',
@@ -2348,9 +2352,9 @@ watch(activeTab, tab => {
         <h2>Show Bagging</h2>
         <div class="rp-ph-actions">
           <button type="button" class="rp-add-btn bagging-primary-save" :disabled="baggingSaving" @click="saveWholeBaggingPlan">{{ baggingSaving ? 'Saving…' : 'Save Whole Show' }}</button>
+          <button type="button" class="rp-add-btn bagging-share-btn" :disabled="baggingSaving" @click="shareBaggingLink">Share Plan</button>
           <button type="button" class="rp-add-btn bagging-mode-btn" @click="baggingSimpleMode = !baggingSimpleMode">{{ baggingSimpleMode ? 'More Options' : 'Simple View' }}</button>
           <template v-if="!baggingSimpleMode">
-            <button type="button" class="rp-add-btn" @click="shareBaggingLink">Share</button>
             <button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button>
             <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload</button>
           </template>
@@ -2587,16 +2591,18 @@ watch(activeTab, tab => {
 
             </div>
 
+            <div class="udder-guide" aria-hidden="true"><span>Rear</span><b>4 quarters</b><span>Front</span></div>
             <div class="bagging-udder-grid exact-times">
               <label
                 v-for="quarter in row.quarters"
                 :key="quarter.key"
                 class="udder-quarter"
               >
+                <span class="quarter-top"><i class="teat-dot" /> <b>{{ quarterShortLabel(quarter.key) }}</b></span>
                 <span class="quarter-label">{{ quarter.label }}</span>
-                <strong class="quarter-hours-label">Hours before cow goes out</strong>
+                <strong class="quarter-hours-label">Hours before ring</strong>
                 <input v-model.number="quarter.hoursBeforeRing" type="number" min="0" step="0.5" inputmode="decimal" placeholder="Example: 8" @input="quarter.milkOutTime = ''" />
-                <strong class="quarter-time-value">Milk at {{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</strong>
+                <strong class="quarter-time-value"><small>Milk at</small> {{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</strong>
                 <small class="quarter-alert-time">Alert at {{ quarter.hoursBeforeRing === null ? '—' : formatTime(addHoursToInput(row.entryTime, -quarter.hoursBeforeRing - 0.25)) }}</small>
               </label>
             </div>
@@ -3193,6 +3199,7 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-cow-quick-row input { grid-column:1/-1;width:100%;min-height:46px;box-sizing:border-box;border:1px solid #8ea391;border-radius:8px;padding:7px;background:#fff;color:#0f1f16;font-size:.95rem; }
 .bagging-cow-quick-row button { grid-column:1/-1;min-height:38px;border:1px solid #31572c;border-radius:8px;background:#eef6ef;color:#17331f;font-weight:900; }
 .bagging-primary-save { background:#17331f!important;color:#fff!important;border-color:#17331f!important; }
+.bagging-share-btn { background:#c99b4a!important;color:#172119!important;border-color:#b18439!important; }
 .cow-show-clock { font-size:1rem;font-weight:950;color:#17331f; }
 .bagging-timeline { border:2px solid #31572c;border-radius:12px;background:#fff;margin:14px 0;padding:12px;display:grid;gap:10px; }
 .bagging-timeline-heading { display:flex;justify-content:space-between;align-items:center;gap:10px;color:#17331f;font-size:1.05rem; }
@@ -3251,15 +3258,21 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-entry-summary strong { color: #0f1f16; font-size: 0.86rem; }
 .bagging-entry-summary span { color: #5d6f63; font-size: 0.82rem; }
 .bagging-udder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
-.udder-quarter { border: 1px solid #c8d4cb; border-radius: 10px; background: #fff; color: #0f1f16; padding: 12px; display: grid; gap: 3px; cursor: pointer; text-align: left; min-height: 132px; }
+.udder-guide { display:flex;align-items:center;justify-content:space-between;margin:4px 4px 7px;color:#637268;font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em; }
+.udder-guide b { color:#31572c;font-size:.74rem; }
+.udder-quarter { border: 2px solid #c8d4cb; border-radius: 18px; background:linear-gradient(145deg,#fff 0%,#f4f8f4 100%);color:#0f1f16;padding:12px;display:grid;gap:5px;cursor:pointer;text-align:left;min-height:132px;position:relative;overflow:hidden; }
 .udder-quarter:hover { border-color: #31572c; background: #f0f7f1; }
 .exact-times .udder-quarter { cursor: default; min-height: 0; gap: 7px; }
 .exact-times .udder-quarter input { width: 100%; min-height: 48px; box-sizing: border-box; border: 1px solid #9fb2a3; border-radius: 8px; padding: 8px; font-size: 1rem; background: #fff; color: #0f1f16; }
+.quarter-top { display:flex;align-items:center;justify-content:space-between;gap:8px;color:#31572c; }
+.quarter-top b { font-size:.78rem;letter-spacing:.08em; }
+.teat-dot { width:18px;height:18px;border-radius:50%;background:#e7c6bd;border:3px solid #fff;box-shadow:0 0 0 2px #b98477;display:inline-block; }
 .quarter-label { font-size: 0.82rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; color: #31572c; }
 .quarter-hours-label { font-size: 0.7rem; color: #5d6f63; letter-spacing: 0.04em; text-transform: uppercase; }
 .quarter-hours-value { font-size: 1.08rem; color: #0f1f16; font-weight: 900; }
 .quarter-time-label { color: #5d6f63; font-size: 0.7rem; letter-spacing: 0.04em; text-transform: uppercase; }
-.quarter-time-value { color: #0f1f16; font-size: 0.9rem; font-weight: 800; }
+.quarter-time-value { display:grid;color:#0f1f16;font-size:1.05rem;font-weight:950;line-height:1.1; }
+.quarter-time-value small { color:#66766a;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em; }
 .bagging-notes { display: grid; gap: 6px; }
 
 /* checklist */
@@ -3351,7 +3364,7 @@ textarea { min-height: 72px; resize: vertical; }
   .bagging-cow-overview>button { min-width:0; }
   .bagging-meta-grid { grid-template-columns: 1fr; }
   .bagging-quick-edit { grid-template-columns:1fr; }
-  .bagging-udder-grid { grid-template-columns:1fr;gap:8px; }
+  .bagging-udder-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:7px; }
   .bagging-edit-summary { min-height:54px;padding:10px 12px;box-sizing:border-box; }
   .bagging-edit-group-body { display:block; }
   .bagging-card { padding:10px;margin:6px 0; }
@@ -3362,7 +3375,9 @@ textarea { min-height: 72px; resize: vertical; }
   .bagging-sticky-head .rp-ph-actions { display:grid;grid-template-columns:repeat(2,minmax(0,1fr)); }
   .bagging-search-tools { flex-direction: column; align-items: stretch; }
   .bagging-glance-grid { grid-template-columns: 1fr; }
-  .udder-quarter { min-height:0;padding:12px; }
+  .udder-quarter { min-height:0;padding:10px;border-radius:14px; }
+  .quarter-label { font-size:.7rem; }
+  .quarter-hours-label { font-size:.6rem; }
   .quarter-hours-value { font-size: 1rem; }
 }
 </style>

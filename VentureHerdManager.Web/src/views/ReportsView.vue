@@ -390,7 +390,7 @@ function normalizeGroupLists(stored: AnimalGroupList[]): AnimalGroupList[] {
 
 function loadData() {
   groupLists.value = normalizeGroupLists(parseStored<AnimalGroupList[]>(listKey, defaultLists.map(l => ({ ...l })))).map(l => ({ ...l, searchQuery: l.searchQuery ?? '' }))
-  showStringRows.value = parseStored<ShowStringRow[]>(showStringKey, []).map(r => ({ ...r, feedRation: '' }))
+  showStringRows.value = parseStored<ShowStringRow[]>(showStringKey, []).map(r => ({ ...r, feedRation: r.feedRation || '' }))
   showBaggingRows.value = parseStored<ShowBaggingRow[]>(showBaggingKey, []).map(r => normalizeBaggingRow(r))
   const baggingMeta = parseStored<{ showName: string; showDate: string; showStartTime: string; phoneNumbers?: string }>(showBaggingMetaKey, {
     showName: '',
@@ -1201,9 +1201,49 @@ async function loadSavedBaggingPlan() {
 }
 
 async function shareShowStringLink() {
+  const sharedRows = [...showStringCows.value, ...showStringYoungstock.value].map(row => {
+    const animal = getAnimalById(row.animalId)
+    return {
+      animalId: animal?.animalId || row.animalId || 0,
+      name: animal?.barnName || animal?.registeredName || `Animal #${row.animalId}`,
+      registeredName: animal?.registeredName || '',
+      birthDate: animal?.birthDate || '',
+      showClass: getShowClassLabel(animal?.birthDate, animal?.animalStage),
+      stage: animal?.animalStage || 0,
+      feedRation: row.feedRation || '',
+      feedNotes: row.feedNotes || '',
+      ringDirections: row.ringDirections || ''
+    }
+  })
+
+  if (sharedRows.length === 0) {
+    showStringShareStatus.value = 'Add at least one animal before sharing the show string.'
+    return
+  }
+
+  const selectedIds = new Set(sharedRows.map(row => row.animalId))
+  const available = animals.value
+    .filter(animal => animal.birthDate && getShowClassLabel(animal.birthDate, animal.animalStage) !== 'Class TBD' && !selectedIds.has(animal.animalId))
+    .sort((left, right) => (left.birthDate || '').localeCompare(right.birthDate || ''))
+    .map(animal => ({
+      animalId: animal.animalId,
+      name: animal.barnName || animal.registeredName || `Animal #${animal.animalId}`,
+      registeredName: animal.registeredName || '',
+      birthDate: animal.birthDate || '',
+      showClass: getShowClassLabel(animal.birthDate, animal.animalStage),
+      stage: animal.animalStage || 0,
+      feedRation: '',
+      feedNotes: '',
+      ringDirections: ''
+    }))
+  const json = JSON.stringify({ version: 2, sharedAt: new Date().toISOString(), rows: sharedRows, available })
+  const bytes = new TextEncoder().encode(json)
+  let binary = ''
+  bytes.forEach(byte => { binary += String.fromCharCode(byte) })
+  const data = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
   const resolved = router.resolve({
-    name: 'shows',
-    query: { tab: 'showString' }
+    name: 'shared-show-string',
+    query: { data }
   })
   const shareUrl = `${window.location.origin}${resolved.href}`
 
@@ -1211,7 +1251,7 @@ async function shareShowStringLink() {
     if (navigator.share) {
       await navigator.share({
         title: 'Show String Lineup',
-        text: 'Open the show string lineup for Venture Herd Manager.',
+        text: 'Open this read-only show string lineup.',
         url: shareUrl
       })
       showStringShareStatus.value = 'Share dialog opened.'
@@ -2227,20 +2267,23 @@ watch(activeTab, tab => {
               <span class="lineup-birth" v-if="row.animalId">{{ formatShowBirthDate(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
               <span class="lineup-score" v-if="animals.find(a => a.animalId === row.animalId)?.latestScore">{{ getScoreLabel(animals.find(a => a.animalId === row.animalId)?.latestScore) }}</span>
             </div>
-            <div class="lineup-notes-row">
-              <div class="lineup-note-block">
-                <span class="lineup-note-lbl">Feed Ration</span>
-                <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X…" />
+            <details class="lineup-notes-details">
+              <summary>Feed &amp; show notes</summary>
+              <div class="lineup-notes-row">
+                <div class="lineup-note-block">
+                  <span class="lineup-note-lbl">Feed Ration</span>
+                  <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X…" />
+                </div>
+                <div class="lineup-note-block">
+                  <span class="lineup-note-lbl">Feed Schedule / Notes</span>
+                  <textarea v-model="row.feedNotes" rows="2" class="lineup-textarea" placeholder="Show-week timing, special instructions" />
+                </div>
+                <div class="lineup-note-block">
+                  <span class="lineup-note-lbl">Ring Directions</span>
+                  <textarea v-model="row.ringDirections" rows="2" class="lineup-textarea" placeholder="Lead side, clipping cues, prep notes, blanketing" />
+                </div>
               </div>
-              <div class="lineup-note-block">
-                <span class="lineup-note-lbl">Feed Schedule / Notes</span>
-                <textarea v-model="row.feedNotes" rows="2" class="lineup-textarea" placeholder="Show-week timing, special instructions" />
-              </div>
-              <div class="lineup-note-block">
-                <span class="lineup-note-lbl">Ring Directions</span>
-                <textarea v-model="row.ringDirections" rows="2" class="lineup-textarea" placeholder="Lead side, clipping cues, prep notes, blanketing" />
-              </div>
-            </div>
+            </details>
           </div>
         </div>
       </template>
@@ -2263,20 +2306,23 @@ watch(activeTab, tab => {
               <span class="lineup-age" v-if="row.animalId"><b>SHOW AGE</b> {{ formatCurrentAge(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
               <span class="lineup-birth" v-if="row.animalId">{{ formatShowBirthDate(animals.find(a => a.animalId === row.animalId)?.birthDate) }}</span>
             </div>
-            <div class="lineup-notes-row">
-              <div class="lineup-note-block">
-                <span class="lineup-note-lbl">Feed Ration</span>
-                <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X…" />
+            <details class="lineup-notes-details">
+              <summary>Feed &amp; show notes</summary>
+              <div class="lineup-notes-row">
+                <div class="lineup-note-block">
+                  <span class="lineup-note-lbl">Feed Ration</span>
+                  <input v-model="row.feedRation" type="text" class="lineup-input" placeholder="8 lbs grain, 20 lbs hay, top dress X…" />
+                </div>
+                <div class="lineup-note-block">
+                  <span class="lineup-note-lbl">Feed Schedule / Notes</span>
+                  <textarea v-model="row.feedNotes" rows="2" class="lineup-textarea" placeholder="Show-week timing, special instructions" />
+                </div>
+                <div class="lineup-note-block">
+                  <span class="lineup-note-lbl">Ring Directions</span>
+                  <textarea v-model="row.ringDirections" rows="2" class="lineup-textarea" placeholder="Lead side, clipping cues, prep notes, blanketing" />
+                </div>
               </div>
-              <div class="lineup-note-block">
-                <span class="lineup-note-lbl">Feed Schedule / Notes</span>
-                <textarea v-model="row.feedNotes" rows="2" class="lineup-textarea" placeholder="Show-week timing, special instructions" />
-              </div>
-              <div class="lineup-note-block">
-                <span class="lineup-note-lbl">Ring Directions</span>
-                <textarea v-model="row.ringDirections" rows="2" class="lineup-textarea" placeholder="Lead side, clipping cues, prep notes, blanketing" />
-              </div>
-            </div>
+            </details>
           </div>
         </div>
       </template>
@@ -3017,6 +3063,23 @@ textarea { min-height: 72px; resize: vertical; }
   grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
 }
+
+.lineup-notes-details {
+  margin-top: 8px;
+  border-top: 1px solid #e7ede8;
+  padding-top: 8px;
+}
+
+.lineup-notes-details summary {
+  width: fit-content;
+  color: #31572c;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 850;
+  user-select: none;
+}
+
+.lineup-notes-details[open] summary { margin-bottom: 10px; }
 
 .lineup-note-block {
   display: grid;

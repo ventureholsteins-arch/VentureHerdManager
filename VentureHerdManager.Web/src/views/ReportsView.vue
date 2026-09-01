@@ -1291,6 +1291,13 @@ function toggleAnimalInList(key: string, animalId: number) {
   else list.animalIds.push(animalId)
 }
 
+function addHealthPaperAnimalAndContinue(list: AnimalGroupList, animalId: number, event: MouseEvent) {
+  const group = (event.currentTarget as HTMLElement | null)?.closest('.rp-group')
+  toggleAnimalInList(list.key, animalId)
+  list.searchQuery = ''
+  nextTick(() => group?.querySelector<HTMLInputElement>('.rp-list-search')?.focus())
+}
+
 function addChecklistItem() { checklistItems.value.push({ id: Date.now(), text: 'New item', done: false }) }
 
 async function addEmbryoRecord() {
@@ -2536,7 +2543,7 @@ watch(activeTab, tab => {
           <p v-if="(list.searchQuery || '').trim().length < 2" class="rp-hint">Type at least 2 letters. The entire herd will not be shown as buttons.</p>
         </template>
         <div v-if="!isReadOnlyList(list)" class="rp-chips">
-          <button v-for="a in filteredListAnimals(list)" :key="`${list.key}-${a.animalId}`" type="button" class="rp-chip" :class="{ 'rp-chip-sel': getListAnimalIds(list).includes(a.animalId) }" @click="toggleAnimalInList(list.key, a.animalId)">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</button>
+          <button v-for="a in filteredListAnimals(list)" :key="`${list.key}-${a.animalId}`" type="button" class="rp-chip" :class="{ 'rp-chip-sel': getListAnimalIds(list).includes(a.animalId) }" @click="list.key === 'health-paper-group' ? addHealthPaperAnimalAndContinue(list, a.animalId, $event) : toggleAnimalInList(list.key, a.animalId)">{{ a.barnName || a.registeredName || `#${a.animalId}` }}</button>
         </div>
         <div v-if="getListAnimalIds(list).length > 0" class="rp-list-members">
           <div class="rp-lm-hd">In this list</div>

@@ -584,12 +584,22 @@ const animalOptions = computed(() =>
 )
 
 const showClassOptions = computed(() => {
-  const set = new Set<string>()
+  const oldestBirthByClass = new Map<string, string>()
   for (const a of animals.value) {
     const c = getShowClassLabel(a.birthDate, a.animalStage)
-    if (c && c !== 'Class TBD') set.add(c)
+    if (!c || c === 'Class TBD') continue
+
+    const birthDate = a.birthDate?.slice(0, 10)
+    const oldest = oldestBirthByClass.get(c)
+    if (birthDate && (!oldest || birthDate < oldest)) {
+      oldestBirthByClass.set(c, birthDate)
+    } else if (!oldestBirthByClass.has(c)) {
+      oldestBirthByClass.set(c, '9999-12-31')
+    }
   }
-  return Array.from(set).sort()
+  return [...oldestBirthByClass.entries()]
+    .sort((left, right) => left[1].localeCompare(right[1]) || left[0].localeCompare(right[0]))
+    .map(([className]) => className)
 })
 
 const showStringBrowseAnimals = computed(() => {
@@ -598,7 +608,7 @@ const showStringBrowseAnimals = computed(() => {
     return []
   }
 
-  let result = animalOptions.value
+  let result = [...animalOptions.value]
   if (showStringClassFilter.value !== 'all') {
     result = result.filter(a => getShowClassLabel(a.birthDate, a.animalStage) === showStringClassFilter.value)
   }

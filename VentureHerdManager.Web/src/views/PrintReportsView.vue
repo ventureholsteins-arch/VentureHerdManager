@@ -91,14 +91,14 @@ const fmt = (value: string | null) => value ? new Date(value).toLocaleDateString
 const printReport = () => window.print()
 
 function healthPaperText(): string {
-  const heading = ['Name', 'Full registered name', 'Birthdate', 'Registration number'].join('\t')
-  const lines = rows.value.map((animal: any) => [
-    animal.barnName || '—',
-    animal.registeredName || '—',
-    fmt(animal.birthDate),
-    animal.registrationNumber || 'MISSING'
-  ].join('\t'))
-  return ['Health Paper Group', heading, ...lines].join('\n')
+  const animals = rows.value.map((animal: any, index: number) => [
+    `${index + 1}. ${animal.barnName || animal.registeredName || 'Unnamed animal'}`,
+    `Full registered name: ${animal.registeredName || '—'}`,
+    `Birthdate: ${fmt(animal.birthDate)}`,
+    `Registration number: ${animal.registrationNumber || 'MISSING'}`
+  ].join('\n'))
+
+  return ['HEALTH PAPER GROUP', ...animals].join('\n\n')
 }
 
 async function copyHealthPaperDetails() {

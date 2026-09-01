@@ -49,7 +49,13 @@ const rows = computed(() => {
     } catch { ids = [] }
     return (data.value.animals ?? [])
       .filter((animal: any) => ids.includes(animal.animalId))
-      .sort((a: any, b: any) => String(a.barnName || a.registeredName || '').localeCompare(String(b.barnName || b.registeredName || '')))
+      .sort((a: any, b: any) => {
+        if (!a.birthDate && !b.birthDate) return String(a.barnName || a.registeredName || '').localeCompare(String(b.barnName || b.registeredName || ''))
+        if (!a.birthDate) return 1
+        if (!b.birthDate) return -1
+        return String(a.birthDate).localeCompare(String(b.birthDate))
+          || String(a.barnName || a.registeredName || '').localeCompare(String(b.barnName || b.registeredName || ''))
+      })
   }
   if (report.value === 'sellAnimals') {
     let ids: number[] = []

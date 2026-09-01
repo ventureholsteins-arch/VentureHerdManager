@@ -594,7 +594,7 @@ const showClassOptions = computed(() => {
 
 const showStringBrowseAnimals = computed(() => {
   const query = showStringSearch.value.trim().toLowerCase()
-  if (query.length < 2) {
+  if (query.length < 2 && showStringClassFilter.value === 'all') {
     return []
   }
 
@@ -602,23 +602,30 @@ const showStringBrowseAnimals = computed(() => {
   if (showStringClassFilter.value !== 'all') {
     result = result.filter(a => getShowClassLabel(a.birthDate, a.animalStage) === showStringClassFilter.value)
   }
-  result = result.filter(a => {
-    const haystack = [
-      a.barnName,
-      a.registeredName,
-      a.registrationNumber,
-      a.sireName,
-      a.damName,
-      a.breed
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
+  if (query.length >= 2) {
+    result = result.filter(a => {
+      const haystack = [
+        a.barnName,
+        a.registeredName,
+        a.registrationNumber,
+        a.sireName,
+        a.damName,
+        a.breed
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
 
-    return haystack.includes(query)
-  })
+      return haystack.includes(query)
+    })
+  }
 
-  return result.slice(0, 12)
+  return result.sort((a, b) => {
+    if (!a.birthDate && !b.birthDate) return (a.barnName || a.registeredName || '').localeCompare(b.barnName || b.registeredName || '')
+    if (!a.birthDate) return 1
+    if (!b.birthDate) return -1
+    return a.birthDate.localeCompare(b.birthDate)
+  }).slice(0, showStringClassFilter.value === 'all' ? 12 : undefined)
 })
 
 const showBaggingBrowseAnimals = computed(() => {
@@ -923,6 +930,19 @@ function getShowStringPosition(animalId: number | null): number | null {
 function getListAnimalIds(list: AnimalGroupList): number[] {
   if (list.key === 'show-string') {
     return showStringTopThreeAnimalIds.value
+  }
+
+  if (list.key === 'health-paper-group') {
+    return [...list.animalIds].sort((leftId, rightId) => {
+      const left = getAnimalById(leftId)
+      const right = getAnimalById(rightId)
+      if (!left?.birthDate && !right?.birthDate) {
+        return (left?.barnName || left?.registeredName || '').localeCompare(right?.barnName || right?.registeredName || '')
+      }
+      if (!left?.birthDate) return 1
+      if (!right?.birthDate) return -1
+      return left.birthDate.localeCompare(right.birthDate)
+    })
   }
 
   return list.animalIds
@@ -2156,7 +2176,11 @@ watch(activeTab, tab => {
             <button v-if="!isAnimalInShowString(a.animalId)" type="button" class="add-str-btn" @click="addToShowString(a)">+ Add</button>
             <span v-else class="in-str-tag">✓ In String</span>
           </div>
-          <p v-if="showStringBrowseAnimals.length === 0" class="rp-empty-sm">No animals match this filter.</p>
+          <p v-if="showStringBrowseAnimals.length === 0" class="rp-empty-sm">
+            {{ showStringClassFilter === 'all' && showStringSearch.trim().length < 2
+              ? 'Choose a class or type at least two letters to find animals.'
+              : 'No animals match this filter.' }}
+          </p>
         </div>
       </div>
 

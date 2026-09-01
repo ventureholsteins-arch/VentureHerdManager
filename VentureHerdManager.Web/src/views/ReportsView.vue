@@ -815,6 +815,18 @@ const orderedGroupLists = computed(() =>
   [...groupLists.value].sort((left, right) => herdListOrder.indexOf(left.key) - herdListOrder.indexOf(right.key))
 )
 
+function compareShowStringRowsByAge(left: ShowStringRow, right: ShowStringRow): number {
+  const leftAnimal = getAnimalById(left.animalId)
+  const rightAnimal = getAnimalById(right.animalId)
+  const leftBirthDate = leftAnimal?.birthDate?.slice(0, 10)
+  const rightBirthDate = rightAnimal?.birthDate?.slice(0, 10)
+
+  if (!leftBirthDate && !rightBirthDate) return left.lineupOrder - right.lineupOrder
+  if (!leftBirthDate) return 1
+  if (!rightBirthDate) return -1
+  return leftBirthDate.localeCompare(rightBirthDate) || left.lineupOrder - right.lineupOrder
+}
+
 // Split lineup into Cows (stage 3/4 or show class has "Cow") and Heifers/Youngstock
 const showStringCows = computed(() =>
   showStringSorted.value.filter(row => {
@@ -822,9 +834,8 @@ const showStringCows = computed(() =>
     const a = animals.value.find(x => x.animalId === row.animalId)
     if (!a) return false
     return a.animalStage === 3 || a.animalStage === 4 ||
-      getShowClassLabel(a.birthDate, a.animalStage).includes('Cow') ||
       getShowClassLabel(a.birthDate, a.animalStage).includes('Cow')
-  })
+  }).sort(compareShowStringRowsByAge)
 )
 
 const showStringYoungstock = computed(() =>
@@ -835,7 +846,7 @@ const showStringYoungstock = computed(() =>
     return a.animalStage === 1 || a.animalStage === 2 ||
       getShowClassLabel(a.birthDate, a.animalStage).includes('Heifer') ||
       getShowClassLabel(a.birthDate, a.animalStage).includes('Calf')
-  })
+  }).sort(compareShowStringRowsByAge)
 )
 
 const showStringUnassigned = computed(() =>

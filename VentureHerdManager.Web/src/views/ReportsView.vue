@@ -234,6 +234,7 @@ const defaultLists: AnimalGroupList[] = [
   { key: 'flush-candidates', title: 'Flush Candidates', animalIds: [], notes: '', searchQuery: '' },
   { key: 'donor-cows', title: 'Donor Cows', animalIds: [], notes: '', searchQuery: '' },
   { key: 'vet-check', title: 'Vet Check', animalIds: [], notes: '', searchQuery: '' },
+  { key: 'health-paper-group', title: 'Health Paper Group', animalIds: [], notes: '', searchQuery: '' },
 ]
 
 const defaultChecklist: ChecklistItem[] = [
@@ -543,6 +544,11 @@ function scheduleSaveData() {
     saveData()
     saveDataTimer = null
   }, 200)
+}
+
+function openHealthPaperReport() {
+  saveData()
+  router.push('/reports/print?report=healthPapers')
 }
 
 watch([groupLists, showStringRows, showBaggingRows, showBaggingShowName, showBaggingShowDate, showBaggingStartTime, showBaggingPhoneNumbers, checklistItems, embryoRecords, achievements], scheduleSaveData, { deep: true })
@@ -2523,6 +2529,7 @@ watch(activeTab, tab => {
           <h3>{{ list.title }}</h3>
           <span class="rp-group-ct">{{ getListAnimalIds(list).length }}</span>
         </div>
+        <button v-if="list.key === 'health-paper-group'" type="button" class="rp-add-btn" @click="openHealthPaperReport">Open Printable Health Papers</button>
         <p v-if="isReadOnlyList(list)" class="rp-hint">Pulled automatically from the first 3 animals in Show String.</p>
         <template v-else>
           <input v-model="list.searchQuery" type="search" class="rp-list-search" :placeholder="`Search ${list.title}…`" />

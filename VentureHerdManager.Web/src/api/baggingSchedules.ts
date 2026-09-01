@@ -9,6 +9,13 @@ export interface SavedBaggingSchedule {
   updatedAt: string
 }
 
+export interface SharedBaggingSchedule {
+  showName: string
+  showDate: string
+  scheduleJson: string
+  updatedAt: string
+}
+
 export async function getLatestBaggingSchedule(): Promise<SavedBaggingSchedule | null> {
   const response = await fetch(`${API_BASE}/BaggingSchedules/latest`)
   if (response.status === 204) return null
@@ -38,4 +45,10 @@ export async function getSharedShowString(token: string): Promise<string> {
   if (!response.ok) throw new Error(response.status === 404 ? 'This show string link was not found.' : 'Failed to load show string')
   const result = await response.json()
   return result.showStringJson
+}
+
+export async function getSharedBaggingSchedule(token: string): Promise<SharedBaggingSchedule> {
+  const response = await fetch(`${API_BASE}/BaggingSchedules/shared/${encodeURIComponent(token)}`)
+  if (!response.ok) throw new Error(response.status === 404 ? 'This bagging link was not found.' : 'Failed to load bagging plan')
+  return response.json()
 }

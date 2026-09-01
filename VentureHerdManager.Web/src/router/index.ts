@@ -9,6 +9,7 @@ import CalendarView from '../views/CalendarView.vue'
 import AnimalCreateView from '../views/AnimalCreateView.vue'
 import ReportsView from '../views/ReportsView.vue'
 import SharedShowStringView from '../views/SharedShowStringView.vue'
+import SharedBaggingView from '../views/SharedBaggingView.vue'
 import PrintReportsView from '../views/PrintReportsView.vue'
 import SireCatalogView from '../views/SireCatalogView.vue'
 import HerdDataView from '../views/HerdDataView.vue'
@@ -64,6 +65,11 @@ const router = createRouter({
       component: SharedShowStringView
     },
     {
+      path: '/shows/bagging/:token',
+      name: 'shared-bagging',
+      component: SharedBaggingView
+    },
+    {
       path: '/reports/print',
       name: 'print-reports',
       component: PrintReportsView
@@ -108,7 +114,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (isDemoOnly && to.path !== '/demo' && to.name !== 'shared-show-string' && !sessionStorage.getItem('demo-launched')) {
+  if (isDemoOnly && to.path !== '/demo' && to.name !== 'shared-show-string' && to.name !== 'shared-bagging' && !sessionStorage.getItem('demo-launched')) {
     return '/demo'
   }
 

@@ -32,6 +32,18 @@
             </div>
 
             <div class="form-group">
+              <label for="registrationNumber">Registration Number</label>
+              <input
+                id="registrationNumber"
+                v-model="formData.registrationNumber"
+                type="text"
+                inputmode="numeric"
+                placeholder="Enter registration number"
+                maxlength="100"
+              />
+            </div>
+
+            <div class="form-group">
               <label for="breed">Breed</label>
               <input 
                 id="breed"
@@ -168,6 +180,7 @@ const initialBaa = ref<number | null>(null)
 const formData = ref({
   barnName: '',
   registeredName: '',
+  registrationNumber: '',
   birthDate: '',
   breed: '',
   sireName: '',
@@ -185,6 +198,7 @@ const populateFormData = (sourceAnimal: Animal) => {
   formData.value = {
     barnName: sourceAnimal.barnName || '',
     registeredName: sourceAnimal.registeredName || '',
+    registrationNumber: sourceAnimal.registrationNumber || '',
     birthDate: sourceAnimal.birthDate?.slice(0, 10) || '',
     breed: sourceAnimal.breed || '',
     sireName: sourceAnimal.sireName || '',
@@ -221,7 +235,7 @@ const handleSubmit = async () => {
     const updatedAnimal = await updateAnimal(props.animal.animalId, {
       barnName: formData.value.barnName || null,
       registeredName: formData.value.registeredName || null,
-      registrationNumber: props.animal.registrationNumber,
+      registrationNumber: formData.value.registrationNumber || null,
       birthDate: formData.value.birthDate || null,
       sex: props.animal.sex,
       animalStage: props.animal.animalStage,

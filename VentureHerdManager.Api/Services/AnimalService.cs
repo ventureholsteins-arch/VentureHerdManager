@@ -328,6 +328,11 @@ public class AnimalService
             animal.RegisteredName = request.RegisteredName;
         }
 
+        animal.RegistrationNumber =
+            CleanOptionalText(request.RegistrationNumber);
+
+        animal.BirthDate = request.BirthDate;
+
         if (!string.IsNullOrEmpty(request.Breed))
         {
             animal.Breed = request.Breed;

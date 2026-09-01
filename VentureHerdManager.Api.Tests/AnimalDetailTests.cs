@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using VentureHerdManager.Api.Data;
+using VentureHerdManager.Api.DTOs;
 using VentureHerdManager.Api.Models;
 using VentureHerdManager.Api.Services;
 using Xunit;
@@ -60,6 +61,38 @@ public sealed class AnimalDetailTests
         var loaded = await service.GetAnimalByIdAsync(999);
 
         Assert.Null(loaded);
+    }
+
+    [Fact]
+    public async Task UpdateAnimalPersistsBirthDateAndRegistrationNumber()
+    {
+        await using var context = CreateContext();
+        var animal = new Animal
+        {
+            BarnName = "Birthday Cow",
+            BirthDate = new DateOnly(2024, 1, 1),
+            RegistrationNumber = "OLD-REG"
+        };
+        context.Animals.Add(animal);
+        await context.SaveChangesAsync();
+
+        var service = new AnimalService(context);
+        var updated = service.UpdateAnimal(
+            animal.AnimalId,
+            new UpdateAnimalRequest
+            {
+                BirthDate = new DateOnly(2023, 9, 14),
+                RegistrationNumber = "840003123456789"
+            });
+
+        Assert.NotNull(updated);
+        Assert.Equal(new DateOnly(2023, 9, 14), updated.BirthDate);
+        Assert.Equal("840003123456789", updated.RegistrationNumber);
+
+        context.ChangeTracker.Clear();
+        var stored = await context.Animals.SingleAsync();
+        Assert.Equal(new DateOnly(2023, 9, 14), stored.BirthDate);
+        Assert.Equal("840003123456789", stored.RegistrationNumber);
     }
 
     private static ApplicationDbContext CreateContext()

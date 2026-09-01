@@ -7,9 +7,10 @@ import BrandedHerdLoader from './components/BrandedHerdLoader.vue'
 
 const appearance = ref<AppearanceSetting | null>(null)
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
+const isPublicSharedShow = window.location.pathname === '/shows/shared'
 const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
 const demoResetting = ref(false)
-const appUnlocked = ref(isDemoOnly || Boolean(getAdminKey()))
+const appUnlocked = ref(isDemoOnly || isPublicSharedShow || Boolean(getAdminKey()))
 const unlockKey = ref('')
 const unlockBusy = ref(false)
 const unlockError = ref('')
@@ -50,11 +51,13 @@ onMounted(async () => {
   window.addEventListener('herd-startup-begin', beginStartup)
   window.addEventListener('herd-startup-finish', finishStartup)
 
-  if (appUnlocked.value && !isDemoOnly) showStartup()
-  try {
-    await refreshAppearance()
-  } catch (error) {
-    console.error('Failed to load app appearance:', error)
+  if (appUnlocked.value && !isDemoOnly && !isPublicSharedShow) showStartup()
+  if (!isPublicSharedShow) {
+    try {
+      await refreshAppearance()
+    } catch (error) {
+      console.error('Failed to load app appearance:', error)
+    }
   }
 })
 
@@ -113,7 +116,7 @@ async function unlockApp() {
   <div class="app-shell" :style="appStyle">
     <div class="app-background" />
 
-    <div v-if="appUnlocked && isDemoOnly" class="demo-banner">
+    <div v-if="appUnlocked && isDemoOnly && !isPublicSharedShow" class="demo-banner">
       <span>{{ demoResetEnabled ? 'DEMO MODE · PRIVATE 24-HOUR SAMPLE HERD' : 'DEMO MODE' }}</span>
       <div class="demo-actions">
         <button type="button" class="secondary" :disabled="demoResetting" @click="openDemoFast">
@@ -144,7 +147,7 @@ async function unlockApp() {
 
     <BrandedHerdLoader v-if="startupVisible && appUnlocked" />
 
-    <footer v-if="appUnlocked" class="app-footer">
+    <footer v-if="appUnlocked && !isPublicSharedShow" class="app-footer">
       <span class="footer-brand">
         <span>Powered by</span>
         <i class="footer-venture-logo" aria-label="Venture Ag Marketing" />

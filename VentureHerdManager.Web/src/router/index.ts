@@ -8,6 +8,7 @@ import AnimalView from '../views/AnimalView.vue'
 import CalendarView from '../views/CalendarView.vue'
 import AnimalCreateView from '../views/AnimalCreateView.vue'
 import ReportsView from '../views/ReportsView.vue'
+import SharedShowStringView from '../views/SharedShowStringView.vue'
 import PrintReportsView from '../views/PrintReportsView.vue'
 import SireCatalogView from '../views/SireCatalogView.vue'
 import HerdDataView from '../views/HerdDataView.vue'
@@ -58,6 +59,11 @@ const router = createRouter({
       component: ReportsView
     },
     {
+      path: '/shows/shared',
+      name: 'shared-show-string',
+      component: SharedShowStringView
+    },
+    {
       path: '/reports/print',
       name: 'print-reports',
       component: PrintReportsView
@@ -102,7 +108,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (isDemoOnly && to.path !== '/demo' && !sessionStorage.getItem('demo-launched')) {
+  if (isDemoOnly && to.path !== '/demo' && to.name !== 'shared-show-string' && !sessionStorage.getItem('demo-launched')) {
     return '/demo'
   }
 

@@ -14,7 +14,7 @@ const unlockKey = ref('')
 const unlockBusy = ref(false)
 const unlockError = ref('')
 const startupVisible = ref(!isDemoOnly && Boolean(getAdminKey()))
-const STARTUP_MINIMUM_MS = 2800
+const STARTUP_MINIMUM_MS = 3500
 let startupTimer: number | null = null
 let startupShownAt = 0
 
@@ -139,7 +139,7 @@ async function unlockApp() {
     </main>
 
     <div v-else class="app-content">
-      <RouterView />
+      <RouterView :key="$route.path" />
     </div>
 
     <BrandedHerdLoader v-if="startupVisible && appUnlocked" />

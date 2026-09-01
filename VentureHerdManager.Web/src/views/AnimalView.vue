@@ -10,6 +10,7 @@ import RetroIcon from '../components/RetroIcon.vue'
 import EditAnimalModal from '../components/EditAnimalModal.vue'
 import RecordLUTModal from '../components/RecordLUTModal.vue'
 import RecordBreedingModal from '../components/RecordBreedingModal.vue'
+import BrandedHerdLoader from '../components/BrandedHerdLoader.vue'
 import { EMBRYO_STATUS_LABELS, getEmbryosForRecipient, implantEmbryo, type EmbryoRecord } from '../api/embryoRecords'
 import { getAnimalHerdData, getAdminKey, getMatingSuggestions } from '../api/herdData'
 
@@ -116,6 +117,8 @@ async function loadAnimalSearch() {
 }
 
 function openAnimalFromSearch(id: number) {
+  const selected = animalSearchOptions.value.find(option => option.animalId === id)
+  if (selected) sessionStorage.setItem(`venture-animal-card-${id}`, JSON.stringify(selected))
   animalSearch.value = ''
   router.push(`/animals/${id}`)
 }
@@ -471,6 +474,27 @@ function openPendingAction() {
 onMounted(async () => {
   window.addEventListener('beforeunload', beforeUnloadHandler)
 
+  let pendingActionOpened = false
+  const openPendingActionOnce = () => {
+    if (pendingActionOpened) return
+    pendingActionOpened = true
+    openPendingAction()
+  }
+
+  try {
+    const cached = sessionStorage.getItem(`venture-animal-card-${animalId.value}`)
+    if (cached) {
+      const parsed = JSON.parse(cached) as Animal
+      if (parsed.animalId === animalId.value) {
+        animal.value = parsed
+        loading.value = false
+        openPendingActionOnce()
+      }
+    }
+  } catch (error) {
+    console.warn('Cached animal card could not be restored:', error)
+  }
+
   // Start the complete snapshot immediately, but do not make the animal card
   // wait for every timeline/history query before showing its identity and
   // quick actions.
@@ -478,13 +502,15 @@ onMounted(async () => {
 
   try {
     animal.value = await getAnimal(animalId.value)
+    sessionStorage.setItem(`venture-animal-card-${animalId.value}`, JSON.stringify(animal.value))
     loading.value = false
-    openPendingAction()
+    openPendingActionOnce()
 
     void snapshotPromise
       .then(animalSnapshot => {
         snapshot.value = animalSnapshot
         animal.value = animalSnapshot.animal
+        sessionStorage.setItem(`venture-animal-card-${animalId.value}`, JSON.stringify(animal.value))
         timelineEntries.value = animalSnapshot.timeline
       })
       .catch(error => console.warn('Full animal history is still unavailable:', error))
@@ -509,8 +535,9 @@ onMounted(async () => {
       const animalSnapshot = await snapshotPromise
       snapshot.value = animalSnapshot
       animal.value = animalSnapshot.animal
+      sessionStorage.setItem(`venture-animal-card-${animalId.value}`, JSON.stringify(animal.value))
       timelineEntries.value = animalSnapshot.timeline
-      openPendingAction()
+      openPendingActionOnce()
     } catch (snapshotError) {
       console.error('Failed to load animal:', error, snapshotError)
     }
@@ -1045,9 +1072,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
     <RecordLUTModal ref="lutModalRef" @record-lut="onRecordLUT" />
     <RecordBreedingModal ref="breedingModalRef" @record-breeding="onRecordBreeding" />
 
-    <p v-if="loading">
-      Loading...
-    </p>
+    <BrandedHerdLoader v-if="loading" message="Opening animal record…" />
 
     <div v-else-if="animal" class="animal-layout">
       <section class="hero">

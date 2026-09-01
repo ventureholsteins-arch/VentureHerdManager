@@ -337,9 +337,10 @@ function openReports() {
   router.push('/reports')
 }
 
-function openQuickSearchAnimal(animalId: number) {
+function openAnimalCard(animal: Animal) {
+  sessionStorage.setItem(`venture-animal-card-${animal.animalId}`, JSON.stringify(animal))
   quickSearchQuery.value = ''
-  router.push(`/animals/${animalId}`)
+  router.push(`/animals/${animal.animalId}`)
 }
 
 function useDefaultHeroLogo(event: Event) {
@@ -743,7 +744,7 @@ onMounted(() => {
             v-for="animal in quickSearchResults"
             :key="animal.animalId"
             type="button"
-            @click="openQuickSearchAnimal(animal.animalId)"
+            @click="openAnimalCard(animal)"
           >
             <strong>{{ dashboardAnimalName(animal) }}</strong>
             <small>{{ getStageLabel(animal.animalStage) }}<template v-if="animal.registrationNumber"> · {{ animal.registrationNumber }}</template></small>
@@ -855,7 +856,7 @@ onMounted(() => {
             </div>
 
             <!-- Main clickable area -->
-            <button class="player-card-body" type="button" @click="router.push(`/animals/${animal.animalId}`)">
+            <button class="player-card-body" type="button" @click="openAnimalCard(animal)">
               <div class="player-name">
                 {{ dashboardAnimalName(animal) }}
               </div>
@@ -895,7 +896,7 @@ onMounted(() => {
               <button @click.stop="openHeatModal(animal.animalId, dashboardAnimalName(animal))" class="pca-btn pca-heat" title="Record Heat"><RetroIcon name="heat" :size="20" /><span>Heat</span></button>
               <button @click.stop="openBreedingModal(animal.animalId, dashboardAnimalName(animal))" class="pca-btn pca-breed" title="Record Breeding"><RetroIcon name="embryo" :size="20" /><span>Breed</span></button>
               <button @click.stop="openEditModal(animal)" class="pca-btn pca-edit" title="Edit"><RetroIcon name="note" :size="20" /><span>Edit</span></button>
-              <button @click.stop="router.push(`/animals/${animal.animalId}`)" class="pca-btn pca-open" title="Open"><RetroIcon name="calf" :size="20" /><span>Open</span></button>
+              <button @click.stop="openAnimalCard(animal)" class="pca-btn pca-open" title="Open"><RetroIcon name="calf" :size="20" /><span>Open</span></button>
             </div>
           </div>
         </div>

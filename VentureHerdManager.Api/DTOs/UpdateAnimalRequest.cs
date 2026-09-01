@@ -8,6 +8,10 @@ public class UpdateAnimalRequest
 
     public string? RegisteredName { get; set; }
 
+    public string? RegistrationNumber { get; set; }
+
+    public DateOnly? BirthDate { get; set; }
+
     public string? Breed { get; set; }
 
     public string? SireName { get; set; }

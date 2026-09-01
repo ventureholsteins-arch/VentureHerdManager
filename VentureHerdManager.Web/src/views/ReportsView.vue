@@ -27,7 +27,7 @@ import { formatCurrentAge, getShowClassLabel } from '../utils/showClasses'
 import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 import RetroIcon from '../components/RetroIcon.vue'
 import { getHerdDataAnalytics } from '../api/herdData'
-import { getLatestBaggingSchedule, saveBaggingSchedule } from '../api/baggingSchedules'
+import { getLatestBaggingSchedule, saveBaggingSchedule, saveSharedShowString } from '../api/baggingSchedules'
 
 type HubTab = 'analytics' | 'embryos' | 'embryoImplants' | 'showString' | 'showBagging' | 'lists' | 'checklist' | 'pcdartImport' | 'achievements'
 type ReportCategory = 'decisions' | 'embryos' | 'shows' | 'data'
@@ -1236,18 +1236,12 @@ async function shareShowStringLink() {
       feedNotes: '',
       ringDirections: ''
     }))
-  const json = JSON.stringify({ version: 2, sharedAt: new Date().toISOString(), rows: sharedRows, available })
-  const bytes = new TextEncoder().encode(json)
-  let binary = ''
-  bytes.forEach(byte => { binary += String.fromCharCode(byte) })
-  const data = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
-  const resolved = router.resolve({
-    name: 'shared-show-string',
-    query: { data }
-  })
-  const shareUrl = `${window.location.origin}${resolved.href}`
-
   try {
+    showStringShareStatus.value = 'Creating share link…'
+    const json = JSON.stringify({ version: 2, sharedAt: new Date().toISOString(), rows: sharedRows, available })
+    const token = await saveSharedShowString(json)
+    const shareUrl = `https://ventureagmarketing.com/herd-manager/show-string/?token=${encodeURIComponent(token)}&site=${isDemoOnly ? 'demo' : 'live'}`
+
     if (navigator.share) {
       await navigator.share({
         title: 'Show String Lineup',
@@ -1262,7 +1256,7 @@ async function shareShowStringLink() {
     showStringShareStatus.value = 'Show string link copied.'
   } catch (error) {
     console.error('Failed to share show string link:', error)
-    showStringShareStatus.value = shareUrl
+    showStringShareStatus.value = error instanceof Error ? error.message : 'The show string link could not be created.'
   }
 }
 

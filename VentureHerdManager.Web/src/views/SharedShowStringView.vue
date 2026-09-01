@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { formatCurrentAge } from '../utils/showClasses'
+import { getSharedShowString, saveSharedShowString } from '../api/baggingSchedules'
 
 interface SharedRow {
   animalId: number
@@ -18,25 +19,25 @@ interface SharedRow {
 const route = useRoute()
 const shareStatus = ref('')
 const selectedClass = ref('all')
+const loading = ref(true)
+const loadError = ref('')
+const rows = ref<SharedRow[]>([])
+const available = ref<SharedRow[]>([])
 
-function decodePayload(): { rows: SharedRow[]; available: SharedRow[] } {
+async function loadSharedShowString() {
   try {
-    const encoded = String(route.query.data || '').replace(/-/g, '+').replace(/_/g, '/')
-    const binary = atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '='))
-    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0))
-    const payload = JSON.parse(new TextDecoder().decode(bytes))
-    return {
-      rows: Array.isArray(payload.rows) ? payload.rows : [],
-      available: Array.isArray(payload.available) ? payload.available : []
-    }
-  } catch {
-    return { rows: [], available: [] }
+    const json = await getSharedShowString(String(route.params.token || ''))
+    const payload = JSON.parse(json)
+    rows.value = Array.isArray(payload.rows) ? payload.rows : []
+    available.value = Array.isArray(payload.available) ? payload.available : []
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : 'This show string could not be loaded.'
+  } finally {
+    loading.value = false
   }
 }
 
-const decoded = decodePayload()
-const rows = ref(decoded.rows)
-const available = ref(decoded.available)
+onMounted(loadSharedShowString)
 const cows = computed(() => rows.value.filter(row => row.stage === 3 || row.stage === 4 || row.showClass.includes('Cow')))
 const youngstock = computed(() => rows.value.filter(row => !cows.value.includes(row)))
 const classes = computed(() => [...new Set(available.value.map(row => row.showClass))])
@@ -50,17 +51,13 @@ function addAnimal(row: SharedRow) {
   shareStatus.value = `${row.name} added to this copy. Share the updated lineup to send the change back.`
 }
 
-function encodePayload(): string {
-  const json = JSON.stringify({ version: 2, sharedAt: new Date().toISOString(), rows: rows.value, available: available.value })
-  const bytes = new TextEncoder().encode(json)
-  let binary = ''
-  bytes.forEach(byte => { binary += String.fromCharCode(byte) })
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
-}
-
 async function shareUpdated() {
-  const url = `${window.location.origin}/shows/shared?data=${encodeURIComponent(encodePayload())}`
   try {
+    shareStatus.value = 'Creating updated link…'
+    const json = JSON.stringify({ version: 2, sharedAt: new Date().toISOString(), rows: rows.value, available: available.value })
+    const token = await saveSharedShowString(json)
+    const site = import.meta.env.VITE_DEMO_ONLY === 'true' ? 'demo' : 'live'
+    const url = `https://ventureagmarketing.com/herd-manager/show-string/?token=${encodeURIComponent(token)}&site=${site}`
     if (navigator.share) {
       await navigator.share({ title: 'Updated Show String', text: 'Here is the updated show string lineup.', url })
       shareStatus.value = 'Updated lineup shared.'
@@ -68,8 +65,8 @@ async function shareUpdated() {
       await navigator.clipboard.writeText(url)
       shareStatus.value = 'Updated lineup link copied.'
     }
-  } catch {
-    shareStatus.value = url
+  } catch (error) {
+    shareStatus.value = error instanceof Error ? error.message : 'The updated link could not be created.'
   }
 }
 </script>
@@ -82,7 +79,9 @@ async function shareUpdated() {
       <p>Shared lineup · oldest to youngest</p>
     </header>
 
-    <div v-if="rows.length === 0" class="empty">This shared show string is missing or incomplete. Ask the sender to share it again.</div>
+    <div v-if="loading" class="empty">Opening shared show string…</div>
+    <div v-else-if="loadError" class="empty">{{ loadError }} Ask the sender to share it again.</div>
+    <div v-else-if="rows.length === 0" class="empty">This shared show string is empty.</div>
 
     <details v-if="available.length" class="available-panel">
       <summary>Open available animals <span>{{ available.length }}</span></summary>

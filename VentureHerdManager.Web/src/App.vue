@@ -7,7 +7,7 @@ import BrandedHerdLoader from './components/BrandedHerdLoader.vue'
 
 const appearance = ref<AppearanceSetting | null>(null)
 const isDemoOnly = import.meta.env.VITE_DEMO_ONLY === 'true'
-const isPublicSharedShow = window.location.pathname === '/shows/shared'
+const isPublicSharedShow = window.location.pathname.startsWith('/shows/shared/')
 const demoResetEnabled = import.meta.env.VITE_DEMO_RESET_ENABLED === 'true'
 const demoResetting = ref(false)
 const appUnlocked = ref(isDemoOnly || isPublicSharedShow || Boolean(getAdminKey()))

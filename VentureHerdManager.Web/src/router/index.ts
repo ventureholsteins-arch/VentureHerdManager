@@ -59,7 +59,7 @@ const router = createRouter({
       component: ReportsView
     },
     {
-      path: '/shows/shared',
+      path: '/shows/shared/:token',
       name: 'shared-show-string',
       component: SharedShowStringView
     },

@@ -16,6 +16,7 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         var parsed = Parse(request);
         var hash = Hash(request.CsvText);
         var animals = await context.Animals.AsNoTracking().ToListAsync(ct);
+        var dryOffs = await context.DryOffEvents.AsNoTracking().ToListAsync(ct);
         var saved = await context.AnimalIdentityMappings.AsNoTracking().Where(m => m.Source == request.Source).ToDictionaryAsync(m => m.SourceKey, ct);
         var sameDateImports = await context.HerdDataImports.AsNoTracking().Where(i => i.Source == request.Source && i.ReportDate == request.ReportDate).ToListAsync(ct);
         var existingImport = sameDateImports.FirstOrDefault(i => i.FileHash == hash || ImportBucket(i.FileName) == ImportBucket(request.FileName));
@@ -36,14 +37,16 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             if (mappedId == 0 && saved.TryGetValue(row.SourceKey, out var prior)) mappedId = prior.AnimalId;
             if (mappedId == 0 && candidates.Count == 1) mappedId = candidates[0].AnimalId;
             var animal = animals.FirstOrDefault(a => a.AnimalId == mappedId);
-            preview.Rows.Add(new HerdDataPreviewRow
+            var previewRow = new HerdDataPreviewRow
             {
                 SourceKey = row.SourceKey, SourceName = row.SourceName, OfficialId = row.OfficialId,
                 BirthDate = row.BirthDate, Breed = row.Breed, ImportedSex = row.ImportedSex,
                 AnimalId = animal?.AnimalId, AnimalName = animal?.DisplayName,
                 NeedsConfirmation = animal == null,
                 Candidates = candidates.Take(12).Select(a => new HerdDataCandidate { AnimalId = a.AnimalId, AnimalName = a.DisplayName, RegistrationNumber = a.RegistrationNumber }).ToList()
-            });
+            };
+            AddDryCowAudit(previewRow, row, animal, dryOffs, request.ReportDate);
+            preview.Rows.Add(previewRow);
         }
         return preview;
     }
@@ -83,7 +86,11 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
                     Lactations = Int(row.Values.GetValueOrDefault("Lifetime Lactations")), SourceFileName = request.FileName
                 });
             var animal = await context.Animals.FindAsync([match.AnimalId.Value], ct);
-            if (animal != null) EnrichConfirmedAnimal(animal, row, request.Source);
+            if (animal != null)
+            {
+                await ApplyDryCowDataAsync(animal, row, request.ReportDate, ct);
+                EnrichConfirmedAnimal(animal, row, request.Source);
+            }
             var mapping = await context.AnimalIdentityMappings.SingleOrDefaultAsync(m => m.Source == request.Source && m.SourceKey == row.SourceKey, ct);
             if (mapping == null) context.AnimalIdentityMappings.Add(new AnimalIdentityMapping { Source = request.Source, SourceKey = row.SourceKey, SourceLabel = row.SourceName, AnimalId = match.AnimalId.Value });
             else { mapping.AnimalId = match.AnimalId.Value; mapping.SourceLabel = row.SourceName; mapping.ConfirmedAt = DateTime.UtcNow; }
@@ -151,6 +158,84 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         {
             animal.UpdatedAt = DateTime.UtcNow;
             animal.UpdatedBy = $"Confirmed {source} import";
+        }
+    }
+
+    private static void AddDryCowAudit(HerdDataPreviewRow preview, ParsedRow row, Animal? animal, List<DryOffEvent> dryOffs, DateOnly reportDate)
+    {
+        if (!row.Values.ContainsKey("DryDate")) return;
+
+        preview.ImportedDryDate = Date(row.Values.GetValueOrDefault("DryDate"));
+        preview.ImportedLactation = Int(row.Values.GetValueOrDefault("Lactation"));
+        preview.ReportedDaysDry = Int(row.Values.GetValueOrDefault("DaysDry"));
+        if (!string.Equals(row.Values.GetValueOrDefault("DryStatus"), "3", StringComparison.OrdinalIgnoreCase))
+            preview.AuditWarnings.Add("PC-DART row is not marked with DRY status code 3.");
+        if (!preview.ImportedDryDate.HasValue)
+        {
+            preview.AuditWarnings.Add("No valid dry date was found; no dry-off event will be created.");
+            return;
+        }
+
+        var calculated = reportDate.DayNumber - preview.ImportedDryDate.Value.DayNumber;
+        if (preview.ReportedDaysDry.HasValue && Math.Abs(calculated - preview.ReportedDaysDry.Value) > 1)
+            preview.AuditWarnings.Add($"Date calculates {calculated} days dry, but PC-DART reports {preview.ReportedDaysDry}.");
+        if (animal == null) return;
+        if (preview.ImportedLactation.HasValue && animal.CurrentLactation.HasValue && animal.CurrentLactation != preview.ImportedLactation)
+            preview.AuditWarnings.Add($"App lactation {animal.CurrentLactation} differs from PC-DART lactation {preview.ImportedLactation}; the app value will be preserved for review.");
+
+        var latest = dryOffs.Where(value => value.AnimalId == animal.AnimalId).OrderByDescending(value => value.DryOffDate).FirstOrDefault();
+        if (latest != null && DateOnly.FromDateTime(latest.DryOffDate) != preview.ImportedDryDate)
+        {
+            var latestDate = DateOnly.FromDateTime(latest.DryOffDate);
+            preview.AuditWarnings.Add(latestDate > preview.ImportedDryDate
+                ? $"App has a newer dry-off date ({latestDate:MM/dd/yyyy}); the older PC-DART date will not replace it."
+                : $"A prior dry-off ({latestDate:MM/dd/yyyy}) is retained; this report will add the newer dry period.");
+        }
+    }
+
+    private async Task ApplyDryCowDataAsync(Animal animal, ParsedRow row, DateOnly reportDate, CancellationToken ct)
+    {
+        if (!row.Values.ContainsKey("DryDate")) return;
+        var dryDate = Date(row.Values.GetValueOrDefault("DryDate"));
+        if (!dryDate.HasValue || row.Values.GetValueOrDefault("DryStatus") != "3") return;
+        var daysDry = Int(row.Values.GetValueOrDefault("DaysDry"));
+        var calculatedDays = reportDate.DayNumber - dryDate.Value.DayNumber;
+        if (daysDry.HasValue && Math.Abs(calculatedDays - daysDry.Value) > 1)
+            throw new InvalidOperationException($"{row.SourceName}: dry date calculates {calculatedDays} days, but PC-DART reports {daysDry}. Nothing was applied; review the report date.");
+
+        var importedLactation = Int(row.Values.GetValueOrDefault("Lactation"));
+        var changed = false;
+        if (!animal.CurrentLactation.HasValue && importedLactation.HasValue)
+        {
+            animal.CurrentLactation = importedLactation;
+            changed = true;
+        }
+        if (animal.AnimalStatus == AnimalStatus.Active && animal.AnimalStage != AnimalStage.Dry)
+        {
+            animal.AnimalStage = AnimalStage.Dry;
+            changed = true;
+        }
+
+        var existingDates = await context.DryOffEvents.Where(value => value.AnimalId == animal.AnimalId).ToListAsync(ct);
+        var importedDateTime = dryDate.Value.ToDateTime(new TimeOnly(12, 0));
+        var exactExists = existingDates.Any(value => DateOnly.FromDateTime(value.DryOffDate) == dryDate);
+        var latestDate = existingDates.Count == 0 ? (DateOnly?)null : existingDates.Max(value => DateOnly.FromDateTime(value.DryOffDate));
+        if (!exactExists && (!latestDate.HasValue || latestDate.Value < dryDate.Value))
+        {
+            context.DryOffEvents.Add(new DryOffEvent
+            {
+                AnimalId = animal.AnimalId,
+                DryOffDate = importedDateTime,
+                Reason = "PC-DART dry cow import",
+                Notes = $"Report {reportDate:MM/dd/yyyy}; PC-DART lactation {importedLactation?.ToString() ?? "not supplied"}; reported {daysDry?.ToString() ?? "unknown"} days dry.",
+                CreatedBy = "PC-DART 024 import",
+                UpdatedBy = "PC-DART 024 import"
+            });
+        }
+        if (changed)
+        {
+            animal.UpdatedAt = DateTime.UtcNow;
+            animal.UpdatedBy = "PC-DART 024 import";
         }
     }
 

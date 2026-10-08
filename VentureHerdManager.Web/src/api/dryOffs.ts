@@ -25,6 +25,7 @@ export async function getDryOffEvents(
 
 export async function recordDryOff(
   animalId: number,
+  dryOffDate: string,
   reason: string,
   notes: string
 ): Promise<void> {
@@ -35,7 +36,7 @@ export async function recordDryOff(
     },
     body: JSON.stringify({
       animalId,
-      dryOffDate: new Date().toISOString(),
+      dryOffDate: `${dryOffDate}T12:00:00`,
       reason,
       notes,
       createdBy: 'Austin'

@@ -286,6 +286,58 @@ public sealed class HerdDataImportTests
         Assert.Single(context.HerdDataImports);
     }
 
+    [Fact]
+    public async Task DryCowImportCreatesOneDryEventAndUpdatesStageLactation()
+    {
+        await using var context = CreateContext();
+        var cow = new Animal { BarnName = "Paddy", AnimalStage = AnimalStage.Milking };
+        context.Animals.Add(cow); await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var request = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Pcdart, FileName = "DRY-COWS::drys.pdf", ReportDate = new DateOnly(2026, 10, 8),
+            CsvText = "BarnName,DHIID,DryStatus,DryDate,Lactation,DaysDry\nPADDY,PADDY,3,2026-09-04,2,34"
+        };
+
+        var row = Assert.Single((await service.PreviewAsync(request)).Rows);
+        Assert.Equal(cow.AnimalId, row.AnimalId);
+        Assert.Equal(new DateOnly(2026, 9, 4), row.ImportedDryDate);
+        Assert.Empty(row.AuditWarnings);
+
+        await service.ApplyAsync(request);
+        Assert.Equal(AnimalStage.Dry, cow.AnimalStage);
+        Assert.Equal(2, cow.CurrentLactation);
+        Assert.Equal(new DateTime(2026, 9, 4, 12, 0, 0), Assert.Single(context.DryOffEvents).DryOffDate);
+
+        await service.ApplyAsync(request);
+        Assert.Single(context.DryOffEvents);
+    }
+
+    [Fact]
+    public async Task DryCowAuditPreservesConflictingLactationAndNewerAppDryDate()
+    {
+        await using var context = CreateContext();
+        var cow = new Animal { BarnName = "Paddy", AnimalStage = AnimalStage.Dry, CurrentLactation = 3 };
+        context.Animals.Add(cow); await context.SaveChangesAsync();
+        context.DryOffEvents.Add(new DryOffEvent { AnimalId = cow.AnimalId, DryOffDate = new DateTime(2026, 9, 10, 12, 0, 0) });
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var request = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Pcdart, FileName = "DRY-COWS::drys.pdf", ReportDate = new DateOnly(2026, 10, 8),
+            CsvText = "BarnName,DHIID,DryStatus,DryDate,Lactation,DaysDry\nPADDY,PADDY,3,2026-09-04,2,34"
+        };
+
+        var row = Assert.Single((await service.PreviewAsync(request)).Rows);
+        Assert.Contains(row.AuditWarnings, warning => warning.Contains("lactation 3"));
+        Assert.Contains(row.AuditWarnings, warning => warning.Contains("newer dry-off date"));
+
+        await service.ApplyAsync(request);
+        Assert.Equal(3, cow.CurrentLactation);
+        Assert.Single(context.DryOffEvents);
+        Assert.Equal(new DateTime(2026, 9, 10, 12, 0, 0), context.DryOffEvents.Single().DryOffDate);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DemoMode:Enabled"] = "false" }).Build();

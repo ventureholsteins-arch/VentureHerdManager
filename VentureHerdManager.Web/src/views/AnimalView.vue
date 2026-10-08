@@ -741,6 +741,14 @@ function onCalvingPhotoSelected(event: Event) {
   calvingPhotoFile.value = input.files?.[0] ?? null
 }
 
+function daysSinceDate(value: string): number {
+  const eventDate = new Date(value)
+  const today = new Date()
+  eventDate.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+  return Math.max(0, Math.round((today.getTime() - eventDate.getTime()) / 86_400_000))
+}
+
 async function saveDryOff() {
   if (!animal.value || !dryOffDate.value || drySaving.value) return
 
@@ -1073,6 +1081,9 @@ const scoreLabel = computed(() => {
 })
 
 const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
+const currentDaysDry = computed(() => animal.value?.animalStage === 4 && dryOffEvents.value[0]
+  ? daysSinceDate(dryOffEvents.value[0].dryOffDate)
+  : null)
 </script>
 
 <template>
@@ -1128,6 +1139,11 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
           <strong>
             {{ animal.currentLactation ?? 'Not set' }}
           </strong>
+        </div>
+
+        <div v-if="currentDaysDry !== null" class="info-card dry-days-card">
+          <span>Current Days Dry</span>
+          <strong>{{ currentDaysDry }}</strong>
         </div>
 
         <div class="info-card birthdate-card">
@@ -1828,7 +1844,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
         </div>
 
         <div
-          v-for="dry in dryOffEvents"
+          v-for="(dry, index) in dryOffEvents"
           :key="dry.dryOffEventId"
           class="timeline-card"
         >
@@ -1843,6 +1859,10 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
               ).toLocaleString()
             }}
           </small>
+
+          <p v-if="index === 0 && animal.animalStage === 4">
+            <strong>{{ daysSinceDate(dry.dryOffDate) }} days dry today</strong>
+          </p>
 
           <p v-if="dry.reason">
             Reason: {{ dry.reason }}

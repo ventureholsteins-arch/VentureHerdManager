@@ -35,6 +35,10 @@ public sealed class HerdDataPreviewRow
     public int? AnimalId { get; set; }
     public string? AnimalName { get; set; }
     public bool NeedsConfirmation { get; set; }
+    public DateOnly? ImportedDryDate { get; set; }
+    public int? ImportedLactation { get; set; }
+    public int? ReportedDaysDry { get; set; }
+    public List<string> AuditWarnings { get; set; } = [];
     public List<HerdDataCandidate> Candidates { get; set; } = [];
 }
 

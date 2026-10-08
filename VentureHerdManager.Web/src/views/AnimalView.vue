@@ -200,8 +200,11 @@ const calvingSaving = ref(false)
 const calvingSaveStatus = ref('')
 
 const showDryOffForm = ref(false)
+const dryOffDate = ref(new Date().toISOString().slice(0, 10))
 const dryReason = ref('')
 const dryNotes = ref('')
+const drySaving = ref(false)
+const drySaveStatus = ref('')
 
 const showNoteForm = ref(false)
 const showSoldForm = ref(false)
@@ -411,6 +414,8 @@ function openCalvingForm() {
 
 function openDryOffForm() {
   closeAllForms()
+  dryOffDate.value = new Date().toISOString().slice(0, 10)
+  drySaveStatus.value = ''
   showDryOffForm.value = true
 }
 
@@ -737,11 +742,14 @@ function onCalvingPhotoSelected(event: Event) {
 }
 
 async function saveDryOff() {
-  if (!animal.value) return
+  if (!animal.value || !dryOffDate.value || drySaving.value) return
 
+  drySaving.value = true
+  drySaveStatus.value = 'Saving…'
   try {
     await recordDryOff(
       animal.value.animalId,
+      dryOffDate.value,
       dryReason.value,
       dryNotes.value
     )
@@ -757,8 +765,12 @@ async function saveDryOff() {
     animal.value = await getAnimal(
       animal.value.animalId
     )
+    drySaveStatus.value = 'Dry-off saved.'
   } catch (error) {
     console.error('Failed to save dry off:', error)
+    drySaveStatus.value = 'Dry-off was not saved. Check the date and try again.'
+  } finally {
+    drySaving.value = false
   }
 }
 
@@ -1552,6 +1564,14 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
         >
           <h3>Record Dry Off</h3>
 
+          <label>Dry-off date</label>
+
+          <input
+            v-model="dryOffDate"
+            type="date"
+            required
+          >
+
           <label>Reason</label>
 
           <input
@@ -1569,9 +1589,10 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
           <div class="form-actions">
             <button
               class="save"
+              :disabled="drySaving || !dryOffDate"
               @click="saveDryOff"
             >
-              Save Dry Off
+              {{ drySaving ? 'Saving…' : 'Save Dry Off' }}
             </button>
 
             <button
@@ -1581,6 +1602,7 @@ const linearQuickGlance = computed(() => animalLinear.value.slice(0, 8))
               Cancel
             </button>
           </div>
+          <p v-if="drySaveStatus" class="save-status">{{ drySaveStatus }}</p>
         </div>
 
         <div

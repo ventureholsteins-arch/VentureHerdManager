@@ -50,8 +50,10 @@ function chooseImportMode(mode: ImportMode) {
 
 function csvCell(value: unknown) { const text = String(value ?? ''); return `"${text.replace(/"/g, '""')}"` }
 function normalizePdfDate(value: string) {
-  const match = value.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-  return match ? `${match[3]}-${match[1]}-${match[2]}` : value
+  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!match) return value
+  const [, month = '', day = '', year = ''] = match
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
 }
 async function extractPdfLines(file: File) {
   const [pdfjs, workerModule] = await Promise.all([import('pdfjs-dist'), import('pdfjs-dist/build/pdf.worker.min.mjs?url')])
@@ -141,7 +143,7 @@ async function loadFile(event: Event) {
     fileName.value = importMode.value === 'cowPagePdf' ? `COW-PAGE-${parsedName}::${file.name}` : `CURRENT-MILKING::${file.name}`
     const flatPdf = lines.join(' ')
     const sourceDate = importMode.value === 'cowPagePdf' ? flatPdf.match(/Date of Test\s+(\d{2}\/\d{2}\/\d{4})/i)?.[1] : flatPdf.match(/Printed\s*(\d{1,2}\/\d{1,2}\/\d{4})/i)?.[1]
-    if (sourceDate) reportDate.value = normalizePdfDate(sourceDate.padStart(10, '0'))
+    if (sourceDate) reportDate.value = normalizePdfDate(sourceDate)
     source.value = 1
   } else {
     csvText.value = await file.text()

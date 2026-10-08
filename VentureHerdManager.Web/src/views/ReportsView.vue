@@ -2349,38 +2349,20 @@ watch(activeTab, tab => {
     <!-- SHOW BAGGING -->
     <section v-else-if="activeTab === 'showBagging'" class="rp-panel">
       <div class="rp-ph bagging-page-head">
-        <h2>Show Bagging</h2>
+        <div><h2>Show Bagging</h2><p class="bagging-head-copy">Add a cow, set her ring time, then set each quarter.</p></div>
         <div class="rp-ph-actions">
-          <button type="button" class="rp-add-btn bagging-primary-save" :disabled="baggingSaving" @click="saveWholeBaggingPlan">{{ baggingSaving ? 'Saving…' : 'Save Whole Show' }}</button>
+          <button type="button" class="rp-add-btn bagging-primary-save" :disabled="baggingSaving" @click="saveWholeBaggingPlan">{{ baggingSaving ? 'Saving…' : 'Save' }}</button>
           <button type="button" class="rp-add-btn bagging-share-btn" :disabled="baggingSaving" @click="shareBaggingLink">Share Plan</button>
-          <button type="button" class="rp-add-btn bagging-mode-btn" @click="baggingSimpleMode = !baggingSimpleMode">{{ baggingSimpleMode ? 'More Options' : 'Simple View' }}</button>
-          <template v-if="!baggingSimpleMode">
-            <button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button>
-            <button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload</button>
-          </template>
         </div>
       </div>
       <p v-if="baggingShareStatus" class="rp-hint">{{ baggingShareStatus }}</p>
-      <p v-if="baggingSimpleMode" class="rp-hint bagging-simple-hint">Set the show start, add each cow, enter her show and milk-out times, then save.</p>
-
-      <section class="bagging-show-anchor">
-        <label>
-          <strong><span class="bagging-step-number">1</span> When does the show start?</strong>
-          <input v-model="showBaggingStartTime" type="datetime-local" />
-        </label>
-        <div>
-          <small>Show starts</small>
-          <strong>{{ formatHoursDifference(parseHoursDifference(showBaggingStartTime)) }}</strong>
-          <span>{{ formatScheduleDateTime(showBaggingStartTime) }}</span>
-        </div>
-      </section>
 
       <div v-if="hasNoAnimals" class="rp-error" style="margin-bottom: 12px;">
         No cows are loaded in this environment yet. Bagging add/search needs herd animals. Try Reload Data.
       </div>
 
-      <details v-if="!baggingSimpleMode" class="bagging-section-details">
-        <summary>Show setup &amp; text contacts</summary>
+      <details class="bagging-section-details bagging-setup-details">
+        <summary>Show setup <span>{{ showBaggingShowName || 'Name, date & start time' }}</span></summary>
       <div class="bagging-top-grid">
         <label>
           Bagging Group
@@ -2395,6 +2377,11 @@ watch(activeTab, tab => {
           <input v-model="showBaggingShowDate" type="date" />
         </label>
 
+        <label>
+          Show starts
+          <input v-model="showBaggingStartTime" type="datetime-local" />
+        </label>
+
         <label class="bagging-phone-field">
           Phone numbers for this show
           <textarea v-model="showBaggingPhoneNumbers" rows="2" inputmode="tel" placeholder="Enter numbers separated by commas" />
@@ -2403,15 +2390,11 @@ watch(activeTab, tab => {
       </div>
       </details>
 
-      <details class="bagging-section-details" open>
-        <summary><span class="bagging-step-number">2</span> Add a cow</summary>
       <div class="bagging-search-panel">
-        <div class="browse-label">Quick Cow Search</div>
-        <p class="bagging-search-hint">Type at least 2 letters to find a cow, then tap + Bag.</p>
-        <input v-model="showBaggingSearch" type="search" class="rp-list-search" placeholder="Search by barn name, registered name, sire, dam, or breed…" />
+        <div class="browse-label">Add a cow</div>
+        <input v-model="showBaggingSearch" type="search" class="rp-list-search" placeholder="Type a cow name…" />
         <div class="bagging-search-tools">
           <span>{{ showBaggingSearch.trim().length < 2 ? 'Type 2+ letters' : `${showBaggingMatchCount} matches` }}</span>
-          <span class="bagging-tools-note">Tap + Bag on the cow you want</span>
         </div>
         <p v-if="baggingActionStatus" class="rp-hint">{{ baggingActionStatus }}</p>
         <div class="browse-grid">
@@ -2427,10 +2410,10 @@ watch(activeTab, tab => {
           <p v-else-if="showBaggingBrowseAnimals.length === 0" class="rp-empty-sm">No cows match this search.</p>
         </div>
       </div>
-      </details>
 
-      <details v-if="!baggingSimpleMode" class="bagging-section-details">
-        <summary>Past bagging history</summary>
+      <details class="bagging-section-details bagging-tools-details">
+        <summary>History &amp; team tools</summary>
+        <div class="bagging-tool-buttons"><button type="button" class="rp-add-btn" @click="textBaggingTeam">Text Team</button><button type="button" class="rp-add-btn" @click="reloadReportsData">↻ Reload</button></div>
       <div class="bagging-history-panel">
         <div class="browse-label">Bagging History Search</div>
         <div class="browse-filters">
@@ -2497,7 +2480,7 @@ watch(activeTab, tab => {
 
       <div id="bagging-rows" />
 
-      <section v-if="!baggingSimpleMode && baggingCowsByShowTime.length > 0" class="bagging-cow-overview">
+      <section v-if="false && baggingCowsByShowTime.length > 0" class="bagging-cow-overview">
         <div class="bagging-timeline-heading">
           <strong>All cows at a glance</strong>
           <span>{{ baggingCowsByShowTime.length }} cow{{ baggingCowsByShowTime.length === 1 ? '' : 's' }}</span>
@@ -2510,7 +2493,7 @@ watch(activeTab, tab => {
         </article>
       </section>
 
-      <section v-if="!baggingSimpleMode && baggingTimeline.length > 0" class="bagging-timeline">
+      <section v-if="false && baggingTimeline.length > 0" class="bagging-timeline">
         <div class="bagging-timeline-heading">
           <strong>Milking and ring schedule</strong>
           <span>Earliest first</span>
@@ -2529,19 +2512,13 @@ watch(activeTab, tab => {
 
       <div v-if="showBaggingRowsSorted.length > 0" class="browse-label">Current Cows</div>
 
-      <details v-for="row in showBaggingRowsSorted" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-edit-group cow-bagging-details">
-        <summary class="bagging-edit-summary">
-          <strong><span class="bagging-step-number">3</span> {{ getBaggingRowAnimalLabel(row) }}</strong>
-          <span>{{ formatTime(row.entryTime) }} · {{ formatHoursDifference(parseHoursDifference(row.entryTime)) }}</span>
-        </summary>
+      <section v-for="row in showBaggingRowsSorted" :id="baggingRowAnchorId(row.id)" :key="row.id" class="bagging-edit-group cow-bagging-details bagging-cow-card">
         <div class="bagging-edit-group-body">
           <div class="bagging-card">
             <div class="bagging-card-hd">
               <div>
-                <button type="button" class="bagging-show-link" @click="openBaggingHistoryForGroup(row.showName || showBaggingShowName)">
-                  {{ row.showName || showBaggingShowName || 'Select a group' }}
-                </button>
-                <div class="bagging-cow-line">{{ getBaggingRowAnimalLabel(row) }}</div>
+                <div class="bagging-cow-name">{{ getBaggingRowAnimalLabel(row) }}</div>
+                <div class="bagging-cow-line">Ring {{ formatTime(row.entryTime) }}</div>
               </div>
               <div class="bagging-card-actions">
                 <button type="button" class="rp-x" @click="removeShowBaggingRow(row.id)">✕</button>
@@ -2560,7 +2537,25 @@ watch(activeTab, tab => {
               </div>
             </div>
 
-            <div class="bagging-meta-grid">
+            <div class="udder-guide" aria-hidden="true"><span>Rear</span><b>4 quarters</b><span>Front</span></div>
+            <div class="bagging-udder-grid exact-times">
+              <label
+                v-for="quarter in row.quarters"
+                :key="quarter.key"
+                class="udder-quarter"
+              >
+                <span class="quarter-top"><i class="teat-dot" /> <b>{{ quarterShortLabel(quarter.key) }}</b></span>
+                <span class="quarter-label">{{ quarter.label }}</span>
+                <strong class="quarter-hours-label">Hours before ring</strong>
+                <input v-model.number="quarter.hoursBeforeRing" type="number" min="0" step="0.5" inputmode="decimal" placeholder="Hours" @input="quarter.milkOutTime = ''" />
+                <strong class="quarter-time-value"><small>Milk at</small> {{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</strong>
+              </label>
+            </div>
+
+            <details class="bagging-cow-options">
+              <summary>Notes &amp; more options</summary>
+              <div class="bagging-cow-options-body">
+              <div class="bagging-meta-grid">
               <label>
                 Cow
                 <select v-model.number="row.animalId">
@@ -2589,32 +2584,18 @@ watch(activeTab, tab => {
                 Remind crew 15 minutes before each milk-out
               </label>
 
-            </div>
-
-            <div class="udder-guide" aria-hidden="true"><span>Rear</span><b>4 quarters</b><span>Front</span></div>
-            <div class="bagging-udder-grid exact-times">
-              <label
-                v-for="quarter in row.quarters"
-                :key="quarter.key"
-                class="udder-quarter"
-              >
-                <span class="quarter-top"><i class="teat-dot" /> <b>{{ quarterShortLabel(quarter.key) }}</b></span>
-                <span class="quarter-label">{{ quarter.label }}</span>
-                <strong class="quarter-hours-label">Hours before ring</strong>
-                <input v-model.number="quarter.hoursBeforeRing" type="number" min="0" step="0.5" inputmode="decimal" placeholder="Example: 8" @input="quarter.milkOutTime = ''" />
-                <strong class="quarter-time-value"><small>Milk at</small> {{ getQuarterMilkTime(row.entryTime, quarter.hoursBeforeRing) }}</strong>
-                <small class="quarter-alert-time">Alert at {{ quarter.hoursBeforeRing === null ? '—' : formatTime(addHoursToInput(row.entryTime, -quarter.hoursBeforeRing - 0.25)) }}</small>
-              </label>
-            </div>
+              </div>
 
             <label class="bagging-notes">
               Notes / what happened
               <textarea v-model="row.notes" rows="3" placeholder="Milk letdown, timing adjustments, success notes, problems..." />
             </label>
-            <button type="button" class="bagging-save-bottom" @click="saveWholeBaggingPlan">Save Whole Show</button>
+              </div>
+            </details>
+            <button type="button" class="bagging-save-bottom" :disabled="baggingSaving" @click="saveWholeBaggingPlan">{{ baggingSaving ? 'Saving…' : 'Save Changes' }}</button>
           </div>
         </div>
-      </details>
+      </section>
     </section>
 
     <!-- HERD LISTS -->
@@ -3173,6 +3154,7 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-mode-btn:hover { background:#dfece1; }
 .bagging-section-details { border:1px solid #d9e3dc;border-radius:10px;background:#fff;margin-bottom:10px;overflow:hidden; }
 .bagging-section-details>summary { cursor:pointer;padding:13px 14px;font-weight:900;color:#17331f;background:#f5faf6; }
+.bagging-section-details>summary span { float:right;color:#687a6d;font-size:.76rem;font-weight:700;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .bagging-section-details[open]>summary { border-bottom:1px solid #d9e3dc; }
 .bagging-section-details>.bagging-top-grid,.bagging-section-details>.bagging-search-panel,.bagging-section-details>.bagging-history-panel { margin:0;padding:12px;border:0;border-radius:0; }
 .bagging-phone-field { grid-column:1/-1; }
@@ -3184,6 +3166,8 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-summary-card span { font-size: 1rem; font-weight: 900; color: #0f1f16; }
 .bagging-summary-card small { font-size: 0.8rem; color: #5d6f63; }
 .bagging-search-panel { border: 1px solid #d9e3dc; border-radius: 10px; padding: 12px; background: #f8fbf8; margin-bottom: 14px; }
+.bagging-head-copy { margin:3px 0 0;color:#65756a;font-size:.86rem; }
+.bagging-tool-buttons { display:flex;gap:8px;padding:10px 12px 0; }
 .bagging-show-anchor { border:2px solid #31572c;border-radius:12px;background:#f0f7f1;padding:12px;margin:12px 0;display:grid;grid-template-columns:minmax(220px,1fr) minmax(190px,.7fr);gap:12px;align-items:end; }
 .bagging-show-anchor label,.bagging-show-anchor>div { display:grid;gap:5px; }
 .bagging-show-anchor input { min-height:50px;border:1px solid #8ea391;border-radius:8px;padding:8px;font-size:1rem;background:#fff;color:#0f1f16;box-sizing:border-box;width:100%; }
@@ -3237,6 +3221,11 @@ textarea { min-height: 72px; resize: vertical; }
 .bagging-glance-quarter strong { font-size: 0.86rem; color: #0f1f16; }
 .bagging-glance-quarter small { font-size: 0.75rem; color: #31572c; font-weight: 700; }
 .bagging-card { border: 1px solid #d9e3dc; border-radius: 10px; padding: 12px; background: #fff; margin: 10px 0; }
+.bagging-cow-card { border:1px solid #b8c9bb;border-radius:12px;background:#f7faf7;margin:10px 0;overflow:hidden; }
+.bagging-cow-name { color:#17331f;font-size:1.22rem;font-weight:950; }
+.bagging-cow-options { border:1px solid #d8e2da;border-radius:9px;margin-top:10px;overflow:hidden; }
+.bagging-cow-options>summary { cursor:pointer;background:#f3f7f4;color:#31572c;padding:11px 12px;font-size:.82rem;font-weight:900; }
+.bagging-cow-options-body { padding:10px; }
 .cow-bagging-details.quick-edit-opened { box-shadow:0 0 0 4px rgba(49,87,44,.22); }
 .bagging-quick-edit { display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.65fr);gap:10px;margin-bottom:12px;padding:10px;border:2px solid #31572c;border-radius:10px;background:#f0f7f1; }
 .bagging-quick-edit label,.bagging-quick-edit>div { display:grid;gap:5px; }
@@ -3351,12 +3340,13 @@ textarea { min-height: 72px; resize: vertical; }
   .bagging-top-grid { grid-template-columns: 1fr; }
   .bagging-show-anchor { grid-template-columns: 1fr; }
   .bagging-page-head { gap:10px;margin-bottom:10px;padding-bottom:10px; }
+  .bagging-page-head { position:sticky;top:0;z-index:14;background:#fff;border-bottom:1px solid #dbe4dd; }
   .bagging-page-head .rp-ph-actions { grid-template-columns:1fr 1fr;gap:7px; }
   .bagging-page-head .rp-add-btn { min-height:48px;padding:7px 8px;font-size:.8rem; }
   .bagging-simple-hint { margin-bottom:10px; }
   .bagging-show-anchor { margin:8px 0 10px;padding:10px;gap:8px; }
   .bagging-show-anchor input { min-height:52px;font-size:16px; }
-  .bagging-section-details { margin-bottom:10px; }
+  .bagging-section-details { margin-bottom:8px; }
   .bagging-section-details>summary { min-height:48px;display:flex;align-items:center;padding:10px 12px;box-sizing:border-box; }
   .bagging-section-details>.bagging-search-panel { padding:10px; }
   .bagging-search-panel .rp-list-search { min-height:50px;font-size:16px; }
@@ -3373,9 +3363,17 @@ textarea { min-height: 72px; resize: vertical; }
   .bagging-card-actions { width: 100%; justify-content: space-between; }
   .bagging-sticky-head { align-items:stretch; }
   .bagging-sticky-head .rp-ph-actions { display:grid;grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .bagging-search-tools { flex-direction: column; align-items: stretch; }
+  .bagging-search-tools { margin:4px 0 0; }
   .bagging-glance-grid { grid-template-columns: 1fr; }
-  .udder-quarter { min-height:0;padding:10px;border-radius:14px; }
+  .bagging-cow-card .bagging-edit-group-body { padding:6px; }
+  .bagging-cow-card .bagging-card { border:0;margin:0;padding:9px; }
+  .bagging-quick-edit { margin-bottom:8px;padding:8px; }
+  .bagging-quick-edit>div { display:none; }
+  .udder-guide { margin-top:2px; }
+  .udder-quarter { min-height:0;padding:9px 8px;border-radius:14px;gap:4px; }
+  .exact-times .udder-quarter input { min-height:44px;padding:6px;font-size:16px; }
+  .quarter-time-value { font-size:.92rem; }
+  .bagging-tool-buttons { display:grid;grid-template-columns:1fr 1fr; }
   .quarter-label { font-size:.7rem; }
   .quarter-hours-label { font-size:.6rem; }
   .quarter-hours-value { font-size: 1rem; }

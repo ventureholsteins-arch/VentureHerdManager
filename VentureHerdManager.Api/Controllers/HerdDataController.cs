@@ -109,7 +109,7 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
             catch (JsonException) { }
             return null;
         }
-        var milkDate = records.Where(r => r.Source == HerdDataSource.Pcdart).Max(r => (DateOnly?)r.ReportDate);
+        var milkDate = records.Where(r => r.Source == HerdDataSource.Pcdart && r.Milk.HasValue).Max(r => (DateOnly?)r.ReportDate);
         var genomicDate = records.Where(r => r.Source == HerdDataSource.Zoetis).Max(r => (DateOnly?)r.ReportDate);
         var latestComponentsByAnimal = records
             .Where(record => record.Source == HerdDataSource.Pcdart && (record.FatPercent.HasValue || record.ProteinPercent.HasValue))
@@ -117,14 +117,14 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
             .ToDictionary(
                 group => group.Key,
                 group => group.OrderByDescending(record => record.ReportDate).First());
-        var milk = records.Where(r => r.Source == HerdDataSource.Pcdart && r.ReportDate == milkDate).OrderByDescending(r => r.Milk).Select(r =>
+        var milk = records.Where(r => r.Source == HerdDataSource.Pcdart && r.ReportDate == milkDate && r.Milk.HasValue).OrderByDescending(r => r.Milk).Select(r =>
         {
             latestComponentsByAnimal.TryGetValue(r.AnimalId, out var component);
             var fat = r.FatPercent ?? component?.FatPercent; var protein = r.ProteinPercent ?? component?.ProteinPercent;
             return new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.SireName, r.Animal.CurrentLactation, r.ReportDate, ComponentReportDate = component?.ReportDate, r.DaysInMilk, r.Milk, FatPercent = fat, ProteinPercent = protein, FatPounds = r.Milk.HasValue && fat.HasValue ? Math.Round(r.Milk.Value * fat.Value / 100m, 2) : (decimal?)null, ProteinPounds = r.Milk.HasValue && protein.HasValue ? Math.Round(r.Milk.Value * protein.Value / 100m, 2) : (decimal?)null };
         }).ToList();
         var sireMilk = milk.Where(r => !string.IsNullOrWhiteSpace(r.SireName)).GroupBy(r => r.SireName!.Trim(), StringComparer.OrdinalIgnoreCase).Select(group => new { sireName = group.Key, daughters = group.Select(r => r.AnimalId).Distinct().Count(), averageMilk = group.Where(r => r.Milk.HasValue).Select(r => r.Milk).Average(), averageFatPercent = group.Where(r => r.FatPercent.HasValue).Select(r => r.FatPercent).Average(), averageProteinPercent = group.Where(r => r.ProteinPercent.HasValue).Select(r => r.ProteinPercent).Average(), averageFatPounds = group.Where(r => r.FatPounds.HasValue).Select(r => r.FatPounds).Average(), averageProteinPounds = group.Where(r => r.ProteinPounds.HasValue).Select(r => r.ProteinPounds).Average() }).OrderByDescending(r => r.averageMilk).ToList();
-        var milkHistory = records.Where(r => r.Source == HerdDataSource.Pcdart).GroupBy(r => r.ReportDate).OrderBy(group => group.Key).Select(group => new { reportDate = group.Key, cows = group.Select(r => r.AnimalId).Distinct().Count(), averageMilk = group.Where(r => r.Milk.HasValue).Select(r => r.Milk).Average(), averageFatPercent = group.Where(r => r.FatPercent.HasValue).Select(r => r.FatPercent).Average(), averageProteinPercent = group.Where(r => r.ProteinPercent.HasValue).Select(r => r.ProteinPercent).Average() }).ToList();
+        var milkHistory = records.Where(r => r.Source == HerdDataSource.Pcdart && r.Milk.HasValue).GroupBy(r => r.ReportDate).OrderBy(group => group.Key).Select(group => new { reportDate = group.Key, cows = group.Select(r => r.AnimalId).Distinct().Count(), averageMilk = group.Select(r => r.Milk).Average(), averageFatPercent = group.Where(r => r.FatPercent.HasValue).Select(r => r.FatPercent).Average(), averageProteinPercent = group.Where(r => r.ProteinPercent.HasValue).Select(r => r.ProteinPercent).Average() }).ToList();
         var genomicAll = records.Where(r => r.Source == HerdDataSource.Zoetis && r.ReportDate == genomicDate).OrderByDescending(r => r.Tpi).Select(r => new
         {
             r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.AnimalStage, r.ReportDate,

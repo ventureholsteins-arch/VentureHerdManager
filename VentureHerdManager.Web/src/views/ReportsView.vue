@@ -580,7 +580,7 @@ async function ensureTabData(tab: HubTab) {
 }
 
 const animalOptions = computed(() =>
-  [...animals.value].sort((a, b) =>
+  animals.value.filter(animal => (animal.animalStatus ?? 0) === 0).sort((a, b) =>
     (a.barnName || a.registeredName || '').localeCompare(b.barnName || b.registeredName || '')
   )
 )
@@ -1673,7 +1673,10 @@ async function reloadReportsData() {
 
   try {
     animals.value = await getAnimals()
-    const activeIds = new Set(animals.value.map(animal => animal.animalId))
+    const activeIds = new Set(animals.value
+      .filter(animal => (animal.animalStatus ?? 0) === 0)
+      .map(animal => animal.animalId))
+    showStringRows.value = showStringRows.value.filter(row => !row.animalId || activeIds.has(row.animalId))
     showBaggingRows.value = showBaggingRows.value.filter(row => !row.animalId || activeIds.has(row.animalId))
   } catch (error) {
     console.error('Failed to load animals during refresh:', error)

@@ -76,16 +76,23 @@ async function extractPdfLines(file: File) {
   return lines
 }
 function currentMilkingCsv(lines: string[]) {
-  const headers = ['BarnName', 'DHIID', 'Milk', 'DIM', 'LastCalv', 'Previous Milk', 'Milk Deviation', 'Current SCC', 'Lactation', 'Report Type', 'Source Row']
+  const headers = ['BarnName', 'DHIID', 'Milk', 'DIM', 'LastCalv', 'Previous Milk', 'Current SCC', 'Report Type', 'Source Row']
   const rows: string[][] = []
   for (const line of lines) {
     const match = line.match(/^0\s+([A-Z0-9-]+)\s+(.+)$/i); if (!match) continue
     const barnName = match[1] ?? ''; const detail = match[2] ?? ''; if (!barnName || !detail) continue
     const tokens = detail.split(/\s+/); const dateIndex = tokens.findIndex(token => /^\d{2}\/\d{2}\/\d{2,4}$/.test(token)); if (dateIndex < 1) continue
-    const before = tokens.slice(0, dateIndex); const dim = tokens[dateIndex + 1] ?? ''; const lactation = before.at(-1) ?? ''; const measures = before.slice(0, -1)
-    const previousMilk = measures.length >= 3 ? measures[0] ?? '' : ''; const milk = measures.length >= 3 ? measures[1] ?? '' : measures[0] ?? ''; const deviation = measures.length >= 3 ? measures[2] ?? '' : ''; const scc = measures.length >= 4 ? measures.at(-1) ?? '' : ''
+    // PC-DART 030 rows are laid out as current milk, previous milk (when
+    // available), SCC, DIM, and calving date. Read from both ends so rows
+    // without a previous test value retain the same meaning.
+    const before = tokens.slice(0, dateIndex)
+    const dim = before.at(-1) ?? ''
+    const measures = before.slice(0, -1)
+    const milk = measures[0] ?? ''
+    const previousMilk = measures.length >= 3 ? measures[1] ?? '' : ''
+    const scc = measures.length >= 2 ? measures.at(-1) ?? '' : ''
     const calvingDate = tokens[dateIndex] ?? ''
-    rows.push([barnName, barnName, milk, dim, normalizePdfDate(calvingDate), previousMilk, deviation, scc, lactation, 'PC-DART Current Milking PDF', line])
+    rows.push([barnName, barnName, milk, dim, normalizePdfDate(calvingDate), previousMilk, scc, 'PC-DART Current Milking PDF', line])
   }
   if (!rows.length) throw new Error('No Current Milking cow rows were found. Choose the PC-DART 005 Production - Milking Cows PDF.')
   return [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n')

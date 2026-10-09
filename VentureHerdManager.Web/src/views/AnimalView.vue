@@ -1163,7 +1163,7 @@ const currentDaysDry = computed(() => animal.value?.animalStage === 4 && dryOffE
 
       </section>
       <section v-if="animal.animalStatus === 1" class="sold-banner"><div><strong>SOLD - ARCHIVED</strong><span>{{ animal.soldDate ? new Date(animal.soldDate).toLocaleDateString() : 'Sold animal' }} · All records are retained</span><p v-if="animal.soldNotes">{{ animal.soldNotes }}</p></div><button @click="undoSold">Restore to active herd</button></section>
-      <section v-if="animal.animalStatus === 0 && animal.herdLocation === 1" class="sold-banner muellers-banner"><div><strong>ACTIVE AT MUELLER'S</strong><span>Still part of the active herd · All records and reminders continue</span></div><button @click="changeHerdLocation(0)">Return to Home Herd</button></section>
+      <section v-if="animal.animalStatus === 0 && animal.herdLocation === 1" class="sold-banner muellers-banner"><div><strong>AT MUELLER'S — NOT IN HOME HERD</strong><span>Excluded from your farm's active counts and work reports · Records and history are retained</span></div><button @click="changeHerdLocation(0)">Return to Home Herd</button></section>
 
       <section v-if="(getAdminKey() || isDemoOnly) && linearQuickGlance.length" class="panel linear-quick-panel">
         <div class="private-data-heading">

@@ -792,7 +792,7 @@ onMounted(() => {
                 Status
                 <select v-model.number="statusFilter">
                   <option :value="null">All statuses</option>
-                  <option :value="0">Active</option>
+                  <option :value="0">Owned / active record</option>
                   <option :value="1">Sold</option>
                   <option :value="2">Deceased</option>
                 </select>

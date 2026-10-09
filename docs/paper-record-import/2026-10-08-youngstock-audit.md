@@ -9,7 +9,9 @@ This audit compared the two owner-supplied handwritten calf/heifer sheets with t
 | Chico x Detective | Missing. Created female calf `Unnamed - Chico x Detective` (animal 3137). |
 | Cinnabun x Major | Missing. Created female calf `Unnamed - Cinnabun x Major` (animal 3138). |
 | Swish x Energy | Missing. Created female calf `Unnamed - Swish x Energy` (animal 3139). |
-| Lady | Missing. Created female heifer `Lady` (animal 3140). |
+| Leddy | Missing. Initially transcribed as Lady; owner corrected the name to `Leddy`. Created female heifer (animal 3140) and corrected the card. |
+| Cashin x unknown sire | Missing. Owner confirmed the sire is not known yet. Created female calf with dam name `Cashin`, no sire, and no invented identifiers (animal 3141). |
+| Shila x unknown sire | Missing. Created female calf with dam name `Shila`, no sire, and no invented identifiers (animal 3142). |
 | Clover x Master | Existing `Unnamed - Clover 1` matched by dam. Added sire `Master`; did not create a second animal when the same pairing appeared twice on the paper. |
 
 ## Existing records matched — no duplicate created
@@ -41,7 +43,7 @@ This audit compared the two owner-supplied handwritten calf/heifer sheets with t
 | Savoy | Savoy |
 | Crown | Crown Jewel |
 | Cadence | Cadence |
-| States/Status | Status |
+| Status | Existing Status card; dam remains Seashell. |
 | Crayola | Crayola |
 | Solara Jet | Solara Jet |
 | Palace | Palace |
@@ -54,7 +56,8 @@ This audit compared the two owner-supplied handwritten calf/heifer sheets with t
 
 ## Intentionally unresolved
 
-- `Cashin x [unclear sire]`: the sire appears similar to `Brid`, `Bird`, or another short name. No animal was created because guessing would produce an unreliable pedigree.
+- `Cashin x unknown sire`: owner confirmed there is no sire information yet. The calf was created without a sire; Cashin is not currently an animal card and therefore cannot yet have a live dam relationship.
+- `Shila x unknown sire`: created as animal 3142. Production currently retains the exact dam name; the accompanying pedigree-link code resolves a unique existing animal named Shila into a durable `DamId` when the record is saved after deployment.
 - The standalone word `Bull` beneath the Pixie x Master / Prada entry may be a sex note, but its target is not unambiguous. Prada was not changed.
 - `Capri x Image` appears to be the existing `Unnamed - Carri x Image`. The likely `Carri`/`Capri` typo was recorded as a conflict rather than silently changing pedigree data.
 - `Mystery Calf` remains separate because it has no identifying pedigree and cannot safely be merged with any paper calf.

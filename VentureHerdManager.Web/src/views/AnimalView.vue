@@ -1218,10 +1218,15 @@ const currentDaysDry = computed(() => animal.value?.animalStage === 4 && dryOffE
 
           <div>
             <span>Dam</span>
-
-            <strong>
-              {{ animal.damName || 'Unknown' }}
-            </strong>
+            <button
+              v-if="animal.damId"
+              type="button"
+              class="pedigree-link"
+              @click="router.push(`/animals/${animal.damId}`)"
+            >
+              {{ animal.damName || `Animal #${animal.damId}` }} →
+            </button>
+            <strong v-else>{{ animal.damName || 'Unknown' }}</strong>
           </div>
         </div>
       </section>
@@ -1820,12 +1825,21 @@ const currentDaysDry = computed(() => animal.value?.animalStage === 4 && dryOffE
             {{ calving.notes }}
           </p>
 
-          <img
+          <a
             v-if="calving.pictureUrl"
-            :src="calving.pictureUrl"
-            class="timeline-photo"
-            alt="Calving event photo"
+            :href="calving.pictureUrl"
+            target="_blank"
+            rel="noopener"
+            class="event-photo-link"
+            aria-label="Open calving photo full size"
           >
+            <img
+              :src="calving.pictureUrl"
+              class="timeline-photo"
+              alt="Calving event photo"
+            >
+            <small>Tap photo to view full size</small>
+          </a>
         </div>
       </section>
 
@@ -2039,12 +2053,21 @@ const currentDaysDry = computed(() => animal.value?.animalStage === 4 && dryOffE
             {{ heat.notes || 'No notes' }}
           </p>
 
-          <img
+          <a
             v-if="heat.pictureUrl"
-            :src="heat.pictureUrl"
-            class="timeline-photo"
-            alt="Heat event photo"
+            :href="heat.pictureUrl"
+            target="_blank"
+            rel="noopener"
+            class="event-photo-link"
+            aria-label="Open heat photo full size"
           >
+            <img
+              :src="heat.pictureUrl"
+              class="timeline-photo"
+              alt="Heat event photo"
+            >
+            <small>Tap photo to view full size</small>
+          </a>
         </div>
       </section>
 
@@ -2219,6 +2242,21 @@ const currentDaysDry = computed(() => animal.value?.animalStage === 4 && dryOffE
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
+.pedigree-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #31572c;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.pedigree-link:hover { text-decoration: underline; }
 
 .card-animal-search { position: relative; margin-bottom: 10px; }
 .card-animal-search > input { width: 100%; min-height: 40px; padding: 8px 11px; border: 1px solid #b9c8bc; border-radius: 8px; background: #fff; font: inherit; }
@@ -2399,6 +2437,14 @@ const currentDaysDry = computed(() => animal.value?.animalStage === 4 && dryOffE
   max-width: 100%;
   margin-top: 12px;
   border-radius: 6px;
+}
+
+.event-photo-link {
+  display: inline-flex;
+  flex-direction: column;
+  gap: .3rem;
+  color: var(--brand-green, #245a38);
+  text-decoration: none;
 }
 
 .checkbox-label {

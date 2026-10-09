@@ -16,6 +16,10 @@ public class UpdateAnimalRequest
 
     public string? SireName { get; set; }
 
+    public int? DamId { get; set; }
+
+    public string? DamName { get; set; }
+
     public int? CurrentLactation { get; set; }
 
     public AnimalStage? AnimalStage { get; set; }

@@ -118,6 +118,66 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
             .Where(r => r.Source == HerdDataSource.Zoetis)
             .GroupBy(r => r.AnimalId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReportDate).First());
+        var activeAnimalIds = animals.Select(animal => animal.AnimalId).ToHashSet();
+        var classificationRecords = await context.ClassificationRecords.AsNoTracking()
+            .Where(record => activeAnimalIds.Contains(record.AnimalId))
+            .OrderByDescending(record => record.ClassificationDate ?? record.CreatedAt)
+            .ToListAsync();
+        var classificationScores = classificationRecords
+            .GroupBy(record => record.AnimalId)
+            .Select(group =>
+            {
+                var animal = animals.Single(item => item.AnimalId == group.Key);
+                var ordered = group.OrderByDescending(record => record.ClassificationDate ?? record.CreatedAt).ToList();
+                var current = ordered[0];
+                return new
+                {
+                    animal.AnimalId,
+                    AnimalName = animal.BarnName ?? animal.RegisteredName ?? $"Animal #{animal.AnimalId}",
+                    animal.RegisteredName,
+                    CurrentScore = current.Score,
+                    CurrentBaa = current.Baa,
+                    CurrentLabel = current.ClassificationLabel,
+                    CurrentDate = current.ClassificationDate ?? current.CreatedAt,
+                    PreviousScores = ordered.Skip(1).Select(record => new
+                    {
+                        record.Score,
+                        record.Baa,
+                        record.ClassificationLabel,
+                        Date = record.ClassificationDate ?? record.CreatedAt
+                    }).ToList()
+                };
+            })
+            .OrderByDescending(row => row.CurrentScore)
+            .ThenBy(row => row.AnimalName)
+            .ToList();
+        var genomicResults = animals
+            .Where(animal => latestGenomics.ContainsKey(animal.AnimalId))
+            .Select(animal =>
+            {
+                var record = latestGenomics[animal.AnimalId];
+                return new
+                {
+                    animal.AnimalId,
+                    AnimalName = animal.BarnName ?? animal.RegisteredName ?? $"Animal #{animal.AnimalId}",
+                    animal.RegisteredName,
+                    record.ReportDate,
+                    record.Tpi,
+                    record.NetMerit,
+                    record.MilkPta,
+                    record.FatPta,
+                    record.ProteinPta,
+                    record.DaughterPregnancyRate,
+                    record.ProductiveLife,
+                    record.TypeScore,
+                    record.UdderComposite,
+                    record.FeetLegsComposite,
+                    record.SomaticCellScore
+                };
+            })
+            .OrderByDescending(row => row.Tpi)
+            .ThenBy(row => row.AnimalName)
+            .ToList();
         var milkValues = latestMilk.Values.Where(r => r.Milk.HasValue).Select(r => r.Milk!.Value).OrderBy(v => v).ToList();
         var netMeritValues = latestGenomics.Values.Where(r => r.NetMerit.HasValue).Select(r => r.NetMerit!.Value).OrderBy(v => v).ToList();
         static decimal LowRank<T>(T value, List<T> sorted) where T : IComparable<T>
@@ -281,6 +341,8 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
             MilkingNotBred = milkingNotBred,
             SaleAnimals = saleAnimals,
             SuggestedSell = suggestedSell,
+            ClassificationScores = classificationScores,
+            GenomicResults = genomicResults,
             PregnancyChecksDue = pregnancyChecksDue,
             DueWithinEightMonths = currentBreedings.Where(b =>
                 b.PregnancyStatus == PregnancyStatus.Pregnant

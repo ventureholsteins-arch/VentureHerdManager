@@ -2009,7 +2009,7 @@ watch(activeTab, tab => {
           <button type="button" class="rp-add-btn" @click="showEmbryoCreate = !showEmbryoCreate">+ Add Embryos</button>
         </div>
       </div>
-      <p class="rp-hint">Track storage, assign recipients, and log outcomes. Use Did Not Stick to record a failed implant and move that embryo to the Failed section below.</p>
+      <p class="rp-hint"><strong>1.</strong> Create a group and quantity. <strong>2.</strong> Open that group. <strong>3.</strong> Pick one embryo, recipient, and implant date.</p>
 
       <form v-if="showEmbryoCreate" class="emb-create-form" @submit.prevent="addEmbryoRecord">
         <label>Group name<input v-model="embryoCreateGroup" type="text" placeholder="Carissa x Braxton" required></label>
@@ -2042,33 +2042,36 @@ watch(activeTab, tab => {
                   <span v-if="rec.implantDate && rec.status === 'Implanted'" class="emb-date">{{ rec.implantDate }}</span>
                 </div>
                 <div class="emb-actions">
-                  <button v-if="rec.status === 'In Storage' || rec.status === 'Assigned'" type="button" class="rp-add-btn emb-action-btn" @click="markEmbryoImplanted(rec)">Mark Implanted</button>
+                  <button v-if="rec.status === 'In Storage' || rec.status === 'Assigned'" type="button" class="rp-add-btn emb-action-btn" @click="markEmbryoImplanted(rec)">Implant This Embryo</button>
                   <button v-if="rec.status === 'Implanted'" type="button" class="rp-add-btn emb-action-btn emb-loss" :disabled="embryoActionId === rec.embryoRecordId" @click="markEmbryoLost(rec)">{{ embryoActionId === rec.embryoRecordId ? 'Recording…' : 'Did Not Stick' }}</button>
-                  <button type="button" class="rp-add-btn emb-action-btn" @click="saveEmbryoRecord(rec)">Save</button>
                   <button type="button" class="rp-x" @click="removeEmbryoRecord(rec.id)">✕</button>
                 </div>
               </div>
-              <p class="emb-workflow-hint">Workflow: Save edits → Mark Implanted → Did Not Stick (if failed).</p>
-              <div class="emb-grid">
+              <div class="emb-quick-implant">
+                <label>Implant in
+                  <select v-model.number="rec.recipientAnimalId">
+                    <option :value="null">Choose recipient…</option>
+                    <option v-for="a in animalOptions" :key="`r-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `${a.damName || 'Unknown dam'} × ${a.sireName || 'Unknown sire'} (#${a.animalId})` }}</option>
+                  </select>
+                </label>
+                <label>Implant date<input v-model="rec.implantDate" type="date"></label>
+              </div>
+              <details class="emb-edit-details">
+                <summary>Edit embryo details</summary>
+                <div class="emb-grid">
                 <label>Code / ID<input v-model="rec.code" type="text" placeholder="ET-2026-001"></label>
                 <label>Group<input v-model.lazy="rec.groupName" type="text" placeholder="Donor line, flush, or custom group"></label>
                 <label>Sire<input v-model="rec.sire" type="text" placeholder="Sire name"></label>
                 <label>Donor Cow<input v-model="rec.donor" type="text" placeholder="Donor name"></label>
                 <label>Mating<input v-model="rec.mating" type="text" placeholder="Donor x Sire"></label>
                 <label>Grade<input v-model="rec.grade" type="text" placeholder="Grade 1, Excellent…"></label>
-                <label>Current Status<input :value="rec.status" type="text" readonly></label>
-                <label>Recipient Animal
-                  <select v-model.number="rec.recipientAnimalId">
-                    <option :value="null">No recipient yet</option>
-                    <option v-for="a in animalOptions" :key="`r-${a.animalId}`" :value="a.animalId">{{ a.barnName || a.registeredName || `${a.damName || 'Unknown dam'} × ${a.sireName || 'Unknown sire'} (#${a.animalId})` }}</option>
-                  </select>
-                </label>
-                <label>Implant Date<input v-model="rec.implantDate" type="date"></label>
                 <label>Collection Location<input v-model="rec.collectionLocation" type="text" placeholder="Farm, flush date, or facility"></label>
                 <label>Storage Location<input v-model="rec.storageLocation" type="text" placeholder="Tank/straw location"></label>
                 <label>Breeding Link Note<input v-model="rec.linkedBreedingNote" type="text" placeholder="Breeding date or event ref"></label>
                 <label class="emb-full">Notes<textarea v-model="rec.notes" rows="2" placeholder="Tank, straw info, vet notes" /></label>
-              </div>
+                <button type="button" class="rp-add-btn emb-action-btn" @click="saveEmbryoRecord(rec)">Save Details</button>
+                </div>
+              </details>
             </div>
           </div>
         </details>
@@ -2841,6 +2844,12 @@ watch(activeTab, tab => {
 .achievement-group-details summary::-webkit-details-marker { display: none; }
 .emb-group-title { margin: 0; padding: 10px 12px; background: #f0f7f1; border-left: 4px solid #31572c; color: #1f3a25; font-size: 0.8rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; }
 .emb-group-body { padding: 12px; display: grid; gap: 10px; }
+.emb-quick-implant { display:grid; grid-template-columns:minmax(0,2fr) minmax(145px,1fr); gap:10px; margin-top:10px; padding:10px; border:1px solid #c9ddce; border-radius:9px; background:#f3faf4; }
+.emb-quick-implant label { display:grid; gap:4px; color:#234b2d; font-size:.72rem; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+.emb-quick-implant select,.emb-quick-implant input { width:100%; min-height:42px; border:1px solid #b8cabb; border-radius:7px; background:#fff; padding:8px; font:inherit; color:#172d1d; }
+.emb-edit-details { margin-top:8px; border-top:1px solid #e0e8e1; padding-top:8px; }
+.emb-edit-details summary { cursor:pointer; color:#31572c; font-size:.78rem; font-weight:850; }
+.emb-edit-details .emb-grid { margin-top:9px; }
 .emb-workflow-hint { margin: 0 0 10px; font-size: 0.8rem; font-weight: 700; color: #31572c; }
 .emb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .emb-full { grid-column: 1 / -1; }
@@ -3120,6 +3129,7 @@ textarea { min-height: 72px; resize: vertical; }
 .lineup-textarea::placeholder { color: #b4c2b8; }
 
 @media (max-width: 700px) {
+  .emb-quick-implant { grid-template-columns:1fr; }
   .emb-create-form{grid-template-columns:1fr 1fr}.emb-create-form label:first-child{grid-column:1/-1}
   .lineup-notes-row {
     grid-template-columns: 1fr;

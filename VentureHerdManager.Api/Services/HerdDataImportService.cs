@@ -95,6 +95,10 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             if (mapping == null) context.AnimalIdentityMappings.Add(new AnimalIdentityMapping { Source = request.Source, SourceKey = row.SourceKey, SourceLabel = row.SourceName, AnimalId = match.AnimalId.Value });
             else { mapping.AnimalId = match.AnimalId.Value; mapping.SourceLabel = row.SourceName; mapping.ConfirmedAt = DateTime.UtcNow; }
         }
+        await ReconcileCurrentPcdartStagesAsync(
+            request,
+            preview.Rows.Select(row => row.AnimalId!.Value).ToHashSet(),
+            ct);
         batch.RowsImported = batch.Records.Count;
         try
         {
@@ -105,6 +109,91 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             throw new InvalidOperationException($"The confirmed import could not be stored: {exception.GetBaseException().Message}", exception);
         }
         return batch;
+    }
+
+    private async Task ReconcileCurrentPcdartStagesAsync(
+        HerdDataImportRequest request,
+        HashSet<int> currentImportAnimalIds,
+        CancellationToken ct)
+    {
+        if (request.Source != HerdDataSource.Pcdart) return;
+
+        var bucket = ImportBucket(request.FileName);
+        if (bucket is not ("CURRENT-MILKING" or "DRY-COWS")) return;
+
+        var currentMilkingIds = bucket == "CURRENT-MILKING"
+            ? currentImportAnimalIds
+            : await LatestImportAnimalIdsAsync(
+                request.ReportDate,
+                "CURRENT-MILKING",
+                ct);
+        var dryCowIds = bucket == "DRY-COWS"
+            ? currentImportAnimalIds
+            : await LatestImportAnimalIdsAsync(
+                request.ReportDate,
+                "DRY-COWS",
+                ct);
+
+        foreach (var animal in await context.Animals
+                     .Where(animal => currentMilkingIds.Contains(animal.AnimalId))
+                     .ToListAsync(ct))
+        {
+            if (animal.AnimalStatus != AnimalStatus.Active
+                || animal.AnimalStage == AnimalStage.Milking)
+                continue;
+
+            animal.AnimalStage = AnimalStage.Milking;
+            animal.UpdatedAt = DateTime.UtcNow;
+            animal.UpdatedBy = "PC-DART 005 source-of-truth reconciliation";
+        }
+
+        // Do not remove stale stages until both halves of the current cow list
+        // have been imported for the same report date. This prevents a 005
+        // import from temporarily erasing every dry cow (and vice versa).
+        if (currentMilkingIds.Count == 0 || dryCowIds.Count == 0) return;
+
+        var currentCowIds = currentMilkingIds.Concat(dryCowIds).ToHashSet();
+        var stale = await context.Animals
+            .Where(animal => animal.AnimalStatus == AnimalStatus.Active
+                && (animal.AnimalStage == AnimalStage.Milking
+                    || animal.AnimalStage == AnimalStage.Dry)
+                && !currentCowIds.Contains(animal.AnimalId))
+            .ToListAsync(ct);
+
+        foreach (var animal in stale)
+        {
+            var priorStage = animal.AnimalStage;
+            animal.AnimalStage = AnimalStage.Unknown;
+            animal.UpdatedAt = DateTime.UtcNow;
+            animal.UpdatedBy = "PC-DART current-list reconciliation";
+            context.AnimalNotes.Add(new AnimalNote
+            {
+                AnimalId = animal.AnimalId,
+                NoteDate = DateTime.UtcNow,
+                NoteType = NoteType.Other,
+                NoteText = $"[PC-DART AUDIT] Removed stale {priorStage} stage because this active animal was absent from both the 005 Milking and 024 Dry reports dated {request.ReportDate:MM/dd/yyyy}. Review and set the correct stage if she belongs outside PC-DART.",
+                CreatedBy = "PC-DART current-list reconciliation"
+            });
+        }
+    }
+
+    private async Task<HashSet<int>> LatestImportAnimalIdsAsync(
+        DateOnly reportDate,
+        string bucket,
+        CancellationToken ct)
+    {
+        var import = await context.HerdDataImports
+            .AsNoTracking()
+            .Include(item => item.Records)
+            .Where(item => item.Source == HerdDataSource.Pcdart
+                && item.ReportDate == reportDate)
+            .OrderByDescending(item => item.ImportedAt)
+            .ToListAsync(ct);
+
+        return import
+            .FirstOrDefault(item => ImportBucket(item.FileName) == bucket)
+            ?.Records.Select(record => record.AnimalId).ToHashSet()
+            ?? [];
     }
 
     private static void MergePriorValues(AnimalDataRecord current, AnimalDataRecord prior)

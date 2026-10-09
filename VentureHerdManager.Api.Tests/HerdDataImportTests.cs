@@ -338,6 +338,65 @@ public sealed class HerdDataImportTests
         Assert.Equal(new DateTime(2026, 9, 10, 12, 0, 0), context.DryOffEvents.Single().DryOffDate);
     }
 
+    [Fact]
+    public async Task CurrentMilkingReportSetsMatchedCowToMilking()
+    {
+        await using var context = CreateContext();
+        var cow = new Animal { BarnName = "Pella", AnimalStage = AnimalStage.Dry };
+        context.Animals.Add(cow);
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+
+        await service.ApplyAsync(new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Pcdart,
+            FileName = "CURRENT-MILKING::10-8.pdf",
+            ReportDate = new DateOnly(2026, 10, 8),
+            CsvText = "BarnName,DHIID,Milk\nPELLA,PELLA,93.0"
+        });
+
+        Assert.Equal(AnimalStage.Milking, cow.AnimalStage);
+        Assert.Equal("PC-DART 005 source-of-truth reconciliation", cow.UpdatedBy);
+    }
+
+    [Fact]
+    public async Task CombinedCurrentPcdartReportsRemoveStaleMilkingAndDryStages()
+    {
+        await using var context = CreateContext();
+        var milking = new Animal { BarnName = "Pella", AnimalStage = AnimalStage.Dry };
+        var dry = new Animal { BarnName = "Paddy", AnimalStage = AnimalStage.Milking };
+        var staleMilking = new Animal { BarnName = "Old Milker", AnimalStage = AnimalStage.Milking };
+        var staleDry = new Animal { BarnName = "Old Dry", AnimalStage = AnimalStage.Dry };
+        var heifer = new Animal { BarnName = "Heifer", AnimalStage = AnimalStage.Heifer };
+        context.Animals.AddRange(milking, dry, staleMilking, staleDry, heifer);
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var reportDate = new DateOnly(2026, 10, 8);
+
+        await service.ApplyAsync(new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Pcdart,
+            FileName = "CURRENT-MILKING::10-8.pdf",
+            ReportDate = reportDate,
+            CsvText = "BarnName,DHIID,Milk\nPELLA,PELLA,93.0"
+        });
+        await service.ApplyAsync(new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Pcdart,
+            FileName = "DRY-COWS::drys.pdf",
+            ReportDate = reportDate,
+            CsvText = "BarnName,DHIID,DryStatus,DryDate,Lactation,DaysDry\nPADDY,PADDY,3,2026-09-04,2,34"
+        });
+
+        Assert.Equal(AnimalStage.Milking, milking.AnimalStage);
+        Assert.Equal(AnimalStage.Dry, dry.AnimalStage);
+        Assert.Equal(AnimalStage.Unknown, staleMilking.AnimalStage);
+        Assert.Equal(AnimalStage.Unknown, staleDry.AnimalStage);
+        Assert.Equal(AnimalStage.Heifer, heifer.AnimalStage);
+        Assert.Equal(2, context.AnimalNotes.Count(note =>
+            note.CreatedBy == "PC-DART current-list reconciliation"));
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DemoMode:Enabled"] = "false" }).Build();

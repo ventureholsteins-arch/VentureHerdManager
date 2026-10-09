@@ -41,11 +41,13 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             {
                 SourceKey = row.SourceKey, SourceName = row.SourceName, OfficialId = row.OfficialId,
                 BirthDate = row.BirthDate, Breed = row.Breed, ImportedSex = row.ImportedSex,
+                ImportedSire = row.ImportedSire, ImportedDam = row.ImportedDam,
                 AnimalId = animal?.AnimalId, AnimalName = animal?.DisplayName,
                 NeedsConfirmation = animal == null,
                 Candidates = candidates.Take(12).Select(a => new HerdDataCandidate { AnimalId = a.AnimalId, AnimalName = a.DisplayName, RegistrationNumber = a.RegistrationNumber }).ToList()
             };
             AddDryCowAudit(previewRow, row, animal, dryOffs, request.ReportDate);
+            AddPedigreeAudit(previewRow, row, animal, request.Source);
             preview.Rows.Add(previewRow);
         }
         return preview;
@@ -89,7 +91,7 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             if (animal != null)
             {
                 await ApplyDryCowDataAsync(animal, row, request.ReportDate, ct);
-                EnrichConfirmedAnimal(animal, row, request.Source);
+                await EnrichConfirmedAnimalAsync(animal, row, request.Source, ct);
             }
             var mapping = await context.AnimalIdentityMappings.SingleOrDefaultAsync(m => m.Source == request.Source && m.SourceKey == row.SourceKey, ct);
             if (mapping == null) context.AnimalIdentityMappings.Add(new AnimalIdentityMapping { Source = request.Source, SourceKey = row.SourceKey, SourceLabel = row.SourceName, AnimalId = match.AnimalId.Value });
@@ -224,7 +226,7 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
         current.RawDataJson = JsonSerializer.Serialize(merged);
     }
 
-    private static void EnrichConfirmedAnimal(Animal animal, ParsedRow row, HerdDataSource source)
+    private async Task EnrichConfirmedAnimalAsync(Animal animal, ParsedRow row, HerdDataSource source, CancellationToken ct)
     {
         var official = NormalizeId(row.OfficialId);
         var sourceId = NormalizeId(row.SourceAnimalId);
@@ -243,12 +245,70 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
             animal.RegisteredName = row.SourceName.Trim()[..Math.Min(row.SourceName.Trim().Length, 200)];
             changed = true;
         }
+        if (source == HerdDataSource.Zoetis)
+        {
+            changed |= ApplyImportedPedigree(animal, "sire", row.ImportedSire, value => animal.SireName = value);
+            if (!string.IsNullOrWhiteSpace(row.ImportedDam)
+                && !SameText(animal.DamName, row.ImportedDam))
+            {
+                var oldDam = animal.DamName;
+                animal.DamName = row.ImportedDam.Trim();
+                animal.DamId = await ResolveUniqueAnimalIdAsync(row.ImportedDam, animal.AnimalId, ct);
+                AddPedigreeCorrectionNote(animal, "dam", oldDam, animal.DamName);
+                changed = true;
+            }
+        }
         if (changed)
         {
             animal.UpdatedAt = DateTime.UtcNow;
             animal.UpdatedBy = $"Confirmed {source} import";
         }
     }
+
+    private bool ApplyImportedPedigree(Animal animal, string field, string? imported, Action<string> apply)
+    {
+        if (string.IsNullOrWhiteSpace(imported)) return false;
+        var current = field == "sire" ? animal.SireName : animal.DamName;
+        if (SameText(current, imported)) return false;
+        var clean = imported.Trim();
+        apply(clean);
+        AddPedigreeCorrectionNote(animal, field, current, clean);
+        return true;
+    }
+
+    private void AddPedigreeCorrectionNote(Animal animal, string field, string? oldValue, string newValue)
+    {
+        context.AnimalNotes.Add(new AnimalNote
+        {
+            AnimalId = animal.AnimalId,
+            NoteDate = DateTime.UtcNow,
+            NoteType = NoteType.Other,
+            NoteText = $"[ZOETIS AUDIT] {field.ToUpperInvariant()} corrected from '{oldValue ?? "blank"}' to '{newValue}' using the confirmed genomic import. Original value retained in this audit note.",
+            CreatedBy = "Confirmed Zoetis import"
+        });
+    }
+
+    private async Task<int?> ResolveUniqueAnimalIdAsync(string name, int excludedAnimalId, CancellationToken ct)
+    {
+        var candidates = await context.Animals.AsNoTracking()
+            .Where(candidate => candidate.AnimalId != excludedAnimalId
+                && (candidate.BarnName == name || candidate.RegisteredName == name))
+            .Select(candidate => candidate.AnimalId)
+            .Take(2)
+            .ToListAsync(ct);
+        return candidates.Count == 1 ? candidates[0] : null;
+    }
+
+    private static void AddPedigreeAudit(HerdDataPreviewRow preview, ParsedRow row, Animal? animal, HerdDataSource source)
+    {
+        if (source != HerdDataSource.Zoetis || animal == null) return;
+        if (!string.IsNullOrWhiteSpace(row.ImportedSire) && !SameText(animal.SireName, row.ImportedSire))
+            preview.AuditWarnings.Add($"Sire conflict: app '{animal.SireName ?? "blank"}' / Zoetis '{row.ImportedSire}'. Confirmed import will use Zoetis and preserve the old value in an audit note.");
+        if (!string.IsNullOrWhiteSpace(row.ImportedDam) && !SameText(animal.DamName, row.ImportedDam))
+            preview.AuditWarnings.Add($"Dam conflict: app '{animal.DamName ?? "blank"}' / Zoetis '{row.ImportedDam}'. Confirmed import will use Zoetis and preserve the old value in an audit note.");
+    }
+
+    private static bool SameText(string? left, string? right) => Normalize(left) == Normalize(right);
 
     private static void AddDryCowAudit(HerdDataPreviewRow preview, ParsedRow row, Animal? animal, List<DryOffEvent> dryOffs, DateOnly reportDate)
     {
@@ -401,6 +461,7 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
     {
         public string SourceKey { get; init; } = ""; public string SourceName { get; init; } = ""; public string SourceAnimalId { get; init; } = ""; public string? OfficialId { get; init; }
         public DateOnly? BirthDate { get; init; } public string? Breed { get; init; } public string? ImportedSex { get; init; }
+        public string? ImportedSire { get; init; } public string? ImportedDam { get; init; }
         public Dictionary<string, string> Values { get; init; } = [];
         public static ParsedRow From(List<string> headers, List<string> values, HerdDataSource source)
         {
@@ -415,7 +476,10 @@ public sealed class HerdDataImportService(ApplicationDbContext context)
                 SourceKey = NormalizeId(!string.IsNullOrWhiteSpace(official) ? official : !string.IsNullOrWhiteSpace(id) ? id : name),
                 SourceName = name, SourceAnimalId = id, OfficialId = official,
                 BirthDate = Date(data.GetValueOrDefault("Birth Date") ?? data.GetValueOrDefault("BirthDate")),
-                Breed = data.GetValueOrDefault("Breed"), ImportedSex = data.GetValueOrDefault("Sex"), Values = data
+                Breed = data.GetValueOrDefault("Breed"), ImportedSex = data.GetValueOrDefault("Sex"),
+                ImportedSire = FirstValue(data, "Sire Name", "Sire", "Sire Short Name", "Sire NAAB"),
+                ImportedDam = FirstValue(data, "Dam Name", "Dam", "Dam Short Name", "Dam ID"),
+                Values = data
             };
         }
         private static string? FirstValue(Dictionary<string, string> values, params string[] aliases) =>

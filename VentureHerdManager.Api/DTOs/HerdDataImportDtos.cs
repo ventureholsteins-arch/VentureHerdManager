@@ -32,6 +32,8 @@ public sealed class HerdDataPreviewRow
     public DateOnly? BirthDate { get; set; }
     public string? Breed { get; set; }
     public string? ImportedSex { get; set; }
+    public string? ImportedSire { get; set; }
+    public string? ImportedDam { get; set; }
     public int? AnimalId { get; set; }
     public string? AnimalName { get; set; }
     public bool NeedsConfirmation { get; set; }

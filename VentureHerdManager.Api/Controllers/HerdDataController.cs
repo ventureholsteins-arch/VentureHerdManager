@@ -109,6 +109,12 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
             catch (JsonException) { }
             return null;
         }
+        static decimal? WeightedComponent(IEnumerable<AnimalDataRecord> source, Func<AnimalDataRecord, decimal?> component)
+        {
+            var rows = source.Where(record => record.Milk.HasValue && component(record).HasValue).ToList();
+            var milkTotal = rows.Sum(record => record.Milk!.Value);
+            return milkTotal == 0m ? null : rows.Sum(record => record.Milk!.Value * component(record)!.Value) / milkTotal;
+        }
         var milkDate = records.Where(r => r.Source == HerdDataSource.Pcdart && r.Milk.HasValue).Max(r => (DateOnly?)r.ReportDate);
         var genomicDate = records.Where(r => r.Source == HerdDataSource.Zoetis).Max(r => (DateOnly?)r.ReportDate);
         var latestComponentsByAnimal = records
@@ -124,7 +130,7 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
             return new { r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.SireName, r.Animal.CurrentLactation, r.ReportDate, ComponentReportDate = component?.ReportDate, r.DaysInMilk, r.Milk, FatPercent = fat, ProteinPercent = protein, FatPounds = r.Milk.HasValue && fat.HasValue ? Math.Round(r.Milk.Value * fat.Value / 100m, 2) : (decimal?)null, ProteinPounds = r.Milk.HasValue && protein.HasValue ? Math.Round(r.Milk.Value * protein.Value / 100m, 2) : (decimal?)null };
         }).ToList();
         var sireMilk = milk.Where(r => !string.IsNullOrWhiteSpace(r.SireName)).GroupBy(r => r.SireName!.Trim(), StringComparer.OrdinalIgnoreCase).Select(group => new { sireName = group.Key, daughters = group.Select(r => r.AnimalId).Distinct().Count(), averageMilk = group.Where(r => r.Milk.HasValue).Select(r => r.Milk).Average(), averageFatPercent = group.Where(r => r.FatPercent.HasValue).Select(r => r.FatPercent).Average(), averageProteinPercent = group.Where(r => r.ProteinPercent.HasValue).Select(r => r.ProteinPercent).Average(), averageFatPounds = group.Where(r => r.FatPounds.HasValue).Select(r => r.FatPounds).Average(), averageProteinPounds = group.Where(r => r.ProteinPounds.HasValue).Select(r => r.ProteinPounds).Average() }).OrderByDescending(r => r.averageMilk).ToList();
-        var milkHistory = records.Where(r => r.Source == HerdDataSource.Pcdart && r.Milk.HasValue).GroupBy(r => r.ReportDate).OrderBy(group => group.Key).Select(group => new { reportDate = group.Key, cows = group.Select(r => r.AnimalId).Distinct().Count(), averageMilk = group.Select(r => r.Milk).Average(), averageFatPercent = group.Where(r => r.FatPercent.HasValue).Select(r => r.FatPercent).Average(), averageProteinPercent = group.Where(r => r.ProteinPercent.HasValue).Select(r => r.ProteinPercent).Average() }).ToList();
+        var milkHistory = records.Where(r => r.Source == HerdDataSource.Pcdart && r.Milk.HasValue).GroupBy(r => r.ReportDate).OrderBy(group => group.Key).Select(group => new { reportDate = group.Key, cows = group.Select(r => r.AnimalId).Distinct().Count(), averageMilk = group.Select(r => r.Milk).Average(), averageFatPercent = WeightedComponent(group, record => record.FatPercent), averageProteinPercent = WeightedComponent(group, record => record.ProteinPercent) }).ToList();
         var genomicAll = records.Where(r => r.Source == HerdDataSource.Zoetis && r.ReportDate == genomicDate).OrderByDescending(r => r.Tpi).Select(r => new
         {
             r.AnimalId, AnimalName = r.Animal.DisplayName, r.Animal.AnimalStage, r.ReportDate,

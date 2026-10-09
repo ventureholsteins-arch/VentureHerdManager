@@ -147,7 +147,7 @@ async function unlockApp() {
 
     <BrandedHerdLoader v-if="startupVisible && appUnlocked" />
 
-    <footer v-if="appUnlocked && !isPublicSharedShow" class="app-footer">
+    <footer v-if="appUnlocked && !isPublicSharedShow" class="app-footer" :class="{ 'report-footer': $route.name === 'print-reports' }">
       <span class="footer-brand">
         <span>Powered by</span>
         <i class="footer-venture-logo" aria-label="Venture Ag Marketing" />
@@ -296,6 +296,31 @@ async function unlockApp() {
 }
 
 .footer-customize:hover { color: #fff; }
+
+.app-footer.report-footer {
+  gap: 5px;
+  padding: 5px 10px;
+  border-top: 1px solid #d8dfd6;
+  background: transparent;
+  color: #647066;
+  font-size: 0.68rem;
+}
+
+.report-footer .footer-venture-logo {
+  width: 86px;
+  height: 22px;
+  filter: brightness(0.55);
+}
+
+.report-footer .footer-sep { color: #aab3aa; }
+.report-footer .footer-customize { color: #4b5d4e; }
+
+@media print {
+  .app-background,
+  .app-footer,
+  .demo-banner { display: none !important; }
+  .app-shell { min-height: 0; background: #fff; }
+}
 
 @media (max-width: 640px) {
   .app-footer {

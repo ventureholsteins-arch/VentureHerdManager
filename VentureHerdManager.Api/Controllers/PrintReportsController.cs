@@ -21,7 +21,9 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
         var sevenMonthsAgo = DateOnly.FromDateTime(today.AddMonths(-7));
 
         var animals = await context.Animals.AsNoTracking()
-            .Where(a => a.AnimalStatus == AnimalStatus.Active)
+            .Where(a =>
+                a.AnimalStatus == AnimalStatus.Active
+                && a.HerdLocation == HerdLocation.Home)
             .OrderBy(a => a.AnimalStage).ThenBy(a => a.BarnName)
             .Select(a => new
             {

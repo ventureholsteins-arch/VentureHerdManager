@@ -34,7 +34,9 @@ public class DashboardService
 
         var animals = await _context.Animals
             .AsNoTracking()
-            .Where(animal => animal.AnimalStatus == AnimalStatus.Active)
+            .Where(animal =>
+                animal.AnimalStatus == AnimalStatus.Active
+                && animal.HerdLocation == HerdLocation.Home)
             .ToListAsync();
 
         var animalNameDict = animals.ToDictionary(
@@ -145,6 +147,7 @@ public class DashboardService
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(animal => animal.AnimalStatus == AnimalStatus.Active)
+            .Where(animal => animal.HerdLocation == HerdLocation.Home)
             .Select(animal => new
             {
                 animal.AnimalStage

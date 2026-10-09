@@ -76,9 +76,22 @@ async function extractPdfLines(file: File) {
   return lines
 }
 function currentMilkingCsv(lines: string[]) {
-  const headers = ['BarnName', 'DHIID', 'Milk', 'DIM', 'LastCalv', 'Previous Milk', 'Current SCC', 'Report Type', 'Source Row']
+  const headers = ['BarnName', 'DHIID', 'Milk', 'DIM', 'LastCalv', 'Fat%', 'Pro%', 'Previous Milk', 'Current SCC', 'Report Type', 'Source Row']
   const rows: string[][] = []
   for (const line of lines) {
+    // PC-DART 012: age, cow, DIM, current milk, calving date, fat, protein,
+    // optional type traits, and DHI ID. This is the preferred production
+    // report because it supplies components as well as current milk.
+    const production = line.match(/^\d{2}-\d{2}\s+([A-Z0-9-]+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s+(\d{2}\/\d{2}\/\d{2,4})(?:\s+(.*))?$/i)
+    if (production) {
+      const tail = (production[5] ?? '').split(/\s+/).filter(Boolean)
+      const fat = /^\d+\.\d+$/.test(tail[0] ?? '') ? tail[0] : ''
+      const protein = /^\d+\.\d+$/.test(tail[1] ?? '') ? tail[1] : ''
+      rows.push([production[1], production[1], production[3], production[2], normalizePdfDate(production[4]), fat, protein, '', '', 'PC-DART 012 Cows PDF', line])
+      continue
+    }
+
+    // PC-DART 030: current milk, previous milk, SCC, DIM, calving date.
     const match = line.match(/^0\s+([A-Z0-9-]+)\s+(.+)$/i); if (!match) continue
     const barnName = match[1] ?? ''; const detail = match[2] ?? ''; if (!barnName || !detail) continue
     const tokens = detail.split(/\s+/); const dateIndex = tokens.findIndex(token => /^\d{2}\/\d{2}\/\d{2,4}$/.test(token)); if (dateIndex < 1) continue
@@ -92,9 +105,9 @@ function currentMilkingCsv(lines: string[]) {
     const previousMilk = measures.length >= 3 ? measures[1] ?? '' : ''
     const scc = measures.length >= 2 ? measures.at(-1) ?? '' : ''
     const calvingDate = tokens[dateIndex] ?? ''
-    rows.push([barnName, barnName, milk, dim, normalizePdfDate(calvingDate), previousMilk, scc, 'PC-DART Current Milking PDF', line])
+    rows.push([barnName, barnName, milk, dim, normalizePdfDate(calvingDate), '', '', previousMilk, scc, 'PC-DART 030 SCC PDF', line])
   }
-  if (!rows.length) throw new Error('No Current Milking cow rows were found. Choose the PC-DART 005 Production - Milking Cows PDF.')
+  if (!rows.length) throw new Error('No current cow rows were found. Choose the PC-DART 012 Cows or 030 SCC - Milking Cows PDF.')
   return [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n')
 }
 function dryCowsCsv(lines: string[]) {
@@ -343,15 +356,15 @@ function herdAverage(key: string) { const values = linearRows.value.map((row: an
       </section>
     <div v-show="activeView === 'imports'" class="import-choice">
       <button type="button" :class="{ active: importMode === 'pcdartCsv' }" @click="chooseImportMode('pcdartCsv')">PC-DART Milk CSV</button>
-      <button type="button" :class="{ active: importMode === 'currentMilkingPdf' }" @click="chooseImportMode('currentMilkingPdf')">Current Milking PDF</button>
+      <button type="button" :class="{ active: importMode === 'currentMilkingPdf' }" @click="chooseImportMode('currentMilkingPdf')">PC-DART 012 / 030 Cow Reports</button>
       <button type="button" :class="{ active: importMode === 'dryCowsPdf' }" @click="chooseImportMode('dryCowsPdf')">Dry Cows PDF</button>
       <button type="button" :class="{ active: importMode === 'cowPagePdf' }" @click="chooseImportMode('cowPagePdf')">Individual Cow PDF</button>
       <button type="button" :class="{ active: importMode === 'zoetisCsv' }" @click="chooseImportMode('zoetisCsv')">Zoetis Genomics CSV</button>
     </div>
       <details v-show="activeView === 'imports'" ref="importDetails" class="card import-card" open>
         <summary>Import report</summary>
-        <p class="import-instruction">{{ importMode === 'currentMilkingPdf' ? 'Choose the PC-DART 005 Production - Milking Cows PDF. Every cow will be audited before saving.' : importMode === 'dryCowsPdf' ? 'Choose the PC-DART 024 Dry Cows - All Drys PDF. Dry date, lactation, status, and reported days dry are checked before saving.' : importMode === 'cowPagePdf' ? 'Choose a PC-DART DHI-203 individual Cow Page PDF. Its complete extracted record will be stored with the matched animal.' : source === 2 ? 'Choose your Zoetis Core Traits CSV, then preview the animal matches.' : 'Choose your PC-DART CSV, then preview the animal matches.' }}</p>
-        <label class="choose-file" for="herd-data-file">Choose {{ importMode === 'currentMilkingPdf' ? 'Current Milking PDF' : importMode === 'dryCowsPdf' ? 'Dry Cows PDF' : importMode === 'cowPagePdf' ? 'Individual Cow PDF' : source === 2 ? 'Zoetis Genomics CSV' : 'PC-DART Milk CSV' }}</label>
+        <p class="import-instruction">{{ importMode === 'currentMilkingPdf' ? 'Upload both reports for the same test date, in either order: 012 Cows supplies milk, fat, and protein; 030 SCC - Milking Cows supplies milk, SCC, and previous milk. The second upload merges the missing fields—no cow is duplicated.' : importMode === 'dryCowsPdf' ? 'Choose the PC-DART 024 Dry Cows - All Drys PDF. Dry date, lactation, status, and reported days dry are checked before saving.' : importMode === 'cowPagePdf' ? 'Choose a PC-DART DHI-203 individual Cow Page PDF. Its complete extracted record will be stored with the matched animal.' : source === 2 ? 'Choose your Zoetis Core Traits CSV, then preview the animal matches.' : 'Choose your PC-DART CSV, then preview the animal matches.' }}</p>
+        <label class="choose-file" for="herd-data-file">Choose {{ importMode === 'currentMilkingPdf' ? '012 or 030 PDF' : importMode === 'dryCowsPdf' ? 'Dry Cows PDF' : importMode === 'cowPagePdf' ? 'Individual Cow PDF' : source === 2 ? 'Zoetis Genomics CSV' : 'PC-DART Milk CSV' }}</label>
         <input id="herd-data-file" ref="fileInput" class="file-input" type="file" :accept="importMode === 'currentMilkingPdf' || importMode === 'dryCowsPdf' || importMode === 'cowPagePdf' ? '.pdf,application/pdf' : '.csv,text/csv'" @change="loadFile">
         <div class="controls"><select v-model.number="source"><option :value="1">PC-DART milk report</option><option :value="2">Zoetis genomic report</option></select><input v-model="reportDate" type="date"><strong class="selected-file">{{ fileName || 'No file selected yet' }}</strong></div>
         <div class="actions"><button :disabled="busy || !csvText" @click="previewImport">Preview &amp; match</button><button :disabled="busy || !preview || preview.duplicateImport || needsMatch.length > 0 || !!savedConfirmation" @click="applyImport(false)">{{ busy ? 'Saving…' : savedConfirmation ? '✓ Saved' : 'Save confirmed import' }}</button></div>

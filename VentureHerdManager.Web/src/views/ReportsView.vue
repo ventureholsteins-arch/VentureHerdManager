@@ -2112,7 +2112,7 @@ watch(activeTab, tab => {
       </template>
 
       <template v-else-if="!embryoImplantsLoading">
-        <details class="emb-group-details">
+        <details class="emb-group-details" open>
           <summary class="emb-group-title">Implant totals, chart &amp; records ({{ embryosWithImplants.length }})</summary>
         <div v-if="embryoImplantsData" class="as-row">
           <div class="as-stat">

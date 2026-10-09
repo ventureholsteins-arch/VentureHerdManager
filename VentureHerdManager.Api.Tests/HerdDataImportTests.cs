@@ -256,6 +256,66 @@ public sealed class HerdDataImportTests
     }
 
     [Fact]
+    public async Task ZoetisPreviewFlagsPedigreeConflictAndConfirmedImportCorrectsItWithAuditHistory()
+    {
+        await using var context = CreateContext();
+        var correctDam = new Animal { BarnName = "Correct Dam", RegistrationNumber = "145000001" };
+        var coco = new Animal
+        {
+            BarnName = "Coco",
+            RegisteredName = "VENTURE MASTER COCO",
+            RegistrationNumber = "3287885267",
+            SireName = "Wrong Sire",
+            DamName = "Sassy"
+        };
+        context.Animals.AddRange(correctDam, coco);
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var request = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Zoetis,
+            FileName = "genomics.csv",
+            ReportDate = new DateOnly(2026, 10, 8),
+            CsvText = "Animal ID,Registration Number,Animal Name,Sire Name,Dam Name,TPI\n35,HO000003287885267,VENTURE MASTER COCO,Master,Correct Dam,2210"
+        };
+
+        var row = Assert.Single((await service.PreviewAsync(request)).Rows);
+        Assert.Equal(coco.AnimalId, row.AnimalId);
+        Assert.Equal("Master", row.ImportedSire);
+        Assert.Equal("Correct Dam", row.ImportedDam);
+        Assert.Contains(row.AuditWarnings, warning => warning.Contains("Dam conflict"));
+
+        await service.ApplyAsync(request);
+
+        Assert.Equal("Master", coco.SireName);
+        Assert.Equal("Correct Dam", coco.DamName);
+        Assert.Equal(correctDam.AnimalId, coco.DamId);
+        Assert.Equal(2, await context.AnimalNotes.CountAsync(note => note.AnimalId == coco.AnimalId));
+        Assert.Contains(await context.AnimalNotes.Select(note => note.NoteText).ToListAsync(), text => text.Contains("Sassy"));
+    }
+
+    [Fact]
+    public async Task ZoetisRegistrationMatchingAcceptsBreedPrefixAndLeadingZeros()
+    {
+        await using var context = CreateContext();
+        var coco = new Animal { BarnName = "Coco", RegistrationNumber = "3287885267" };
+        context.Animals.Add(coco);
+        await context.SaveChangesAsync();
+        var service = new HerdDataImportService(context);
+        var request = new HerdDataImportRequest
+        {
+            Source = HerdDataSource.Zoetis,
+            FileName = "genomics.csv",
+            ReportDate = new DateOnly(2026, 10, 8),
+            CsvText = "Animal ID,Official ID,Animal Name,TPI\n35,HO000003287885267,VENTURE MASTER COCO,2210"
+        };
+
+        var row = Assert.Single((await service.PreviewAsync(request)).Rows);
+        Assert.Equal(coco.AnimalId, row.AnimalId);
+        Assert.False(row.NeedsConfirmation);
+    }
+
+    [Fact]
     public async Task SameSourceAndReportDateCannotCreateDuplicateAnimalRows()
     {
         await using var context = CreateContext();

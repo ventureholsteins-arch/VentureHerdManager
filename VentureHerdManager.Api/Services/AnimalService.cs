@@ -140,6 +140,9 @@ public class AnimalService
 
     public Animal CreateAnimal(Animal animal)
     {
+        animal.DamName = CleanOptionalText(animal.DamName);
+        animal.DamId ??= ResolveUniqueDamId(animal.DamName, null);
+
         ValidateAnimalRelationships(
             animal.AnimalId,
             animal.SireId,
@@ -156,8 +159,6 @@ public class AnimalService
             CleanOptionalText(animal.Breed);
         animal.SireName =
             CleanSireText(animal.SireName);
-        animal.DamName =
-            CleanOptionalText(animal.DamName);
         if (string.IsNullOrWhiteSpace(animal.BarnName) &&
             string.IsNullOrWhiteSpace(animal.RegisteredName) &&
             !string.IsNullOrWhiteSpace(animal.DamName) &&
@@ -343,6 +344,15 @@ public class AnimalService
             animal.SireName = request.SireName;
         }
 
+        if (request.DamId.HasValue || !string.IsNullOrWhiteSpace(request.DamName))
+        {
+            var damName = CleanOptionalText(request.DamName);
+            var damId = request.DamId ?? ResolveUniqueDamId(damName, animalId);
+            ValidateAnimalRelationships(animalId, animal.SireId, damId);
+            animal.DamId = damId;
+            animal.DamName = damName;
+        }
+
         if (request.CurrentLactation.HasValue)
         {
             animal.CurrentLactation = request.CurrentLactation.Value;
@@ -368,6 +378,27 @@ public class AnimalService
         _context.SaveChanges();
 
         return animal;
+    }
+
+    private int? ResolveUniqueDamId(string? damName, int? animalId)
+    {
+        if (string.IsNullOrWhiteSpace(damName))
+        {
+            return null;
+        }
+
+        var normalized = damName.Trim().ToUpperInvariant();
+        var matches = _context.Animals
+            .Where(candidate =>
+                (!animalId.HasValue || candidate.AnimalId != animalId.Value) &&
+                candidate.AnimalStatus == AnimalStatus.Active &&
+                ((candidate.BarnName != null && candidate.BarnName.ToUpper() == normalized) ||
+                 (candidate.RegisteredName != null && candidate.RegisteredName.ToUpper() == normalized)))
+            .Select(candidate => candidate.AnimalId)
+            .Take(2)
+            .ToList();
+
+        return matches.Count == 1 ? matches[0] : null;
     }
 
     public Animal? ArchiveAsSold(

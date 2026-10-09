@@ -146,6 +146,7 @@ export interface CreateAnimalRequest {
   animalStatus: number
   breed?: string | null
   sireName?: string | null
+  damId?: number | null
   damName?: string | null
   notes?: string | null
   isFavorite?: boolean

@@ -95,6 +95,67 @@ public sealed class AnimalDetailTests
         Assert.Equal("840003123456789", stored.RegistrationNumber);
     }
 
+    [Fact]
+    public async Task CreateAnimalLinksUniqueExistingDamByName()
+    {
+        await using var context = CreateContext();
+        var dam = new Animal { BarnName = "Shila", AnimalStatus = AnimalStatus.Active };
+        context.Animals.Add(dam);
+        await context.SaveChangesAsync();
+
+        var service = new AnimalService(context);
+        var calf = service.CreateAnimal(new Animal
+        {
+            BarnName = "Status",
+            DamName = " shila ",
+            AnimalStage = AnimalStage.Calf,
+            AnimalStatus = AnimalStatus.Active
+        });
+
+        Assert.Equal(dam.AnimalId, calf.DamId);
+        Assert.Equal("shila", calf.DamName);
+    }
+
+    [Fact]
+    public async Task CreateAnimalDoesNotGuessWhenDamNameIsAmbiguous()
+    {
+        await using var context = CreateContext();
+        context.Animals.AddRange(
+            new Animal { BarnName = "Clover", AnimalStatus = AnimalStatus.Active },
+            new Animal { RegisteredName = "Clover", AnimalStatus = AnimalStatus.Active });
+        await context.SaveChangesAsync();
+
+        var service = new AnimalService(context);
+        var calf = service.CreateAnimal(new Animal
+        {
+            BarnName = "Clover calf",
+            DamName = "Clover",
+            AnimalStage = AnimalStage.Calf,
+            AnimalStatus = AnimalStatus.Active
+        });
+
+        Assert.Null(calf.DamId);
+        Assert.Equal("Clover", calf.DamName);
+    }
+
+    [Fact]
+    public async Task UpdateAnimalReplacesStaleDamRelationship()
+    {
+        await using var context = CreateContext();
+        var oldDam = new Animal { BarnName = "Wrong Dam", AnimalStatus = AnimalStatus.Active };
+        var correctDam = new Animal { BarnName = "Correct Dam", AnimalStatus = AnimalStatus.Active };
+        var calf = new Animal { BarnName = "Test Calf", DamName = "Wrong Dam", Dam = oldDam, AnimalStatus = AnimalStatus.Active };
+        context.Animals.AddRange(oldDam, correctDam, calf);
+        await context.SaveChangesAsync();
+
+        var service = new AnimalService(context);
+        var updated = service.UpdateAnimal(calf.AnimalId, new UpdateAnimalRequest { DamName = "Correct Dam" });
+
+        Assert.NotNull(updated);
+        Assert.Equal(correctDam.AnimalId, updated.DamId);
+        Assert.Equal("Correct Dam", updated.DamName);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var configuration = new ConfigurationBuilder()

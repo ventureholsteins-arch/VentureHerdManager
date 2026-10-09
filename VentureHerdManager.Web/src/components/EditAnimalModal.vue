@@ -71,6 +71,18 @@
             </div>
 
             <div class="form-group">
+              <label for="damName">Dam Name</label>
+              <input
+                id="damName"
+                v-model="formData.damName"
+                type="text"
+                placeholder="Type the dam's barn or registered name"
+                maxlength="200"
+              />
+              <small>When exactly one active cow matches this name, her animal card is linked automatically.</small>
+            </div>
+
+            <div class="form-group">
               <label for="currentLactation">Current Lactation</label>
               <input 
                 id="currentLactation"
@@ -177,6 +189,7 @@ const isOpen = ref(false)
 const isSaving = ref(false)
 const initialScore = ref<number | null>(null)
 const initialBaa = ref<number | null>(null)
+const initialDamName = ref('')
 const formData = ref({
   barnName: '',
   registeredName: '',
@@ -184,6 +197,7 @@ const formData = ref({
   birthDate: '',
   breed: '',
   sireName: '',
+  damName: '',
   currentLactation: null as number | null,
   notes: '',
   isFavorite: false,
@@ -195,6 +209,7 @@ const formData = ref({
 const populateFormData = (sourceAnimal: Animal) => {
   initialScore.value = sourceAnimal.latestScore ?? null
   initialBaa.value = sourceAnimal.latestBaa ?? null
+  initialDamName.value = sourceAnimal.damName || ''
   formData.value = {
     barnName: sourceAnimal.barnName || '',
     registeredName: sourceAnimal.registeredName || '',
@@ -202,6 +217,7 @@ const populateFormData = (sourceAnimal: Animal) => {
     birthDate: sourceAnimal.birthDate?.slice(0, 10) || '',
     breed: sourceAnimal.breed || '',
     sireName: sourceAnimal.sireName || '',
+    damName: sourceAnimal.damName || '',
     currentLactation: sourceAnimal.currentLactation || null,
     notes: sourceAnimal.notes || '',
     isFavorite: sourceAnimal.isFavorite || false,
@@ -243,8 +259,10 @@ const handleSubmit = async () => {
       breed: formData.value.breed || null,
       sireId: props.animal.sireId,
       sireName: formData.value.sireName || null,
-      damId: props.animal.damId,
-      damName: props.animal.damName,
+      damId: formData.value.damName.trim() === initialDamName.value.trim()
+        ? props.animal.damId
+        : null,
+      damName: formData.value.damName.trim() || null,
       currentLactation: formData.value.currentLactation,
       notes: formData.value.notes || null,
       profilePictureUrl: props.animal.profilePictureUrl,

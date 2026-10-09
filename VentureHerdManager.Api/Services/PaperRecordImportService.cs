@@ -194,6 +194,16 @@ public sealed class PaperRecordImportService
 
             var paperStatus = row.Get("Paper Status");
 
+            // Keep every service as history, but only the newest service may
+            // remain current. This is the same rule used by normal breeding
+            // entry and also synchronizes a prior embryo transfer to Failed.
+            await ReproductiveEventRules.ClosePriorServiceAsync(
+                _context,
+                match.Animal.AnimalId,
+                bredDate,
+                "a newer paper-record breeding",
+                cancellationToken);
+
             var breeding = CreateBreeding(
                 match.Animal.AnimalId,
                 bredDate,

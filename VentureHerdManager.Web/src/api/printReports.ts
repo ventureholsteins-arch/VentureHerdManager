@@ -6,7 +6,8 @@ export async function getPrintReports(): Promise<any> {
   let response: Response
   try {
     response = await fetch(`${API_BASE}/PrintReports`, {
-      signal: controller.signal
+      signal: controller.signal,
+      cache: 'no-store'
     })
   } finally {
     window.clearTimeout(timeout)

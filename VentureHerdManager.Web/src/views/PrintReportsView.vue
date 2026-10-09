@@ -14,6 +14,16 @@ const error = ref('')
 const report = ref(typeof route.query.report === 'string' ? route.query.report : 'missingRegistration')
 const phoneFit = ref(false)
 
+function uniqueAnimals(items: any[]): any[] {
+  const seen = new Set<number>()
+  return items.filter(item => {
+    if (typeof item?.animalId !== 'number') return true
+    if (seen.has(item.animalId)) return false
+    seen.add(item.animalId)
+    return true
+  })
+}
+
 const options = [
   ['missingRegistration', 'Missing registration numbers'],
   ['missingAnimalIdentification', 'Missing barn names or registration numbers'],
@@ -66,10 +76,11 @@ const rows = computed(() => {
     return (data.value.saleAnimals ?? []).filter((animal: any) => ids.includes(animal.animalId))
   }
   if (report.value === 'suggestedSell') return data.value.suggestedSell ?? []
-  if (report.value === 'calves') return data.value.animals.filter((a: any) => a.animalStage === 1)
-  if (report.value === 'heifers') return data.value.animals.filter((a: any) => a.animalStage === 2)
-  if (report.value === 'cows') return data.value.animals.filter((a: any) => [3, 4].includes(a.animalStage))
-  return data.value[report.value] ?? []
+  if (report.value === 'calves') return uniqueAnimals(data.value.animals.filter((a: any) => a.animalStage === 1))
+  if (report.value === 'heifers') return uniqueAnimals(data.value.animals.filter((a: any) => a.animalStage === 2))
+  if (report.value === 'cows') return uniqueAnimals(data.value.animals.filter((a: any) => [3, 4].includes(a.animalStage)))
+  const result = data.value[report.value] ?? []
+  return isAnimalReport.value ? uniqueAnimals(result) : result
 })
 
 const title = computed(() => options.find(x => x[0] === report.value)?.[1] ?? 'Report')

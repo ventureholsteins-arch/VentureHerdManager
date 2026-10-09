@@ -8,6 +8,7 @@ namespace VentureHerdManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class PrintReportsController(ApplicationDbContext context) : ControllerBase
 {
     [HttpGet]

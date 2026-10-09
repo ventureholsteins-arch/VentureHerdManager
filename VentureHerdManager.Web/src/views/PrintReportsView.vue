@@ -102,6 +102,7 @@ const isTimelineReport = computed(() => ['breedings', 'pregnancyChecksDue', 'hei
 const isDueWithinEightMonthsReport = computed(() => report.value === 'dueWithinEightMonths')
 const isClassificationReport = computed(() => report.value === 'classificationScores')
 const isGenomicReport = computed(() => report.value === 'genomicResults')
+const isWideReport = computed(() => isGenomicReport.value || report.value === 'suggestedSell')
 const fmt = (value: string | null) => value ? new Date(value).toLocaleDateString() : '—'
 const printReport = () => window.print()
 
@@ -155,7 +156,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="print-page" :class="{ 'phone-fit': phoneFit }">
+  <main class="print-page" :class="{ 'phone-fit': phoneFit, 'wide-report': isWideReport }">
     <header class="report-toolbar no-print">
       <button @click="router.push('/reports')">← Reports</button>
       <label>Report<select v-model="report"><option v-for="item in options" :key="item[0]" :value="item[0]">{{ item[1] }}</option></select></label>
@@ -180,7 +181,7 @@ onMounted(async () => {
         <thead><tr v-if="report === 'suggestedSell'"><th>Rank</th><th>Cow</th><th>Milk / DIM</th><th>Reproduction</th><th>Genomics</th><th>Why review</th><th>Reasons to keep</th></tr>
         <tr v-else-if="report === 'sellAnimals'"><th>Animal</th><th>Open status</th><th>Months old</th><th>Times bred</th><th>Registration #</th><th>Sire</th><th>Dam</th></tr>
         <tr v-else-if="isHealthPaperReport"><th>Name</th><th>Full registered name</th><th>Birthdate</th><th>Registration number</th></tr>
-        <tr v-else-if="isAnimalReport"><th>Animal</th><th>Registered name</th><th>Registration #</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
+        <tr v-else-if="isAnimalReport"><th>Barn name</th><th>Registration #</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
         <tr v-else-if="isSireReport"><th>Sire</th><th>Animals</th><th>Breedings</th><th>Pregnant</th><th>Open</th><th>To check</th><th>Last used</th></tr>
         <tr v-else-if="report === 'lastMonthHeats'"><th>Animal</th><th>Heat date</th><th>Notes</th></tr>
         <tr v-else-if="isDueWithinEightMonthsReport"><th>Animal</th><th>Sire</th><th>Due</th><th>Working notes</th></tr>
@@ -193,12 +194,12 @@ onMounted(async () => {
             <template v-if="report === 'suggestedSell'"><td><strong>{{ row.score }}</strong><br><small>{{ row.reviewLevel }}</small></td><td>{{ row.barnName || row.registeredName || `Animal #${row.animalId}` }}</td><td>{{ row.milk ?? 'Missing' }}<br><small>DIM {{ row.daysInMilk ?? '—' }}</small></td><td>{{ row.reproStatus }}</td><td>NM$ {{ row.netMerit ?? '—' }}<br><small>TPI {{ row.tpi ?? '—' }}</small></td><td>{{ row.concerns.join(' · ') || 'No major concerns' }}</td><td>{{ row.strengths.join(' · ') || 'No recorded strengths yet' }}</td></template>
             <template v-else-if="report === 'sellAnimals'"><td>{{ row.barnName || row.registeredName || [row.damName, row.sireName].filter(Boolean).join(' × ') || `Animal #${row.animalId}` }}</td><td>{{ row.openStatus }}</td><td>{{ row.monthsOld ?? '—' }}</td><td>{{ row.timesBred }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
             <template v-else-if="isHealthPaperReport"><td>{{ row.barnName || '—' }}</td><td>{{ row.registeredName || '—' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td></template>
-            <template v-else-if="isAnimalReport"><td>{{ row.barnName || row.registeredName || [row.damName, row.sireName].filter(Boolean).join(' × ') || `Animal #${row.animalId}` }}</td><td>{{ row.registeredName || '—' }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
+            <template v-else-if="isAnimalReport"><td>{{ row.barnName || `Animal #${row.animalId}` }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
             <template v-else-if="isSireReport"><td>{{ row.sire }}</td><td>{{ row.animals }}</td><td>{{ row.breedings }}</td><td>{{ row.pregnant }}</td><td>{{ row.open }}</td><td>{{ row.toCheck }}</td><td>{{ fmt(row.lastUsed) }}</td></template>
             <template v-else-if="report === 'lastMonthHeats'"><td>{{ row.animalName }}</td><td>{{ fmt(row.heatDateTime) }}</td><td>{{ row.notes || '—' }}</td></template>
             <template v-else-if="isDueWithinEightMonthsReport"><td>{{ row.animalName }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td class="write-field"></td></template>
-            <template v-else-if="isClassificationReport"><td><strong>{{ row.animalName }}</strong><br><small>{{ row.registeredName || '' }}</small></td><td>{{ row.currentLabel || '' }} {{ row.currentScore }}</td><td>{{ row.currentBaa ?? '—' }}</td><td>{{ fmt(row.currentDate) }}</td><td class="history-cell"><span v-if="!row.previousScores?.length">No previous score</span><span v-for="prior in row.previousScores" :key="`${prior.date}-${prior.score}`">{{ fmt(prior.date) }}: {{ prior.classificationLabel || '' }} {{ prior.score }} · BAA {{ prior.baa ?? '—' }}</span></td></template>
-            <template v-else-if="isGenomicReport"><td><strong>{{ row.animalName }}</strong><br><small>{{ row.registeredName || '' }}</small></td><td>{{ fmt(row.reportDate) }}</td><td>{{ row.tpi ?? '—' }}</td><td>{{ row.netMerit ?? '—' }}</td><td>{{ row.milkPta ?? '—' }}</td><td>{{ row.daughterPregnancyRate ?? '—' }}</td><td>{{ row.productiveLife ?? '—' }}</td><td>{{ row.typeScore ?? '—' }}</td><td>{{ row.udderComposite ?? '—' }}</td><td>{{ row.feetLegsComposite ?? '—' }}</td></template>
+            <template v-else-if="isClassificationReport"><td><strong>{{ row.animalName }}</strong></td><td>{{ row.currentLabel || '' }} {{ row.currentScore }}</td><td>{{ row.currentBaa ?? '—' }}</td><td>{{ fmt(row.currentDate) }}</td><td class="history-cell"><span v-if="!row.previousScores?.length">No previous score</span><span v-for="prior in row.previousScores" :key="`${prior.date}-${prior.score}`">{{ fmt(prior.date) }}: {{ prior.classificationLabel || '' }} {{ prior.score }} · BAA {{ prior.baa ?? '—' }}</span></td></template>
+            <template v-else-if="isGenomicReport"><td><strong>{{ row.animalName }}</strong></td><td>{{ fmt(row.reportDate) }}</td><td>{{ row.tpi ?? '—' }}</td><td>{{ row.netMerit ?? '—' }}</td><td>{{ row.milkPta ?? '—' }}</td><td>{{ row.daughterPregnancyRate ?? '—' }}</td><td>{{ row.productiveLife ?? '—' }}</td><td>{{ row.typeScore ?? '—' }}</td><td>{{ row.udderComposite ?? '—' }}</td><td>{{ row.feetLegsComposite ?? '—' }}</td></template>
             <template v-else-if="isTimelineReport"><td>{{ row.animalName }}</td><td>{{ fmt(row.breedingDate) }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td>{{ row.pregnancyStatus }}</td><td class="write-field"></td></template>
             <template v-else><td>{{ row.code || `#${row.embryoRecordId}` }}</td><td>{{ row.donor || '—' }} × {{ row.sire || '—' }}</td><td>{{ row.grade || '—' }}</td><td>{{ row.recipientName || '—' }}</td><td>{{ fmt(row.implantDate) }}</td><td>{{ row.status }}</td></template>
           </tr>
@@ -217,5 +218,5 @@ onMounted(async () => {
 .phone-fit table{font-size:12px}
 .phone-fit .write-field{min-width:100px}
 @media(max-width:600px){.print-page{padding:8px}.paper{padding:14px;overflow-x:auto}.report-toolbar>*{width:100%}table{min-width:720px}.phone-fit table{min-width:560px}.phone-fit th,.phone-fit td{padding:6px}}
-@media print{.no-print{display:none!important}.print-page{max-width:none;padding:0}.paper{border:0;padding:0}.paper h1{font-size:14pt}.paper header p{font-size:7.5pt}.stats span{padding:2px 4px;font-size:7.5pt;background:transparent}table{font-size:7.5pt;line-height:1.15}th,td{padding:2.5px 3px}th{background:transparent!important;border-top:1px solid #999}.decision-note,.health-paper-note{padding:4px 6px;background:transparent!important}.write-field{height:16px}tr{break-inside:avoid}@page{size:letter portrait;margin:.35in}}
+@media print{.no-print{display:none!important}.print-page{max-width:none;padding:0}.wide-report{page:wide-report}.paper{border:0;padding:0}.paper h1{font-size:13pt}.paper header p{font-size:7pt}.stats span{padding:2px 4px;font-size:7pt;background:transparent}table{width:100%;font-size:7pt;line-height:1.1}th,td{padding:2px 2.5px;overflow-wrap:anywhere}th{background:transparent!important;border-top:1px solid #999}.decision-note,.health-paper-note{padding:3px 5px;background:transparent!important}.write-field{height:14px}tr{break-inside:avoid}@page{size:letter portrait;margin:.3in}@page wide-report{size:letter landscape;margin:.3in}}
 </style>

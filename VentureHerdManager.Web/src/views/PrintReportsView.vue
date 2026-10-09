@@ -32,6 +32,8 @@ const options = [
   ['milkingNotBred', 'Milking cows not bred'],
   ['sellAnimals', 'My sale report'],
   ['suggestedSell', 'Suggested sale review'],
+  ['classificationScores', 'Classification scores and history'],
+  ['genomicResults', 'Genomic results'],
   ['pregnancyChecksDue', 'All pregnancy checks due'],
   ['animals', 'All active animals'],
   ['calves', 'Calves'],
@@ -98,6 +100,8 @@ const isSireReport = computed(() => report.value === 'siresUsed')
 const isHealthPaperReport = computed(() => report.value === 'healthPapers')
 const isTimelineReport = computed(() => ['breedings', 'pregnancyChecksDue', 'heiferPregChecks', 'cowPregChecks'].includes(report.value))
 const isDueWithinEightMonthsReport = computed(() => report.value === 'dueWithinEightMonths')
+const isClassificationReport = computed(() => report.value === 'classificationScores')
+const isGenomicReport = computed(() => report.value === 'genomicResults')
 const fmt = (value: string | null) => value ? new Date(value).toLocaleDateString() : '—'
 const printReport = () => window.print()
 
@@ -180,6 +184,8 @@ onMounted(async () => {
         <tr v-else-if="isSireReport"><th>Sire</th><th>Animals</th><th>Breedings</th><th>Pregnant</th><th>Open</th><th>To check</th><th>Last used</th></tr>
         <tr v-else-if="report === 'lastMonthHeats'"><th>Animal</th><th>Heat date</th><th>Notes</th></tr>
         <tr v-else-if="isDueWithinEightMonthsReport"><th>Animal</th><th>Sire</th><th>Due</th><th>Working notes</th></tr>
+        <tr v-else-if="isClassificationReport"><th>Animal</th><th>Current score</th><th>Current BAA</th><th>Scored</th><th>Previous scores / BAA</th></tr>
+        <tr v-else-if="isGenomicReport"><th>Animal</th><th>Report</th><th>TPI</th><th>NM$</th><th>Milk PTA</th><th>DPR</th><th>PL</th><th>Type</th><th>UDC</th><th>FLC</th></tr>
         <tr v-else-if="isTimelineReport"><th>Animal</th><th>Bred</th><th>Sire</th><th>Due / Check</th><th>Status</th><th>Working notes</th></tr>
         <tr v-else><th>Code</th><th>Donor × Sire</th><th>Grade</th><th>Recipient</th><th>Implant date</th><th>Status</th></tr></thead>
         <tbody>
@@ -191,6 +197,8 @@ onMounted(async () => {
             <template v-else-if="isSireReport"><td>{{ row.sire }}</td><td>{{ row.animals }}</td><td>{{ row.breedings }}</td><td>{{ row.pregnant }}</td><td>{{ row.open }}</td><td>{{ row.toCheck }}</td><td>{{ fmt(row.lastUsed) }}</td></template>
             <template v-else-if="report === 'lastMonthHeats'"><td>{{ row.animalName }}</td><td>{{ fmt(row.heatDateTime) }}</td><td>{{ row.notes || '—' }}</td></template>
             <template v-else-if="isDueWithinEightMonthsReport"><td>{{ row.animalName }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td class="write-field"></td></template>
+            <template v-else-if="isClassificationReport"><td><strong>{{ row.animalName }}</strong><br><small>{{ row.registeredName || '' }}</small></td><td>{{ row.currentLabel || '' }} {{ row.currentScore }}</td><td>{{ row.currentBaa ?? '—' }}</td><td>{{ fmt(row.currentDate) }}</td><td class="history-cell"><span v-if="!row.previousScores?.length">No previous score</span><span v-for="prior in row.previousScores" :key="`${prior.date}-${prior.score}`">{{ fmt(prior.date) }}: {{ prior.classificationLabel || '' }} {{ prior.score }} · BAA {{ prior.baa ?? '—' }}</span></td></template>
+            <template v-else-if="isGenomicReport"><td><strong>{{ row.animalName }}</strong><br><small>{{ row.registeredName || '' }}</small></td><td>{{ fmt(row.reportDate) }}</td><td>{{ row.tpi ?? '—' }}</td><td>{{ row.netMerit ?? '—' }}</td><td>{{ row.milkPta ?? '—' }}</td><td>{{ row.daughterPregnancyRate ?? '—' }}</td><td>{{ row.productiveLife ?? '—' }}</td><td>{{ row.typeScore ?? '—' }}</td><td>{{ row.udderComposite ?? '—' }}</td><td>{{ row.feetLegsComposite ?? '—' }}</td></template>
             <template v-else-if="isTimelineReport"><td>{{ row.animalName }}</td><td>{{ fmt(row.breedingDate) }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td>{{ row.pregnancyStatus }}</td><td class="write-field"></td></template>
             <template v-else><td>{{ row.code || `#${row.embryoRecordId}` }}</td><td>{{ row.donor || '—' }} × {{ row.sire || '—' }}</td><td>{{ row.grade || '—' }}</td><td>{{ row.recipientName || '—' }}</td><td>{{ fmt(row.implantDate) }}</td><td>{{ row.status }}</td></template>
           </tr>
@@ -202,12 +210,12 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.print-page{max-width:1100px;margin:auto;padding:18px}.report-toolbar{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:18px}.report-toolbar label{display:grid;gap:5px;flex:1;min-width:220px}.report-toolbar select,.report-toolbar button,.export-link{min-height:44px;padding:8px 12px}.export-link{display:flex;align-items:center;border:1px solid #31572c;border-radius:3px;color:#31572c;text-decoration:none}.print-button{display:flex;align-items:center;gap:8px}.paper{background:#fff;color:#111;padding:28px;border:1px solid #ccd5ce}.paper header{border-bottom:3px solid #31572c;margin-bottom:18px}.paper h1{margin:0 0 4px}.stats{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px}.stats span{border:1px solid #bbb;padding:8px 12px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:8px;border-bottom:1px solid #ccc;vertical-align:top}th{background:#eef4ef}.write-field{min-width:140px;height:34px}
+.print-page{max-width:1100px;margin:auto;padding:12px}.report-toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px}.report-toolbar label{display:grid;gap:4px;flex:1;min-width:220px}.report-toolbar select,.report-toolbar button,.export-link{min-height:40px;padding:6px 10px}.export-link{display:flex;align-items:center;border:1px solid #31572c;border-radius:3px;color:#31572c;text-decoration:none}.print-button{display:flex;align-items:center;gap:6px}.paper{background:#fff;color:#111;padding:18px;border:1px solid #ccd5ce}.paper header{border-bottom:1px solid #31572c;margin-bottom:9px}.paper header p{margin:2px 0 6px;font-size:11px}.paper h1{margin:0;font-size:20px;line-height:1.15}.stats{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}.stats span{border:1px solid #bbb;padding:3px 6px;font-size:11px}table{width:100%;border-collapse:collapse;font-size:11px;line-height:1.25}th,td{text-align:left;padding:4px 5px;border-bottom:1px solid #ccc;vertical-align:top}th{background:#f5f7f5}.write-field{min-width:100px;height:22px}.history-cell span{display:block;white-space:nowrap}.history-cell span+span{margin-top:2px}
 .decision-note{border:1px solid #d2a829;background:#fff9df;padding:10px 12px;font-weight:700}
 .health-paper-note{padding:10px 12px;border-left:4px solid #31572c;background:#f4f7f2}
 .phone-fit .paper{padding:12px}
 .phone-fit table{font-size:12px}
 .phone-fit .write-field{min-width:100px}
 @media(max-width:600px){.print-page{padding:8px}.paper{padding:14px;overflow-x:auto}.report-toolbar>*{width:100%}table{min-width:720px}.phone-fit table{min-width:560px}.phone-fit th,.phone-fit td{padding:6px}}
-@media print{.no-print{display:none!important}.print-page{max-width:none;padding:0}.paper{border:0;padding:0}table{font-size:10pt}tr{break-inside:avoid}@page{size:letter portrait;margin:.5in}}
+@media print{.no-print{display:none!important}.print-page{max-width:none;padding:0}.paper{border:0;padding:0}.paper h1{font-size:14pt}.paper header p{font-size:7.5pt}.stats span{padding:2px 4px;font-size:7.5pt;background:transparent}table{font-size:7.5pt;line-height:1.15}th,td{padding:2.5px 3px}th{background:transparent!important;border-top:1px solid #999}.decision-note,.health-paper-note{padding:4px 6px;background:transparent!important}.write-field{height:16px}tr{break-inside:avoid}@page{size:letter portrait;margin:.35in}}
 </style>

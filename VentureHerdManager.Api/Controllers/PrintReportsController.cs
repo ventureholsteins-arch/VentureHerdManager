@@ -330,10 +330,28 @@ public class PrintReportsController(ApplicationDbContext context) : ControllerBa
             .ThenBy(item => item.Sire)
             .ToList();
 
+        var showAnimals = animals.Select(animal =>
+        {
+            var breeding = currentBreedings.FirstOrDefault(item => item.AnimalId == animal.AnimalId);
+            return new
+            {
+                animal.AnimalId,
+                animal.BarnName,
+                animal.BirthDate,
+                animal.AnimalStage,
+                animal.SireName,
+                animal.DamName,
+                DueDate = breeding?.PregnancyStatus == PregnancyStatus.Pregnant
+                    ? breeding.ExpectedDueDate
+                    : null
+            };
+        }).ToList();
+
         return Ok(new
         {
             GeneratedAt = DateTime.UtcNow,
             Animals = animals,
+            ShowAnimals = showAnimals,
             MissingRegistration = animals.Where(a =>
                 string.IsNullOrWhiteSpace(a.RegistrationNumber)),
             MissingAnimalIdentification = missingAnimalIdentification,

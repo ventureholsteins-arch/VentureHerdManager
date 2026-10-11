@@ -5,6 +5,7 @@ import { getPrintReports } from '../api/printReports'
 import HerdLoadingScene from '../components/HerdLoadingScene.vue'
 import RetroIcon from '../components/RetroIcon.vue'
 import { easyIdPreparationUrl } from '../api/sires'
+import { formatAgeAtDate, getShowClassLabel } from '../utils/showClasses'
 
 const router = useRouter()
 const route = useRoute()
@@ -24,6 +25,10 @@ function uniqueAnimals(items: any[]): any[] {
   })
 }
 
+const currentShowYear = new Date().getFullYear()
+const nextShowYear = currentShowYear + 1
+const showReportKeys = ['showCowsCurrent', 'showHeifersCurrent', 'showCowsNext', 'showHeifersNext']
+
 const options = [
   ['missingRegistration', 'Missing registration numbers'],
   ['missingAnimalIdentification', 'Missing barn names or registration numbers'],
@@ -39,6 +44,10 @@ const options = [
   ['calves', 'Calves'],
   ['heifers', 'Heifers'],
   ['cows', 'Milking and dry cows'],
+  ['showCowsCurrent', `Show string ${currentShowYear} — cows`],
+  ['showHeifersCurrent', `Show string ${currentShowYear} — heifers`],
+  ['showCowsNext', `Show string ${nextShowYear} — cows`],
+  ['showHeifersNext', `Show string ${nextShowYear} — heifers`],
   ['dueWithinEightMonths', 'Due within 8 months'],
   ['heiferPregChecks', 'Heifer pregnancy checks due'],
   ['cowPregChecks', 'Cow pregnancy checks due'],
@@ -52,6 +61,39 @@ const options = [
 
 const rows = computed(() => {
   if (!data.value) return []
+  if (showReportKeys.includes(report.value)) {
+    let selectedIds: number[] = []
+    try {
+      const saved = JSON.parse(localStorage.getItem('venture-herd-show-string-v2') || '[]') as Array<{ animalId?: number | null }>
+      selectedIds = saved
+        .map(row => row.animalId)
+        .filter((animalId): animalId is number => typeof animalId === 'number')
+    } catch { selectedIds = [] }
+
+    const showYear = report.value.endsWith('Next') ? nextShowYear : currentShowYear
+    const referenceDate = new Date(showYear, 9, 1)
+    const wantsCows = report.value.includes('Cows')
+
+    return uniqueAnimals((data.value.animals ?? [])
+      .filter((animal: any) => selectedIds.includes(animal.animalId))
+      .map((animal: any) => ({
+        ...animal,
+        showYear,
+        showClass: getShowClassLabel(animal.birthDate, animal.animalStage, referenceDate),
+        showAge: formatAgeAtDate(animal.birthDate, referenceDate)
+      }))
+      .filter((animal: any) => {
+        const cowClass = String(animal.showClass).includes('Cow')
+        return wantsCows ? cowClass : !cowClass
+      })
+      .sort((left: any, right: any) => {
+        if (!left.birthDate && !right.birthDate) return String(left.barnName || '').localeCompare(String(right.barnName || ''))
+        if (!left.birthDate) return 1
+        if (!right.birthDate) return -1
+        return String(left.birthDate).localeCompare(String(right.birthDate))
+          || String(left.barnName || left.registeredName || '').localeCompare(String(right.barnName || right.registeredName || ''))
+      }))
+  }
   if (report.value === 'healthPapers') {
     let ids: number[] = []
     try {
@@ -96,6 +138,9 @@ const isAnimalReport = computed(() => [
   'heifers',
   'cows'
 ].includes(report.value))
+const isIdentificationReport = computed(() => ['missingRegistration', 'missingAnimalIdentification'].includes(report.value))
+const isShowStringReport = computed(() => showReportKeys.includes(report.value))
+const isEmbryoReport = computed(() => ['implants', 'availableEmbryos', 'embryos'].includes(report.value))
 const isSireReport = computed(() => report.value === 'siresUsed')
 const isHealthPaperReport = computed(() => report.value === 'healthPapers')
 const isTimelineReport = computed(() => ['breedings', 'pregnancyChecksDue', 'heiferPregChecks', 'cowPregChecks'].includes(report.value))
@@ -179,29 +224,35 @@ onMounted(async () => {
       <p v-if="isHealthPaperReport" class="health-paper-note">Animals are included from the <strong>Health Paper Group</strong> herd list. Add or remove animals there, then return to this report.</p>
       <table>
         <thead><tr v-if="report === 'suggestedSell'"><th>Rank</th><th>Cow</th><th>Milk / DIM</th><th>Reproduction</th><th>Genomics</th><th>Why review</th><th>Reasons to keep</th></tr>
-        <tr v-else-if="report === 'sellAnimals'"><th>Animal</th><th>Open status</th><th>Months old</th><th>Times bred</th><th>Registration #</th><th>Sire</th><th>Dam</th></tr>
+        <tr v-else-if="report === 'sellAnimals'"><th>Animal</th><th>Open status</th><th>Months old</th><th>Times bred</th><th>Sire</th><th>Dam</th></tr>
         <tr v-else-if="isHealthPaperReport"><th>Name</th><th>Full registered name</th><th>Birthdate</th><th>Registration number</th></tr>
-        <tr v-else-if="isAnimalReport"><th>Barn name</th><th>Registration #</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
+        <tr v-else-if="isShowStringReport"><th>Animal</th><th>Show class</th><th>Age at show</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
+        <tr v-else-if="isIdentificationReport"><th>Barn name</th><th>Registration #</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
+        <tr v-else-if="isAnimalReport"><th>Barn name</th><th>Birth date</th><th>Sire</th><th>Dam</th></tr>
         <tr v-else-if="isSireReport"><th>Sire</th><th>Animals</th><th>Breedings</th><th>Pregnant</th><th>Open</th><th>To check</th><th>Last used</th></tr>
         <tr v-else-if="report === 'lastMonthHeats'"><th>Animal</th><th>Heat date</th><th>Notes</th></tr>
         <tr v-else-if="isDueWithinEightMonthsReport"><th>Animal</th><th>Sire</th><th>Due</th><th>Working notes</th></tr>
         <tr v-else-if="isClassificationReport"><th>Animal</th><th>Current score</th><th>Current BAA</th><th>Scored</th><th>Previous scores / BAA</th></tr>
         <tr v-else-if="isGenomicReport"><th>Animal</th><th>Report</th><th>TPI</th><th>NM$</th><th>Milk PTA</th><th>DPR</th><th>PL</th><th>Type</th><th>UDC</th><th>FLC</th></tr>
         <tr v-else-if="isTimelineReport"><th>Animal</th><th>Bred</th><th>Sire</th><th>Due / Check</th><th>Status</th><th>Working notes</th></tr>
-        <tr v-else><th>Code</th><th>Donor × Sire</th><th>Grade</th><th>Recipient</th><th>Implant date</th><th>Status</th></tr></thead>
+        <tr v-else-if="isEmbryoReport"><th>Code</th><th>Donor × Sire</th><th>Grade</th><th>Recipient</th><th>Implant date</th><th>Status</th></tr>
+        <tr v-else><th>Record</th><th>Details</th></tr></thead>
         <tbody>
           <tr v-for="row in rows" :key="row.animalId ?? row.heatEventId ?? row.breedingEventId ?? row.embryoRecordId ?? row.sire">
             <template v-if="report === 'suggestedSell'"><td><strong>{{ row.score }}</strong><br><small>{{ row.reviewLevel }}</small></td><td>{{ row.barnName || row.registeredName || `Animal #${row.animalId}` }}</td><td>{{ row.milk ?? 'Missing' }}<br><small>DIM {{ row.daysInMilk ?? '—' }}</small></td><td>{{ row.reproStatus }}</td><td>NM$ {{ row.netMerit ?? '—' }}<br><small>TPI {{ row.tpi ?? '—' }}</small></td><td>{{ row.concerns.join(' · ') || 'No major concerns' }}</td><td>{{ row.strengths.join(' · ') || 'No recorded strengths yet' }}</td></template>
-            <template v-else-if="report === 'sellAnimals'"><td>{{ row.barnName || row.registeredName || [row.damName, row.sireName].filter(Boolean).join(' × ') || `Animal #${row.animalId}` }}</td><td>{{ row.openStatus }}</td><td>{{ row.monthsOld ?? '—' }}</td><td>{{ row.timesBred }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
+            <template v-else-if="report === 'sellAnimals'"><td>{{ row.barnName || row.registeredName || [row.damName, row.sireName].filter(Boolean).join(' × ') || `Animal #${row.animalId}` }}</td><td>{{ row.openStatus }}</td><td>{{ row.monthsOld ?? '—' }}</td><td>{{ row.timesBred }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
             <template v-else-if="isHealthPaperReport"><td>{{ row.barnName || '—' }}</td><td>{{ row.registeredName || '—' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td></template>
-            <template v-else-if="isAnimalReport"><td>{{ row.barnName || `Animal #${row.animalId}` }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
+            <template v-else-if="isShowStringReport"><td><strong>{{ row.barnName || row.registeredName || `Animal #${row.animalId}` }}</strong></td><td>{{ row.showClass }}</td><td>{{ row.showAge }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
+            <template v-else-if="isIdentificationReport"><td>{{ row.barnName || `Animal #${row.animalId}` }}</td><td>{{ row.registrationNumber || 'MISSING' }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
+            <template v-else-if="isAnimalReport"><td>{{ row.barnName || `Animal #${row.animalId}` }}</td><td>{{ fmt(row.birthDate) }}</td><td>{{ row.sireName || '—' }}</td><td>{{ row.damName || '—' }}</td></template>
             <template v-else-if="isSireReport"><td>{{ row.sire }}</td><td>{{ row.animals }}</td><td>{{ row.breedings }}</td><td>{{ row.pregnant }}</td><td>{{ row.open }}</td><td>{{ row.toCheck }}</td><td>{{ fmt(row.lastUsed) }}</td></template>
             <template v-else-if="report === 'lastMonthHeats'"><td>{{ row.animalName }}</td><td>{{ fmt(row.heatDateTime) }}</td><td>{{ row.notes || '—' }}</td></template>
             <template v-else-if="isDueWithinEightMonthsReport"><td>{{ row.animalName }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td class="write-field"></td></template>
             <template v-else-if="isClassificationReport"><td><strong>{{ row.animalName }}</strong></td><td>{{ row.currentLabel || '' }} {{ row.currentScore }}</td><td>{{ row.currentBaa ?? '—' }}</td><td>{{ fmt(row.currentDate) }}</td><td class="history-cell"><span v-if="!row.previousScores?.length">No previous score</span><span v-for="prior in row.previousScores" :key="`${prior.date}-${prior.score}`">{{ fmt(prior.date) }}: {{ prior.classificationLabel || '' }} {{ prior.score }} · BAA {{ prior.baa ?? '—' }}</span></td></template>
             <template v-else-if="isGenomicReport"><td><strong>{{ row.animalName }}</strong></td><td>{{ fmt(row.reportDate) }}</td><td>{{ row.tpi ?? '—' }}</td><td>{{ row.netMerit ?? '—' }}</td><td>{{ row.milkPta ?? '—' }}</td><td>{{ row.daughterPregnancyRate ?? '—' }}</td><td>{{ row.productiveLife ?? '—' }}</td><td>{{ row.typeScore ?? '—' }}</td><td>{{ row.udderComposite ?? '—' }}</td><td>{{ row.feetLegsComposite ?? '—' }}</td></template>
             <template v-else-if="isTimelineReport"><td>{{ row.animalName }}</td><td>{{ fmt(row.breedingDate) }}</td><td>{{ row.sireUsed }}</td><td>{{ fmt(row.expectedDueDate || row.pregnancyCheckDueDate) }}</td><td>{{ row.pregnancyStatus }}</td><td class="write-field"></td></template>
-            <template v-else><td>{{ row.code || `#${row.embryoRecordId}` }}</td><td>{{ row.donor || '—' }} × {{ row.sire || '—' }}</td><td>{{ row.grade || '—' }}</td><td>{{ row.recipientName || '—' }}</td><td>{{ fmt(row.implantDate) }}</td><td>{{ row.status }}</td></template>
+            <template v-else-if="isEmbryoReport"><td>{{ row.code || `#${row.embryoRecordId}` }}</td><td>{{ row.donor || '—' }} × {{ row.sire || '—' }}</td><td>{{ row.grade || '—' }}</td><td>{{ row.recipientName || '—' }}</td><td>{{ fmt(row.implantDate) }}</td><td>{{ row.status }}</td></template>
+            <template v-else><td>{{ row.animalName || row.barnName || row.code || 'Record' }}</td><td>Report data unavailable for this view.</td></template>
           </tr>
           <tr v-if="rows.length === 0"><td colspan="6">No records in this report.</td></tr>
         </tbody>

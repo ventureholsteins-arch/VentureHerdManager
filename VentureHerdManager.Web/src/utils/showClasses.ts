@@ -37,12 +37,19 @@ function febEnd(year: number): number {
 }
 
 export function formatCurrentAge(birthDate: string | null | undefined): string {
+  return formatAgeAtDate(birthDate, new Date())
+}
+
+export function formatAgeAtDate(
+  birthDate: string | null | undefined,
+  referenceDate: Date
+): string {
   const birth = parseDateOnly(birthDate)
   if (!birth) {
     return 'Unknown'
   }
 
-  const months = toMonthDiff(birth, new Date())
+  const months = toMonthDiff(birth, referenceDate)
   const years = Math.floor(months / 12)
   const remainderMonths = months % 12
 

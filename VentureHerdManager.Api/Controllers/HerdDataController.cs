@@ -159,19 +159,23 @@ public sealed class HerdDataController(HerdDataImportService importer, Applicati
         catch (Exception) { }
         var lifetimeProduction = lifetimeSnapshots.Select(snapshot => new { snapshot.AnimalId, AnimalName = snapshot.Animal.DisplayName, snapshot.Animal.SireName, snapshot.ReportDate, snapshot.LifetimeMilk, snapshot.LifetimeFat, snapshot.LifetimeProtein, snapshot.Lactations }).ToList();
         var combined = milk.Join(genomic, m => m.AnimalId, g => g.AnimalId, (m, g) => new { m.AnimalId, m.AnimalName, m.Milk, m.DaysInMilk, g.Tpi, g.NetMerit, g.MilkPta, g.DaughterPregnancyRate, g.ProductiveLife, g.TypeScore, g.UdderComposite, g.FeetLegsComposite }).OrderBy(x => x.Milk).ToList();
-        var activeAnimals = await context.Animals.AsNoTracking().Where(a => a.AnimalStatus == AnimalStatus.Active).ToListAsync(ct);
+        var activeAnimals = await context.Animals.AsNoTracking()
+            .Where(a => a.AnimalStatus == AnimalStatus.Active && a.HerdLocation == HerdLocation.Home)
+            .ToListAsync(ct);
+        var activeAnimalIds = activeAnimals.Select(animal => animal.AnimalId).ToHashSet();
         var breedingEvents = await context.BreedingEvents.AsNoTracking().OrderByDescending(b => b.BreedingDate).ToListAsync(ct);
         var latestBreeding = breedingEvents.GroupBy(b => b.AnimalId).ToDictionary(group => group.Key, group => group.First());
-        var milkByAnimal = records.Where(r => r.Source == HerdDataSource.Pcdart && r.Milk.HasValue)
+        var milkByAnimal = records.Where(r => r.Source == HerdDataSource.Pcdart && r.Milk.HasValue && activeAnimalIds.Contains(r.AnimalId))
             .GroupBy(r => r.AnimalId).ToDictionary(group => group.Key, group => group.OrderByDescending(r => r.ReportDate).ToList());
         var today = DateTime.UtcNow.Date;
-        var highDimOpen = milk.Where(row => (row.DaysInMilk ?? 0) >= 200)
+        var highDimOpen = milk.Where(row => activeAnimalIds.Contains(row.AnimalId) && (row.DaysInMilk ?? 0) >= 200)
             .Where(row => !latestBreeding.TryGetValue(row.AnimalId, out var breeding) || breeding.PregnancyStatus != PregnancyStatus.Pregnant)
             .OrderByDescending(row => row.DaysInMilk).ToList();
         var longOpenHeifers = activeAnimals.Where(animal => animal.AnimalStage == AnimalStage.Heifer && animal.BirthDate.HasValue)
             .Where(animal => animal.BirthDate!.Value.ToDateTime(TimeOnly.MinValue) <= today.AddMonths(-15))
-            .Where(animal => !latestBreeding.TryGetValue(animal.AnimalId, out var breeding) || breeding.PregnancyStatus != PregnancyStatus.Pregnant)
-            .Select(animal => new { animal.AnimalId, AnimalName = animal.DisplayName, animal.BirthDate, AgeMonths = (int)((today - animal.BirthDate!.Value.ToDateTime(TimeOnly.MinValue)).TotalDays / 30.44), LastBred = latestBreeding.TryGetValue(animal.AnimalId, out var breeding) ? breeding.BreedingDate : (DateTime?)null })
+            .Where(animal => !latestBreeding.TryGetValue(animal.AnimalId, out var breeding)
+                || breeding.PregnancyStatus is PregnancyStatus.Open or PregnancyStatus.Aborted)
+            .Select(animal => new { animal.AnimalId, AnimalName = animal.DisplayName, animal.BirthDate, AgeMonths = (int)((today - animal.BirthDate!.Value.ToDateTime(TimeOnly.MinValue)).TotalDays / 30.44), LastBred = latestBreeding.TryGetValue(animal.AnimalId, out var breeding) ? breeding.BreedingDate : (DateTime?)null, ReproductiveStatus = latestBreeding.TryGetValue(animal.AnimalId, out var statusBreeding) ? statusBreeding.PregnancyStatus.ToString() : "Not bred" })
             .OrderByDescending(row => row.AgeMonths).ToList();
         var droppingMilk = milkByAnimal.Where(pair => pair.Value.Count >= 2)
             .Select(pair => new { AnimalId = pair.Key, AnimalName = pair.Value[0].Animal.DisplayName, CurrentMilk = pair.Value[0].Milk, PreviousMilk = pair.Value[1].Milk, pair.Value[0].ReportDate, DropPercent = pair.Value[1].Milk > 0 ? Math.Round(((pair.Value[1].Milk!.Value - pair.Value[0].Milk!.Value) / pair.Value[1].Milk.Value) * 100m, 1) : 0m })

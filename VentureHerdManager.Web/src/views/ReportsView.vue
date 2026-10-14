@@ -1913,6 +1913,7 @@ watch(activeTab, tab => {
           <div class="analytics-stat highlight">
             <span class="as-val">{{ analyticsData.totals.conceptionRatePct }}%</span>
             <span class="as-lbl">Conception Rate</span>
+            <small>{{ analyticsData.totals.resolvedPregnancyChecksLast12Mo }} resolved checks · {{ analyticsData.totals.awaitingPregnancyChecksLast12Mo }} awaiting check</small>
           </div>
         </div>
 

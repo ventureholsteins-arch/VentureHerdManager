@@ -166,6 +166,29 @@ app.MapPut("/api/SaleCatalog", async (
     await storage.WriteAsync(catalog, ct);
     return Results.Ok(catalog);
 });
+app.MapPost("/api/SaleCatalog/photo", async (
+    HttpRequest request,
+    IFormFile file,
+    IPhotoStorageService photos,
+    HerdDataAdminAccess admin,
+    CancellationToken ct) =>
+{
+    if (!admin.IsAuthorized(request)) return Results.Unauthorized();
+    if (file is null || file.Length == 0) return Results.BadRequest("Choose a photo to upload.");
+    try
+    {
+        var url = await photos.UploadImageAsync(file, "sale", ct);
+        return Results.Ok(new { url });
+    }
+    catch (InvalidDataException exception)
+    {
+        return Results.BadRequest(exception.Message);
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+}).DisableAntiforgery();
 app.MapGet(
     "/health/live",
     () => Results.Ok(new { status = "healthy" }));

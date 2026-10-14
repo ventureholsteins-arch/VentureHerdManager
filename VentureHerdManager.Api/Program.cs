@@ -147,6 +147,21 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapControllers();
+app.MapGet("/api/SaleCatalog", async (SaleCatalogStorageService storage, CancellationToken ct) =>
+    Results.Ok(await storage.ReadAsync(ct)));
+app.MapPut("/api/SaleCatalog", async (
+    HttpRequest request,
+    SaleCatalogDocument catalog,
+    SaleCatalogStorageService storage,
+    HerdDataAdminAccess admin,
+    CancellationToken ct) =>
+{
+    if (!admin.IsAuthorized(request)) return Results.Unauthorized();
+    if (string.IsNullOrWhiteSpace(catalog.SaleName)) return Results.BadRequest("Sale name is required.");
+    catalog.UpdatedAt = DateTime.UtcNow;
+    await storage.WriteAsync(catalog, ct);
+    return Results.Ok(catalog);
+});
 app.MapGet(
     "/health/live",
     () => Results.Ok(new { status = "healthy" }));

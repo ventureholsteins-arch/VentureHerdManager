@@ -1,36 +1,37 @@
 using System.Text.Json;
-using Azure;
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 
 namespace VentureHerdManager.Api.Services;
 
-public sealed class SaleCatalogStorageService(IConfiguration configuration)
+public sealed class SaleCatalogStorageService(IWebHostEnvironment environment)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
-    private BlobClient Client()
+    private string CatalogPath
     {
-        var connection = configuration["BlobStorage:ConnectionString"] ?? throw new InvalidOperationException("Blob storage is not configured.");
-        var container = new BlobContainerClient(connection, configuration["BlobStorage:ContainerName"] ?? "herd-photos");
-        container.CreateIfNotExists(PublicAccessType.Blob);
-        return container.GetBlobClient("sale/catalog.json");
+        get
+        {
+            var persistentHome = Environment.GetEnvironmentVariable("HOME");
+            var root = environment.IsProduction() && !string.IsNullOrWhiteSpace(persistentHome)
+                ? Path.Combine(persistentHome, "data", "venture-holsteins")
+                : Path.Combine(environment.ContentRootPath, "App_Data");
+            Directory.CreateDirectory(root);
+            return Path.Combine(root, "sale-catalog.json");
+        }
     }
 
     public async Task<SaleCatalogDocument> ReadAsync(CancellationToken ct)
     {
-        try
-        {
-            var response = await Client().DownloadContentAsync(ct);
-            return response.Value.Content.ToObjectFromJson<SaleCatalogDocument>(JsonOptions) ?? new SaleCatalogDocument();
-        }
-        catch (RequestFailedException exception) when (exception.Status == 404) { return new SaleCatalogDocument(); }
+        if (!File.Exists(CatalogPath)) return new SaleCatalogDocument();
+        await using var stream = File.OpenRead(CatalogPath);
+        return await JsonSerializer.DeserializeAsync<SaleCatalogDocument>(stream, JsonOptions, ct) ?? new SaleCatalogDocument();
     }
 
     public async Task WriteAsync(SaleCatalogDocument catalog, CancellationToken ct)
     {
-        var json = JsonSerializer.Serialize(catalog, JsonOptions);
-        await Client().UploadAsync(BinaryData.FromString(json), new BlobUploadOptions { HttpHeaders = new BlobHttpHeaders { ContentType = "application/json", CacheControl = "no-store" } }, ct);
+        var temporaryPath = CatalogPath + ".tmp";
+        await using (var stream = File.Create(temporaryPath))
+            await JsonSerializer.SerializeAsync(stream, catalog, JsonOptions, ct);
+        File.Move(temporaryPath, CatalogPath, true);
     }
 }
 

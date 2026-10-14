@@ -169,7 +169,7 @@ app.MapPut("/api/SaleCatalog", async (
 app.MapPost("/api/SaleCatalog/photo", async (
     HttpRequest request,
     IFormFile file,
-    IPhotoStorageService photos,
+    SaleCatalogStorageService storage,
     HerdDataAdminAccess admin,
     CancellationToken ct) =>
 {
@@ -177,7 +177,8 @@ app.MapPost("/api/SaleCatalog/photo", async (
     if (file is null || file.Length == 0) return Results.BadRequest("Choose a photo to upload.");
     try
     {
-        var url = await photos.UploadImageAsync(file, "sale", ct);
+        var fileName = await storage.WritePhotoAsync(file, ct);
+        var url = $"{request.Scheme}://{request.Host}/api/SaleCatalog/photo/{Uri.EscapeDataString(fileName)}";
         return Results.Ok(new { url });
     }
     catch (InvalidDataException exception)
@@ -189,6 +190,13 @@ app.MapPost("/api/SaleCatalog/photo", async (
         return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 }).DisableAntiforgery();
+app.MapGet("/api/SaleCatalog/photo/{fileName}", (string fileName, SaleCatalogStorageService storage) =>
+{
+    var photo = storage.FindPhoto(fileName);
+    return photo is null
+        ? Results.NotFound()
+        : Results.File(photo.Value.Path, photo.Value.ContentType, enableRangeProcessing: true);
+});
 app.MapGet(
     "/health/live",
     () => Results.Ok(new { status = "healthy" }));

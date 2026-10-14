@@ -106,7 +106,11 @@ app.UseStaticFiles();
 
 app.Use(async (httpContext, next) =>
 {
+    var isFileBackedWebsiteCatalog = httpContext.Request.Path.StartsWithSegments("/api/SaleCatalog");
+    var isAccessKeyCheck = httpContext.Request.Path.StartsWithSegments("/api/HerdData/unlock");
     if (httpContext.Request.Path.StartsWithSegments("/api")
+        && !isFileBackedWebsiteCatalog
+        && !isAccessKeyCheck
         && !HttpMethods.IsOptions(httpContext.Request.Method)
         && !httpContext.RequestServices
             .GetRequiredService<DatabaseInitializationState>()

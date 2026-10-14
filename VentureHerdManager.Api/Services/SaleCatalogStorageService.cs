@@ -10,12 +10,24 @@ public sealed class SaleCatalogStorageService(IWebHostEnvironment environment)
     {
         get
         {
-            var persistentHome = Environment.GetEnvironmentVariable("HOME");
-            var root = environment.IsProduction() && !string.IsNullOrWhiteSpace(persistentHome)
-                ? Path.Combine(persistentHome, "data", "venture-holsteins")
-                : Path.Combine(environment.ContentRootPath, "App_Data");
-            Directory.CreateDirectory(root);
-            return Path.Combine(root, "sale-catalog.json");
+            var candidates = environment.IsProduction()
+                ? new[]
+                {
+                    Path.Combine(Environment.GetEnvironmentVariable("HOME") ?? "/home", "data", "venture-holsteins"),
+                    Path.Combine(Path.GetTempPath(), "venture-holsteins")
+                }
+                : new[] { Path.Combine(environment.ContentRootPath, "App_Data") };
+            foreach (var root in candidates)
+            {
+                try
+                {
+                    Directory.CreateDirectory(root);
+                    return Path.Combine(root, "sale-catalog.json");
+                }
+                catch (UnauthorizedAccessException) { }
+                catch (IOException) { }
+            }
+            throw new InvalidOperationException("Sale catalog storage is unavailable.");
         }
     }
 

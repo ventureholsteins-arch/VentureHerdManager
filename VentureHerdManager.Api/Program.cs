@@ -64,6 +64,7 @@ builder.Services.AddScoped<IPhotoStorageService, PhotoStorageService>();
 builder.Services.AddScoped<PcdartImportService>();
 builder.Services.AddScoped<HerdDataImportService>();
 builder.Services.AddSingleton<HerdDataAdminAccess>();
+builder.Services.AddSingleton<SaleCatalogStorageService>();
 builder.Services.AddScoped<PaperRecordImportService>();
 builder.Services.AddScoped<NaabSireCatalogService>();
 builder.Services.AddSingleton<DatabaseInitializationState>();
@@ -87,7 +88,9 @@ builder.Services.AddCors(options =>
                 "https://ashy-sand-0956e200f.azurestaticapps.net",
                 "https://ashy-sand-0956e200f.7.azurestaticapps.net",
                 "https://delightful-sky-0c402ac0f.azurestaticapps.net",
-                "https://delightful-sky-0c402ac0f.7.azurestaticapps.net"
+                "https://delightful-sky-0c402ac0f.7.azurestaticapps.net",
+                "https://ventureagmarketing.com",
+                "https://www.ventureagmarketing.com"
             )
             .AllowAnyHeader()
             .AllowAnyMethod();

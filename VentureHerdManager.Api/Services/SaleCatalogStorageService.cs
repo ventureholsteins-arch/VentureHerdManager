@@ -57,6 +57,9 @@ public sealed class SaleCatalogDocument
     public string? Notice { get; set; }
     public string? Terms { get; set; }
     public string? ContactUrl { get; set; }
+    public JsonElement? HomePage { get; set; }
+    public JsonElement? GeneticsPage { get; set; }
+    public JsonElement[] GeneticsItems { get; set; } = [];
     public JsonElement[] Lots { get; set; } = [];
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -59,6 +59,21 @@ public class AnalyticsController : ControllerBase
             .ToListAsync(cancellationToken))
             .Select(x => new MonthCount(x.Year, x.Month, x.Count)).ToList();
 
+        var resolvedPregnancyChecks = (await _context.BreedingEvents
+            .AsNoTracking()
+            .Where(e => e.BreedingDate >= cutoffStart
+                && (e.PregnancyStatus == PregnancyStatus.Pregnant
+                    || e.PregnancyStatus == PregnancyStatus.Open))
+            .GroupBy(e => new { e.BreedingDate.Year, e.BreedingDate.Month })
+            .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+            .ToListAsync(cancellationToken))
+            .Select(x => new MonthCount(x.Year, x.Month, x.Count)).ToList();
+        var awaitingPregnancyChecksWindow = await _context.BreedingEvents
+            .AsNoTracking()
+            .CountAsync(e => e.BreedingDate >= cutoffStart
+                && (e.PregnancyStatus == PregnancyStatus.Unconfirmed
+                    || e.PregnancyStatus == PregnancyStatus.Recheck), cancellationToken);
+
         var soldAnimals = (await _context.Animals
             .AsNoTracking()
             .Where(a => a.AnimalStatus == AnimalStatus.Sold &&
@@ -98,12 +113,14 @@ public class AnalyticsController : ControllerBase
             .ToList();
 
         var totalAnimals = await _context.Animals
-            .CountAsync(a => a.AnimalStatus == AnimalStatus.Active, cancellationToken);
+            .CountAsync(a => a.AnimalStatus == AnimalStatus.Active
+                && a.HerdLocation == HerdLocation.Home, cancellationToken);
 
         var totalBreedingsWindow = breedings.Sum(b => b.Count);
+        var totalResolvedWindow = resolvedPregnancyChecks.Sum(check => check.Count);
         var totalConfirmedWindow = confirmedPregnancies.Sum(c => c.Count);
-        var conceptionRate = totalBreedingsWindow > 0
-            ? Math.Round((double)totalConfirmedWindow / totalBreedingsWindow * 100, 1)
+        var conceptionRate = totalResolvedWindow > 0
+            ? Math.Round((double)totalConfirmedWindow / totalResolvedWindow * 100, 1)
             : 0.0;
 
         return Ok(new
@@ -113,6 +130,8 @@ public class AnalyticsController : ControllerBase
             {
                 activeAnimals = totalAnimals,
                 conceptionRatePct = conceptionRate,
+                resolvedPregnancyChecksLast12Mo = totalResolvedWindow,
+                awaitingPregnancyChecksLast12Mo = awaitingPregnancyChecksWindow,
                 calvingsLast12Mo = calvings.Sum(c => c.Count),
                 heatsLast12Mo = heats.Sum(h => h.Count),
                 breedingsLast12Mo = breedings.Sum(b => b.Count)

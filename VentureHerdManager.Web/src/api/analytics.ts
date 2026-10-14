@@ -15,6 +15,8 @@ export interface HerdActivityResponse {
   totals: {
     activeAnimals: number
     conceptionRatePct: number
+    resolvedPregnancyChecksLast12Mo: number
+    awaitingPregnancyChecksLast12Mo: number
     calvingsLast12Mo: number
     heatsLast12Mo: number
     breedingsLast12Mo: number

@@ -112,14 +112,18 @@
               </div>
 
               <div class="form-group">
-                <label for="baa">BAA</label>
+                <label for="baa">Breed Age Average (BAA)</label>
                 <input 
                   id="baa"
                   v-model.number="formData.baa" 
                   type="number" 
+                  min="0"
                   step="0.1"
-                  placeholder="Optional - BAA score"
+                  placeholder="e.g., 112.5"
                 />
+                <small style="display: block; margin-top: 4px; color: #666;">
+                  Saved with this animal's latest classification. Animals without a BAA are left out of the herd BAA.
+                </small>
               </div>
 
               <div class="form-group">
@@ -173,7 +177,12 @@
 import { ref } from 'vue'
 import type { Animal } from '../models/Animal'
 import { updateAnimal } from '../api/animals'
-import { addClassification } from '../api/classification'
+import {
+  addClassification,
+  getLatestClassification,
+  updateClassificationBaa,
+  type CurrentClassificationDto
+} from '../api/classification'
 import { animalDisplayName } from '../utils/animalDisplay'
 
 const props = defineProps<{
@@ -189,6 +198,7 @@ const isOpen = ref(false)
 const isSaving = ref(false)
 const initialScore = ref<number | null>(null)
 const initialBaa = ref<number | null>(null)
+const latestClassification = ref<CurrentClassificationDto | null>(null)
 const initialDamName = ref('')
 const formData = ref({
   barnName: '',
@@ -227,13 +237,25 @@ const populateFormData = (sourceAnimal: Animal) => {
   }
 }
 
-const openModal = () => {
+const openModal = async () => {
   if (!props.animal) {
     return
   }
 
   populateFormData(props.animal)
   isOpen.value = true
+
+  try {
+    latestClassification.value = await getLatestClassification(props.animal.animalId)
+    if (latestClassification.value) {
+      initialScore.value = latestClassification.value.score ?? null
+      initialBaa.value = latestClassification.value.baa ?? null
+      formData.value.scoreValue = initialScore.value
+      formData.value.baa = initialBaa.value
+    }
+  } catch (error) {
+    console.warn('Could not refresh the latest classification before editing:', error)
+  }
 }
 
 const closeModal = () => {
@@ -274,18 +296,34 @@ const handleSubmit = async () => {
       || formData.value.baa !== initialBaa.value
       || formData.value.classificationNotes.trim().length > 0
 
-    if (
-      classificationChanged
-      && formData.value.scoreValue !== null
-      && formData.value.scoreValue !== undefined
-    ) {
-      await addClassification({
+    if (classificationChanged) {
+      if (formData.value.scoreValue === null || formData.value.scoreValue === undefined) {
+        throw new Error('Enter a classification score before adding a BAA.')
+      }
+
+      const classificationPayload = {
         animalId: props.animal.animalId,
         score: formData.value.scoreValue,
         baa: formData.value.baa ?? undefined,
-        classificationDate: new Date().toISOString(),
+        classificationDate: latestClassification.value?.classificationDate
+          ?? new Date().toISOString(),
         notes: formData.value.classificationNotes || undefined
-      })
+      }
+
+      const scoreUnchanged = formData.value.scoreValue === initialScore.value
+      const onlyBaaChanged = scoreUnchanged
+        && formData.value.classificationNotes.trim().length === 0
+      if (latestClassification.value && onlyBaaChanged) {
+        await updateClassificationBaa(
+          latestClassification.value.classificationRecordId,
+          formData.value.baa
+        )
+      } else {
+        await addClassification({
+          ...classificationPayload,
+          classificationDate: new Date().toISOString()
+        })
+      }
     }
 
     emit('saved', updatedAnimal)

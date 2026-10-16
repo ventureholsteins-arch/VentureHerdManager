@@ -73,6 +73,28 @@ public class ClassificationRecordsController : ControllerBase
     }
 
     /// <summary>
+    /// Update only the BAA on an existing classification without changing its
+    /// score, date, notes, or place in the animal's classification history.
+    /// </summary>
+    [HttpPut("{recordId:int}/baa")]
+    public ActionResult<ClassificationRecord> UpdateBaa(
+        int recordId,
+        [FromBody] UpdateClassificationBaaRequest request)
+    {
+        if (request.Baa < 0)
+            return BadRequest("BAA must be non-negative");
+
+        try
+        {
+            return Ok(_classificationService.UpdateBaa(recordId, request.Baa));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    /// <summary>
     /// Get the latest classifications for multiple animals
     /// </summary>
     [HttpPost("latest-for-animals")]

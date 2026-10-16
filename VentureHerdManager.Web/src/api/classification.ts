@@ -1,6 +1,8 @@
 const API_BASE = import.meta.env.VITE_API_URL
 
 export interface CurrentClassificationDto {
+  classificationRecordId: number
+  animalId: number
   score?: number
   baa?: number
   label?: string
@@ -52,6 +54,23 @@ export async function addClassification(data: AddClassificationRequest): Promise
 
   if (!response.ok) {
     throw new Error('Failed to save classification')
+  }
+}
+
+export async function updateClassificationBaa(
+  recordId: number,
+  baa: number | null
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/ClassificationRecords/${recordId}/baa`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ baa })
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to update BAA')
   }
 }
 

@@ -2,6 +2,8 @@ namespace VentureHerdManager.Api.DTOs;
 
 public class CurrentClassificationDto
 {
+    public int ClassificationRecordId { get; set; }
+
     public int AnimalId { get; set; }
 
     public decimal? Score { get; set; }

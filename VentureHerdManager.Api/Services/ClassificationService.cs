@@ -44,6 +44,7 @@ public class ClassificationService
 
         return new CurrentClassificationDto
         {
+            ClassificationRecordId = latest.ClassificationRecordId,
             AnimalId = animalId,
             Score = latest.Score,
             Baa = latest.Baa,
@@ -102,6 +103,18 @@ public class ClassificationService
         return existing;
     }
 
+    public ClassificationRecord UpdateBaa(int recordId, decimal? baa)
+    {
+        var existing = _context.ClassificationRecords.Find(recordId);
+        if (existing == null)
+            throw new KeyNotFoundException($"Classification record {recordId} not found");
+
+        existing.Baa = baa;
+        existing.UpdatedAt = DateTime.UtcNow;
+        _context.SaveChanges();
+        return existing;
+    }
+
     /// <summary>
     /// Get latest classifications for multiple milking cows
     /// Returns exactly ONE record per animal, ordered by most recent
@@ -128,6 +141,7 @@ public class ClassificationService
 
         return latest.Select(cr => new CurrentClassificationDto
         {
+            ClassificationRecordId = cr.ClassificationRecordId,
             AnimalId = cr.AnimalId,
             Score = cr.Score,
             Baa = cr.Baa,
@@ -158,6 +172,7 @@ public class ClassificationService
 
         return latest.Select(cr => new CurrentClassificationDto
         {
+            ClassificationRecordId = cr.ClassificationRecordId,
             AnimalId = cr.AnimalId,
             Score = cr.Score,
             Baa = cr.Baa,

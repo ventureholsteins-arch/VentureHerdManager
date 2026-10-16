@@ -583,7 +583,9 @@ public class DashboardService
         }
 
         var sorted = values.OrderBy(value => value).ToList();
-        var excludeCount = (int)Math.Ceiling(sorted.Count * 0.10);
+        // Holstein Association USA rounds the lowest 10% down to the
+        // nearest whole cow (for example, 56 BAAs excludes 5 cows).
+        var excludeCount = (int)Math.Floor(sorted.Count * 0.10);
 
         if (excludeCount >= sorted.Count)
         {

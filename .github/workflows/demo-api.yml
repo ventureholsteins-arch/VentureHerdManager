@@ -59,7 +59,7 @@ jobs:
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_F9A546A8675146939A9EC31824FDA1B2 }}
 
       - name: Configure private herd data access
-        uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2
+        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         env:
           HERD_DATA_ADMIN_KEY: ${{ secrets.HERD_DATA_ADMIN_KEY }}
         with:
@@ -70,7 +70,7 @@ jobs:
             --settings HerdDataImport__AdminKey="$HERD_DATA_ADMIN_KEY" WEBSITE_RUN_FROM_PACKAGE="1"
 
       - name: Configure API startup
-        uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2
+        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           inlineScript: >
             az webapp config set
@@ -87,6 +87,6 @@ jobs:
           package: .
 
       - name: Restart API on the new package
-        uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2
+        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           inlineScript: az webapp restart --resource-group VentureHerdMananger --name Demo-API-123

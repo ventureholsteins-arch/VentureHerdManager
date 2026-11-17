@@ -85,9 +85,15 @@ function currentMilkingCsv(lines: string[]) {
     const production = line.match(/^\d{2}-\d{2}\s+([A-Z0-9-]+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s+(\d{2}\/\d{2}\/\d{2,4})(?:\s+(.*))?$/i)
     if (production) {
       const tail = (production[5] ?? '').split(/\s+/).filter(Boolean)
-      const fat = /^\d+\.\d+$/.test(tail[0] ?? '') ? tail[0] : ''
-      const protein = /^\d+\.\d+$/.test(tail[1] ?? '') ? tail[1] : ''
-      rows.push([production[1], production[1], production[3], production[2], normalizePdfDate(production[4]), fat, protein, '', '', 'PC-DART 012 Cows PDF', line])
+      const fatCandidate = tail[0] ?? ''
+      const proteinCandidate = tail[1] ?? ''
+      const fat = /^\d+\.\d+$/.test(fatCandidate) ? fatCandidate : ''
+      const protein = /^\d+\.\d+$/.test(proteinCandidate) ? proteinCandidate : ''
+      const barnName = production[1] ?? ''
+      const milk = production[3] ?? ''
+      const dim = production[2] ?? ''
+      const calvingDate = production[4] ?? ''
+      rows.push([barnName, barnName, milk, dim, normalizePdfDate(calvingDate), fat, protein, '', '', 'PC-DART 012 Cows PDF', line])
       continue
     }
 

@@ -57,13 +57,10 @@ export interface DemoStatusResponse {
 }
 
 export async function resetDemo(): Promise<DemoSeedResult> {
-  const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
-
   const response = await fetchDemo('/demo/reset', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      ...(demoKey ? { 'X-Demo-Key': demoKey } : {})
+      'Content-Type': 'application/json'
     }
   })
 
@@ -76,13 +73,10 @@ export async function resetDemo(): Promise<DemoSeedResult> {
 }
 
 export async function ensureDemo(): Promise<DemoSeedResult> {
-  const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
-
   const response = await fetchDemo('/demo/ensure', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      ...(demoKey ? { 'X-Demo-Key': demoKey } : {})
+      'Content-Type': 'application/json'
     }
   })
 
@@ -95,13 +89,7 @@ export async function ensureDemo(): Promise<DemoSeedResult> {
 }
 
 export async function getDemoStatus(): Promise<DemoStatusResponse> {
-  const demoKey = import.meta.env.VITE_DEMO_KEY as string | undefined
-
-  const response = await fetchDemo('/demo/status', {
-    headers: {
-      ...(demoKey ? { 'X-Demo-Key': demoKey } : {})
-    }
-  })
+  const response = await fetchDemo('/demo/status', {})
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({ message: 'Unknown error' }))
